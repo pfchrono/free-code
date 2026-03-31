@@ -198,6 +198,17 @@ src/
 
 ---
 
+## IPFS Mirror
+
+A full copy of this repository is permanently pinned on IPFS via Filecoin:
+
+- **CID:** `bafybeiegvef3dt24n2znnnmzcud2vxat7y7rl5ikz7y7yoglxappim54bm`
+- **Gateway:** https://w3s.link/ipfs/bafybeiegvef3dt24n2znnnmzcud2vxat7y7rl5ikz7y7yoglxappim54bm
+
+If this repo gets taken down, the code lives on.
+
+---
+
 ## License
 
 The original Claude Code source is the property of Anthropic. This fork exists because the source was publicly exposed through their npm distribution. Use at your own discretion.
