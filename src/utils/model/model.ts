@@ -12,7 +12,9 @@ import {
   isMaxSubscriber,
   isProSubscriber,
   isTeamPremiumSubscriber,
+  isCodexSubscriber,
 } from '../auth.js'
+import { getAntModelOverrideConfig, resolveAntModel } from './antModels.js'
 import {
   has1mContext,
   is1mContextDisabled,
@@ -176,6 +178,10 @@ export function getRuntimeMainLoopModel(params: {
  * @returns The default model setting to use
  */
 export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
+  if (isCodexSubscriber()) {
+    return 'gpt-5.2-codex'
+  }
+
   // Ants default to defaultModel from flag config, or Opus 1M if not configured
   if (process.env.USER_TYPE === 'ant') {
     return (
@@ -286,6 +292,9 @@ export function getCanonicalName(fullModelName: ModelName): ModelShortName {
 export function getClaudeAiUserDefaultModelDescription(
   fastMode = false,
 ): string {
+  if (isCodexSubscriber()) {
+    return 'Codex 5.2 · Best for everyday coding tasks'
+  }
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
     if (isOpus1mMergeEnabled()) {
       return `Opus 4.6 with 1M context · Most capable for complex work${fastMode ? getOpus46PricingSuffix(true) : ''}`
@@ -347,6 +356,16 @@ export function renderModelSetting(setting: ModelName | ModelAlias): string {
  * if the model is not recognized as a public model.
  */
 export function getPublicModelDisplayName(model: ModelName): string | null {
+  if (model.includes('gpt-') || model.includes('codex')) {
+    if (model === 'gpt-5.2-codex') return 'Codex 5.2'
+    if (model === 'gpt-5.1-codex') return 'Codex 5.1'
+    if (model === 'gpt-5.1-codex-mini') return 'Codex 5.1 Mini'
+    if (model === 'gpt-5.1-codex-max') return 'Codex 5.1 Max'
+    if (model === 'gpt-5.4') return 'GPT 5.4'
+    if (model === 'gpt-5.2') return 'GPT 5.2'
+    return model
+  }
+
   switch (model) {
     case getModelStrings().opus46:
       return 'Opus 4.6'
@@ -425,6 +444,9 @@ export function renderModelName(model: ModelName): string {
 export function getPublicModelName(model: ModelName): string {
   const publicName = getPublicModelDisplayName(model)
   if (publicName) {
+    if (model.includes('gpt-') || model.includes('codex')) {
+      return publicName
+    }
     return `Claude ${publicName}`
   }
   return `Claude (${model})`
