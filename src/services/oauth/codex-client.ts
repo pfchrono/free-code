@@ -61,6 +61,11 @@ type LocalServer = {
 
 // ── JWT helpers ───────────────────────────────────────────────────────────────
 
+/**
+ * Decodes the payload from a JWT token.
+ * @param token - The JWT token to decode
+ * @returns The decoded payload object, or null if decoding fails
+ */
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split('.')

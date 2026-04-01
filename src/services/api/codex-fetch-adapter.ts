@@ -29,6 +29,11 @@ export const CODEX_MODELS = [
 
 export const DEFAULT_CODEX_MODEL = 'gpt-5.2-codex'
 
+/**
+ * Maps Claude model names to corresponding Codex model names.
+ * @param claudeModel - The Claude model name to map
+ * @returns The corresponding Codex model ID
+ */
 export function mapClaudeModelToCodex(claudeModel: string | null): string {
   if (!claudeModel) return DEFAULT_CODEX_MODEL
   if (isCodexModel(claudeModel)) return claudeModel
@@ -39,6 +44,11 @@ export function mapClaudeModelToCodex(claudeModel: string | null): string {
   return DEFAULT_CODEX_MODEL
 }
 
+/**
+ * Checks if a given model string is a valid Codex model.
+ * @param model - The model string to check
+ * @returns True if the model is a Codex model, false otherwise
+ */
 export function isCodexModel(model: string): boolean {
   return CODEX_MODELS.some(m => m.id === model)
 }
@@ -47,6 +57,12 @@ export function isCodexModel(model: string): boolean {
 
 const JWT_CLAIM_PATH = 'https://api.openai.com/auth'
 
+/**
+ * Extracts the account ID from a Codex JWT token.
+ * @param token - The JWT token to extract the account ID from
+ * @returns The account ID
+ * @throws Error if the token is invalid or account ID cannot be extracted
+ */
 function extractAccountId(token: string): string {
   try {
     const parts = token.split('.')
@@ -86,6 +102,11 @@ interface AnthropicTool {
 
 // ── Tool translation: Anthropic → Codex ─────────────────────────────
 
+/**
+ * Translates Anthropic tool definitions to Codex format.
+ * @param anthropicTools - Array of Anthropic tool definitions
+ * @returns Array of Codex-compatible tool objects
+ */
 function translateTools(anthropicTools: AnthropicTool[]): Array<Record<string, unknown>> {
   return anthropicTools.map(tool => ({
     type: 'function',
@@ -98,6 +119,12 @@ function translateTools(anthropicTools: AnthropicTool[]): Array<Record<string, u
 
 // ── Message translation: Anthropic → Codex input ────────────────────
 
+/**
+ * Translates Anthropic message format to Codex input format.
+ * Handles text content, tool results, and image attachments.
+ * @param anthropicMessages - Array of messages in Anthropic format
+ * @returns Array of Codex-compatible input objects
+ */
 function translateMessages(
   anthropicMessages: AnthropicMessage[],
 ): Array<Record<string, unknown>> {
@@ -187,6 +214,11 @@ function translateMessages(
 
 // ── Full request translation ────────────────────────────────────────
 
+/**
+ * Translates a complete Anthropic API request body to Codex format.
+ * @param anthropicBody - The Anthropic request body to translate
+ * @returns Object containing the translated Codex body and model
+ */
 function translateToCodexBody(anthropicBody: Record<string, unknown>): {
   codexBody: Record<string, unknown>
   codexModel: string
@@ -238,10 +270,23 @@ function translateToCodexBody(anthropicBody: Record<string, unknown>): {
 
 // ── Response translation: Codex SSE → Anthropic SSE ─────────────────
 
+/**
+ * Formats data as Server-Sent Events (SSE) format.
+ * @param event - The event type
+ * @param data - The data payload
+ * @returns Formatted SSE string
+ */
 function formatSSE(event: string, data: string): string {
   return `event: ${event}\ndata: ${data}\n\n`
 }
 
+/**
+ * Translates Codex streaming response to Anthropic format.
+ * Converts Codex SSE events into Anthropic-compatible streaming events.
+ * @param codexResponse - The streaming response from Codex API
+ * @param codexModel - The Codex model used for the request
+ * @returns Transformed Response object with Anthropic-format stream
+ */
 async function translateCodexStreamToAnthropic(
   codexResponse: Response,
   codexModel: string,
@@ -693,6 +738,11 @@ async function translateCodexStreamToAnthropic(
 
 const CODEX_BASE_URL = 'https://chatgpt.com/backend-api/codex/responses'
 
+/**
+ * Creates a fetch function that intercepts Anthropic API calls and routes them to Codex.
+ * @param accessToken - The Codex access token for authentication
+ * @returns A fetch function that translates Anthropic requests to Codex format
+ */
 export function createCodexFetch(
   accessToken: string,
 ): (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
