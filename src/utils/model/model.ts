@@ -9,6 +9,7 @@ import { getMainLoopModelOverride } from '../../bootstrap/state.js'
 import {
   getSubscriptionType,
   isClaudeAISubscriber,
+  isCodexSubscriber,
   isMaxSubscriber,
   isProSubscriber,
   isTeamPremiumSubscriber,
@@ -190,6 +191,11 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
     )
   }
 
+  // Codex users get GPT-5.3 Codex as default
+  if (isCodexSubscriber()) {
+    return getModelStrings().gpt53codex
+  }
+
   // Max users get Opus as default
   if (isMaxSubscriber()) {
     return getDefaultOpusModel() + (isOpus1mMergeEnabled() ? '[1m]' : '')
@@ -267,6 +273,16 @@ export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
   if (name.includes('claude-3-haiku')) {
     return 'claude-3-haiku'
   }
+  // OpenAI GPT models
+  if (name.includes('gpt-5.4-mini')) {
+    return 'gpt-5.4-mini'
+  }
+  if (name.includes('gpt-5.4')) {
+    return 'gpt-5.4'
+  }
+  if (name.includes('gpt-5.3-codex')) {
+    return 'gpt-5.3-codex'
+  }
   const match = name.match(/(claude-(\d+-\d+-)?\w+)/)
   if (match && match[1]) {
     return match[1]
@@ -293,7 +309,7 @@ export function getClaudeAiUserDefaultModelDescription(
   fastMode = false,
 ): string {
   if (isCodexSubscriber()) {
-    return 'Codex 5.2 · Best for everyday coding tasks'
+    return 'GPT-5.3 Codex · Optimized for code generation and understanding'
   }
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
     if (isOpus1mMergeEnabled()) {
@@ -397,6 +413,12 @@ export function getPublicModelDisplayName(model: ModelName): string | null {
       return 'Haiku 4.5'
     case getModelStrings().haiku35:
       return 'Haiku 3.5'
+    case getModelStrings().gpt54:
+      return 'GPT-5.4'
+    case getModelStrings().gpt53codex:
+      return 'GPT-5.3 Codex'
+    case getModelStrings().gpt54mini:
+      return 'GPT-5.4 Mini'
     default:
       return null
   }
@@ -630,6 +652,16 @@ export function getMarketingNameForModel(modelId: string): string | undefined {
   }
   if (canonical.includes('claude-3-5-haiku')) {
     return 'Claude 3.5 Haiku'
+  }
+  // OpenAI Codex models
+  if (canonical.includes('gpt-5.4-mini')) {
+    return 'GPT-5.4 Mini'
+  }
+  if (canonical.includes('gpt-5.4')) {
+    return 'GPT-5.4'
+  }
+  if (canonical.includes('gpt-5.3-codex')) {
+    return 'GPT-5.3 Codex'
   }
 
   return undefined

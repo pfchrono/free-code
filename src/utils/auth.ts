@@ -1626,6 +1626,17 @@ export function isClaudeAISubscriber(): boolean {
   return shouldUseClaudeAIAuth(getClaudeAIOAuthTokens()?.scopes)
 }
 
+export function isCodexSubscriber(): boolean {
+  // Check if we're using OpenAI API
+  if (getAPIProvider() !== 'openai') {
+    return false
+  }
+
+  // For now, return true if OpenAI provider is configured
+  // This can be extended to check for specific token scopes when available
+  return true
+}
+
 /**
  * Check if the user is authenticated via OpenAI Codex OAuth.
  * Returns true when a valid Codex access token is present in the config.
