@@ -28,10 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/paoloanzn/free-code/main/install.sh
 
 Checks your system, installs Bun if needed, clones the repo, builds with all experimental features enabled, and symlinks `free-code` on your PATH.
 
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-free-code
-```
+Then run `free-code` and use the `/login` command to authenticate with your preferred model provider.
 
 ---
 
