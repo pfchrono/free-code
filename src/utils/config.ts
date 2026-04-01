@@ -587,6 +587,14 @@ export type GlobalConfig = {
   // CURRENT_MIGRATION_VERSION, runMigrations() skips all sync migrations
   // (avoiding 11× saveGlobalConfig lock+re-read on every startup).
   migrationVersion?: number
+
+  // OpenAI OAuth tokens for Codex API access
+  openaiOauthTokens?: {
+    access_token: string
+    refresh_token?: string
+    scopes?: string[]
+    expires_at?: number
+  }
 }
 
 /**

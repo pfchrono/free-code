@@ -1627,14 +1627,19 @@ export function isClaudeAISubscriber(): boolean {
 }
 
 export function isCodexSubscriber(): boolean {
-  // Check if we're using OpenAI API
-  if (getAPIProvider() !== 'openai') {
-    return false
+  // Check if we're using OpenAI API via environment variable
+  if (getAPIProvider() === 'openai') {
+    return true
   }
 
-  // For now, return true if OpenAI provider is configured
-  // This can be extended to check for specific token scopes when available
-  return true
+  // Check if we have OpenAI OAuth tokens
+  const config = getGlobalConfig()
+  const openaiTokens = config?.openaiOauthTokens
+  if (openaiTokens?.access_token && openaiTokens?.scopes?.includes('codex')) {
+    return true
+  }
+
+  return false
 }
 
 /**
