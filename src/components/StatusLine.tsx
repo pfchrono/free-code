@@ -12,6 +12,7 @@ import { useMainLoopModel } from '../hooks/useMainLoopModel.js';
 import { type ReadonlySettings, useSettings } from '../hooks/useSettings.js';
 import { Ansi, Box, Text } from '../ink.js';
 import { getRawUtilization } from '../services/claudeAiLimits.js';
+import { getCodexUsage, useCodexUsage } from '../services/api/codexUsage.js';
 import type { Message } from '../types/message.js';
 import type { StatusLineCommandInput } from '../types/statusLine.js';
 import type { VimMode } from '../types/textInputTypes.js';
@@ -22,6 +23,7 @@ import { logForDebugging } from '../utils/debug.js';
 import { isFullscreenEnvEnabled } from '../utils/fullscreen.js';
 import { createBaseHookInput, executeStatusLineCommand } from '../utils/hooks.js';
 import { getLastAssistantMessage } from '../utils/messages.js';
+import { isClaudeAISubscriber, isCodexSubscriber, isCopilotSubscriber } from '../utils/auth.js';
 import { getRuntimeMainLoopModel, type ModelName, renderModelName } from '../utils/model/model.js';
 import { getCurrentSessionTitle } from '../utils/sessionStorage.js';
 import { doesMostRecentAssistantMessageExceed200k, getCurrentUsage } from '../utils/tokens.js';
@@ -42,13 +44,45 @@ function buildStatusLineCommandInput(permissionMode: PermissionMode, exceeds200k
     exceeds200kTokens
   });
   const outputStyleName = settings?.outputStyle || DEFAULT_OUTPUT_STYLE_NAME;
-  const currentUsage = getCurrentUsage(messages);
-  const contextWindowSize = getContextWindowForModel(runtimeModel, getSdkBetas());
+  const genericCurrentUsage = getCurrentUsage(messages);
+  const genericContextWindowSize = getContextWindowForModel(runtimeModel, getSdkBetas());
+  const codexUsage = getCodexUsage();
+  const hasThirdPartyUsage = (isCodexSubscriber() || isCopilotSubscriber()) && codexUsage.last_response_usage;
+  const currentUsage = hasThirdPartyUsage ? {
+    input_tokens: codexUsage.last_response_usage.input_tokens,
+    output_tokens: codexUsage.last_response_usage.output_tokens,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0
+  } : genericCurrentUsage;
+  const contextWindowSize = (isCodexSubscriber() || isCopilotSubscriber()) && codexUsage.context_window?.context_window_size ? codexUsage.context_window.context_window_size : genericContextWindowSize;
   const contextPercentages = calculateContextPercentages(currentUsage, contextWindowSize);
   const sessionId = getSessionId();
   const sessionName = getCurrentSessionTitle(sessionId);
+  const provider = isCodexSubscriber() ? {
+    id: 'openai',
+    display_name: 'ChatGPT/Codex',
+    usage_source: 'chatgpt-codex-stream'
+  } : isCopilotSubscriber() ? {
+    id: 'copilot',
+    display_name: 'GitHub Copilot',
+    usage_source: 'github-copilot-stream'
+  } : isClaudeAISubscriber() ? {
+    id: 'anthropic',
+    display_name: 'Claude',
+    usage_source: 'anthropic-subscription'
+  } : {
+    id: 'api',
+    display_name: 'API',
+    usage_source: 'api-session'
+  };
   const rawUtil = getRawUtilization();
-  const rateLimits: StatusLineCommandInput['rate_limits'] = {
+  const rateLimits: StatusLineCommandInput['rate_limits'] = (isCodexSubscriber() || isCopilotSubscriber()) ? codexUsage.rate_limits.reduce((acc, limit, index) => ({
+    ...acc,
+    [`${codexUsage.provider}_${index}`]: {
+      used_percentage: limit.used_percentage ?? 0,
+      resets_at: limit.resets_at
+    }
+  }), {}) : {
     ...(rawUtil.five_hour && {
       five_hour: {
         used_percentage: rawUtil.five_hour.utilization * 100,
@@ -71,6 +105,7 @@ function buildStatusLineCommandInput(permissionMode: PermissionMode, exceeds200k
       id: runtimeModel,
       display_name: renderModelName(runtimeModel)
     },
+    provider,
     workspace: {
       current_dir: getCwd(),
       project_dir: getOriginalCwd(),
@@ -96,7 +131,7 @@ function buildStatusLineCommandInput(permissionMode: PermissionMode, exceeds200k
       remaining_percentage: contextPercentages.remaining
     },
     exceeds_200k_tokens: exceeds200kTokens,
-    ...((rateLimits.five_hour || rateLimits.seven_day) && {
+    ...(Object.keys(rateLimits).length > 0 && {
       rate_limits: rateLimits
     }),
     ...(isVimModeEnabled() && {
@@ -144,6 +179,7 @@ function StatusLineInner({
   const permissionMode = useAppState(s => s.toolPermissionContext.mode);
   const additionalWorkingDirectories = useAppState(s => s.toolPermissionContext.additionalWorkingDirectories);
   const statusLineText = useAppState(s => s.statusLineText);
+  useCodexUsage();
   const setAppState = useSetAppState();
   const settings = useSettings();
   const {

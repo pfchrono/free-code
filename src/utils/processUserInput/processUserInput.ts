@@ -36,6 +36,7 @@ import {
   getAttachmentMessages,
 } from '../attachments.js'
 import type { PastedContent } from '../config.js'
+import { logForDebugging } from '../debug.js'
 import type { EffortValue } from '../effort.js'
 import { toArray } from '../generators.js'
 import {
@@ -58,8 +59,11 @@ import {
   hasUltraplanKeyword,
   replaceUltraplanKeyword,
 } from '../ultraplan/keyword.js'
+import { withTimeout } from '../sleep.js'
 import { processTextPrompt } from './processTextPrompt.js'
 export type ProcessUserInputContext = ToolUseContext & LocalJSXCommandContext
+
+const USER_PROMPT_SUBMIT_HOOKS_WAIT_MS = 5000
 
 export type ProcessUserInputBaseResult = {
   messages: (
@@ -178,13 +182,32 @@ export async function processUserInput({
   // Execute UserPromptSubmit hooks and handle blocking
   queryCheckpoint('query_hooks_start')
   const inputMessage = getContentText(input) || ''
+  let hookResults: Awaited<
+    ReturnType<typeof toArray<ReturnType<typeof executeUserPromptSubmitHooks>>>
+  >
+  try {
+    hookResults = await withTimeout(
+      toArray(
+        executeUserPromptSubmitHooks(
+          inputMessage,
+          appState.toolPermissionContext.mode,
+          context,
+          context.requestPrompt,
+        ),
+      ),
+      USER_PROMPT_SUBMIT_HOOKS_WAIT_MS,
+      'UserPromptSubmit hooks timed out',
+    )
+  } catch (error) {
+    logForDebugging(
+      `UserPromptSubmit hooks skipped before query: ${error instanceof Error ? error.message : String(error)}`,
+      { level: 'warn' },
+    )
+    queryCheckpoint('query_hooks_end')
+    return result
+  }
 
-  for await (const hookResult of executeUserPromptSubmitHooks(
-    inputMessage,
-    appState.toolPermissionContext.mode,
-    context,
-    context.requestPrompt,
-  )) {
+  for (const hookResult of hookResults) {
     // We only care about the result
     if (hookResult.message?.type === 'progress') {
       continue

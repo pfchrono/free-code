@@ -239,6 +239,17 @@ export type GlobalConfig = {
     expiresAt: number
     accountId: string
   }
+  /**
+   * GitHub Copilot OAuth/session tokens, stored separately from Anthropic and Codex credentials.
+   * These are acquired through GitHub device flow and exchanged for a Copilot session token.
+   */
+  copilotOAuth?: {
+    githubToken: string
+    copilotToken: string
+    expiresAt: number
+    login: string
+    scopes?: string[]
+  }
   iterm2KeyBindingInstalled?: boolean // Legacy - keeping for backward compatibility
   editorMode?: EditorMode
   bypassPermissionsModeAccepted?: boolean
@@ -1350,6 +1361,10 @@ function saveConfigWithLock<A extends object>(
 
 // Flag to track if config reading is allowed
 let configReadingAllowed = false
+
+export function isConfigReadingAllowed(): boolean {
+  return configReadingAllowed
+}
 
 export function enableConfigs(): void {
   if (configReadingAllowed) {

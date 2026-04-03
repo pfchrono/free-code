@@ -14,6 +14,7 @@ import type {
 } from '../../types/message.js'
 import type { PermissionDecision } from '../../types/permissions.js'
 import { createAttachmentMessage } from '../../utils/attachments.js'
+import { createCombinedAbortSignal } from '../../utils/combinedAbortSignal.js'
 import { logForDebugging } from '../../utils/debug.js'
 import {
   executePostToolHooks,
@@ -32,6 +33,8 @@ import { formatError } from '../../utils/toolErrors.js'
 import { isMcpTool } from '../mcp/utils.js'
 import type { McpServerType, MessageUpdateLazy } from './toolExecution.js'
 
+const INTERACTIVE_POST_TOOL_HOOK_TIMEOUT_MS = 5_000
+
 export type PostToolUseHooksResult<Output> =
   | MessageUpdateLazy<AttachmentMessage | ProgressMessage<HookProgress>>
   | { updatedMCPToolOutput: Output }
@@ -48,6 +51,15 @@ export async function* runPostToolUseHooks<Input extends AnyObject, Output>(
   mcpServerBaseUrl: string | undefined,
 ): AsyncGenerator<PostToolUseHooksResult<Output>> {
   const postToolStartTime = Date.now()
+  const { signal: postToolSignal, cleanup: cleanupPostToolSignal } =
+    toolUseContext.options.isNonInteractiveSession
+      ? {
+          signal: toolUseContext.abortController.signal,
+          cleanup: () => {},
+        }
+      : createCombinedAbortSignal(toolUseContext.abortController.signal, {
+          timeoutMs: INTERACTIVE_POST_TOOL_HOOK_TIMEOUT_MS,
+        })
   try {
     const appState = toolUseContext.getAppState()
     const permissionMode = appState.toolPermissionContext.mode
@@ -60,7 +72,7 @@ export async function* runPostToolUseHooks<Input extends AnyObject, Output>(
       toolOutput,
       toolUseContext,
       permissionMode,
-      toolUseContext.abortController.signal,
+      postToolSignal,
     )) {
       try {
         // Check if we were aborted during hook execution
@@ -187,6 +199,8 @@ export async function* runPostToolUseHooks<Input extends AnyObject, Output>(
     }
   } catch (error) {
     logError(error)
+  } finally {
+    cleanupPostToolSignal()
   }
 }
 
@@ -205,6 +219,15 @@ export async function* runPostToolUseFailureHooks<Input extends AnyObject>(
   MessageUpdateLazy<AttachmentMessage | ProgressMessage<HookProgress>>
 > {
   const postToolStartTime = Date.now()
+  const { signal: postToolSignal, cleanup: cleanupPostToolSignal } =
+    toolUseContext.options.isNonInteractiveSession
+      ? {
+          signal: toolUseContext.abortController.signal,
+          cleanup: () => {},
+        }
+      : createCombinedAbortSignal(toolUseContext.abortController.signal, {
+          timeoutMs: INTERACTIVE_POST_TOOL_HOOK_TIMEOUT_MS,
+        })
   try {
     const appState = toolUseContext.getAppState()
     const permissionMode = appState.toolPermissionContext.mode
@@ -217,7 +240,7 @@ export async function* runPostToolUseFailureHooks<Input extends AnyObject>(
       toolUseContext,
       isInterrupt,
       permissionMode,
-      toolUseContext.abortController.signal,
+      postToolSignal,
     )) {
       try {
         // Check if we were aborted during hook execution
@@ -315,6 +338,8 @@ export async function* runPostToolUseFailureHooks<Input extends AnyObject>(
     }
   } catch (outerError) {
     logError(outerError)
+  } finally {
+    cleanupPostToolSignal()
   }
 }
 

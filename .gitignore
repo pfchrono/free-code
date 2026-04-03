@@ -3,3 +3,7 @@ dist/
 cli
 cli-dev
 openclaw/
+*.log
+*.exe
+*.bun-build
+

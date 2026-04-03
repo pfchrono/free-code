@@ -2,14 +2,16 @@ import { c as _c } from "react/compiler-runtime";
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { extraUsage as extraUsageCommand } from 'src/commands/extra-usage/index.js';
-import { formatCost } from 'src/cost-tracker.js';
-import { getSubscriptionType } from 'src/utils/auth.js';
+import { formatCost, getModelUsage, getTotalCacheCreationInputTokens, getTotalCacheReadInputTokens, getTotalInputTokens, getTotalOutputTokens, hasUnknownModelCost } from 'src/cost-tracker.js';
+import { getSubscriptionType, isCopilotSubscriber, isCodexSubscriber } from 'src/utils/auth.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { Box, Text } from '../../ink.js';
 import { useKeybinding } from '../../keybindings/useKeybinding.js';
 import { type ExtraUsage, fetchUtilization, type RateLimit, type Utilization } from '../../services/api/usage.js';
-import { formatResetText } from '../../utils/format.js';
+import { useCodexUsage } from '../../services/api/codexUsage.js';
+import { formatNumber, formatResetText } from '../../utils/format.js';
 import { logError } from '../../utils/log.js';
+import { renderModelName } from '../../utils/model/model.js';
 import { jsonStringify } from '../../utils/slowOperations.js';
 import { ConfigurableShortcutHint } from '../ConfigurableShortcutHint.js';
 import { Byline } from '../design-system/Byline.js';
@@ -171,6 +173,23 @@ function LimitBar(t0) {
     return t8;
   }
 }
+function CurrentSessionUsageSection(t0) {
+  const {
+    providerLabel,
+    showProviderNote
+  } = t0;
+  const codexUsage = useCodexUsage();
+  const modelUsage = Object.entries(getModelUsage()).filter(([, usage]) => (usage.inputTokens ?? 0) > 0 || (usage.outputTokens ?? 0) > 0 || (usage.cacheReadInputTokens ?? 0) > 0 || (usage.cacheCreationInputTokens ?? 0) > 0);
+  const totalInputTokens = getTotalInputTokens();
+  const totalOutputTokens = getTotalOutputTokens();
+  const totalCacheReadInputTokens = getTotalCacheReadInputTokens();
+  const totalCacheCreationInputTokens = getTotalCacheCreationInputTokens();
+  const hasSessionUsage = totalInputTokens > 0 || totalOutputTokens > 0 || totalCacheReadInputTokens > 0 || totalCacheCreationInputTokens > 0;
+  if (!hasSessionUsage && modelUsage.length === 0) {
+    return <Box flexDirection="column" gap={1}><Text bold={true}>Current session</Text><Text dimColor={true}>No usage has been recorded for this session yet.</Text>{showProviderNote && <Text dimColor={true}>Third-party account limits are not currently exposed here. This section reflects the active session only.</Text>}</Box>;
+  }
+  return <Box flexDirection="column" gap={1}><Text bold={true}>Current session</Text><Text>{providerLabel}</Text><Text>{formatNumber(totalInputTokens)} input, {formatNumber(totalOutputTokens)} output, {formatNumber(totalCacheReadInputTokens)} cache read, {formatNumber(totalCacheCreationInputTokens)} cache write</Text>{modelUsage.map(([model, usage]) => <Text key={model} dimColor={true}>{renderModelName(model)} · {formatNumber(usage.inputTokens ?? 0)} input, {formatNumber(usage.outputTokens ?? 0)} output, {formatNumber(usage.cacheReadInputTokens ?? 0)} cache read, {formatNumber(usage.cacheCreationInputTokens ?? 0)} cache write</Text>)}{codexUsage.context_window && <Text dimColor={true}>Context window · {formatNumber(codexUsage.context_window.used_tokens ?? 0)} used / {formatNumber(codexUsage.context_window.context_window_size ?? 0)} total{codexUsage.context_window.remaining_tokens !== null && codexUsage.context_window.remaining_tokens !== undefined ? ` · ${formatNumber(codexUsage.context_window.remaining_tokens)} remaining` : ''}</Text>}{codexUsage.rate_limits.map(limit => <Text key={limit.label} dimColor={true}>{limit.label} · {limit.used_percentage !== null && limit.used_percentage !== undefined ? `${Math.floor(limit.used_percentage)}% used` : 'usage unavailable'}{limit.limit !== undefined && limit.limit !== null ? ` of ${formatNumber(limit.limit)}` : ''}{limit.remaining !== undefined && limit.remaining !== null ? ` · ${formatNumber(limit.remaining)} remaining` : ''}</Text>)}{showProviderNote && codexUsage.rate_limits.length === 0 && <Text dimColor={true}>Third-party account limits are not currently exposed here. This section reflects the active session only.</Text>}{hasUnknownModelCost() && <Text dimColor={true}>Cost estimates may be inaccurate for one or more active models.</Text>}</Box>;
+}
 export function Usage(): React.ReactNode {
   const [utilization, setUtilization] = useState<Utilization | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -180,6 +199,7 @@ export function Usage(): React.ReactNode {
   } = useTerminalSize();
   const availableWidth = columns - 2; // 2 for screen padding
   const maxWidth = Math.min(availableWidth, 80);
+  const isCodexUsageView = isCodexSubscriber() || isCopilotSubscriber();
   const loadUtilization = React.useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -245,18 +265,20 @@ export function Usage(): React.ReactNode {
     limit: utilization.seven_day_sonnet
   }] : [])];
   return <Box flexDirection="column" gap={1} width="100%">
+      {isCodexUsageView && <CurrentSessionUsageSection providerLabel={isCopilotSubscriber() ? "GitHub Copilot" : "ChatGPT/Codex"} showProviderNote={true} />}
+
       {limits.some(({
       limit
-    }) => limit) || <Text dimColor>/usage is only available for subscription plans.</Text>}
+    }) => limit) || isCodexUsageView || <Text dimColor>/usage is only available for subscription plans.</Text>}
 
       {limits.map(({
       title,
       limit: limit_0
     }) => limit_0 && <LimitBar key={title} title={title} limit={limit_0} maxWidth={maxWidth} />)}
 
-      {utilization.extra_usage && <ExtraUsageSection extraUsage={utilization.extra_usage} maxWidth={maxWidth} />}
+      {!isCodexUsageView && utilization.extra_usage && <ExtraUsageSection extraUsage={utilization.extra_usage} maxWidth={maxWidth} />}
 
-      {isEligibleForOverageCreditGrant() && <OverageCreditUpsell maxWidth={maxWidth} />}
+      {!isCodexUsageView && isEligibleForOverageCreditGrant() && <OverageCreditUpsell maxWidth={maxWidth} />}
 
       <Text dimColor>
         <ConfigurableShortcutHint action="confirm:no" context="Settings" fallback="Esc" description="cancel" />

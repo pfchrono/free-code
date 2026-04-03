@@ -13,6 +13,7 @@ import { getModelStrings } from 'src/utils/model/modelStrings.js'
 import { getAPIProvider } from 'src/utils/model/providers.js'
 import {
   getIsNonInteractiveSession,
+  getSessionTrustAccepted,
   preferThirdPartyAuthentication,
 } from '../bootstrap/state.js'
 import {
@@ -24,6 +25,7 @@ import {
   refreshOAuthToken,
   shouldUseClaudeAIAuth,
 } from '../services/oauth/client.js'
+import type { CopilotTokens } from '../services/oauth/copilot-client.js'
 import type { CodexTokens } from '../services/oauth/codex-client.js'
 import { getOauthProfileFromOauthToken } from '../services/oauth/getOauthProfile.js'
 import type { OAuthTokens, SubscriptionType } from '../services/oauth/types.js'
@@ -46,6 +48,7 @@ import {
   type AccountInfo,
   checkHasTrustDialogAccepted,
   getGlobalConfig,
+  isConfigReadingAllowed,
   saveGlobalConfig,
 } from './config.js'
 import { logAntError, logForDebugging } from './debug.js'
@@ -254,9 +257,19 @@ export function getAnthropicApiKeyWithSource(
     ? undefined
     : process.env.ANTHROPIC_API_KEY
 
-  // Always check for direct environment variable when the user ran claude --print.
-  // This is useful for CI, etc.
-  if (preferThirdPartyAuthentication() && apiKeyEnv) {
+  // Always honor a direct environment key in non-interactive sessions.
+  // In interactive sessions, allow it after workspace trust is established
+  // unless the user explicitly rejected that key in the approval flow.
+  const rejectedCustomApiKey =
+    apiKeyEnv &&
+    getGlobalConfig().customApiKeyResponses?.rejected?.includes(
+      normalizeApiKeyForConfig(apiKeyEnv),
+    )
+  if (
+    apiKeyEnv &&
+    (preferThirdPartyAuthentication() ||
+      (getSessionTrustAccepted() && !rejectedCustomApiKey))
+  ) {
     return {
       key: apiKeyEnv,
       source: 'ANTHROPIC_API_KEY',
@@ -1366,6 +1379,55 @@ export function clearCodexOAuthTokens(): void {
   })
 }
 
+/**
+ * Saves the GitHub Copilot tokens to GlobalConfig.
+ */
+export function saveCopilotOAuthTokens(tokens: CopilotTokens): void {
+  saveGlobalConfig((cfg) => ({
+    ...cfg,
+    copilotOAuth: {
+      githubToken: tokens.githubToken,
+      copilotToken: tokens.copilotToken,
+      expiresAt: tokens.expiresAt,
+      login: tokens.login,
+      scopes: tokens.scopes,
+    },
+  }))
+}
+
+/**
+ * Retrieves the stored GitHub Copilot tokens from GlobalConfig.
+ */
+export function getCopilotOAuthTokens(): CopilotTokens | null {
+  const cfg = getGlobalConfig()
+  const stored = cfg.copilotOAuth
+  if (
+    !stored?.githubToken ||
+    !stored?.copilotToken ||
+    !stored?.expiresAt ||
+    !stored?.login
+  ) {
+    return null
+  }
+
+  return {
+    githubToken: stored.githubToken,
+    copilotToken: stored.copilotToken,
+    expiresAt: stored.expiresAt,
+    login: stored.login,
+    scopes: stored.scopes,
+  }
+}
+
+/**
+ * Removes GitHub Copilot tokens from GlobalConfig.
+ */
+export function clearCopilotOAuthTokens(): void {
+  saveGlobalConfig((cfg) => {
+    const { copilotOAuth: _removed, ...rest } = cfg
+    return rest as typeof cfg
+  })
+}
 
 let lastCredentialsMtimeMs = 0
 
@@ -1626,15 +1688,34 @@ export function isClaudeAISubscriber(): boolean {
   return shouldUseClaudeAIAuth(getClaudeAIOAuthTokens()?.scopes)
 }
 
+/**
+ * Check if the user is authenticated via OpenAI Codex OAuth.
+ * Returns true when a valid Codex access token is present in the config.
+ */
 export function isCodexSubscriber(): boolean {
-  // Only treat as Codex subscriber when explicitly using OpenAI provider
   if (getAPIProvider() !== 'openai') {
     return false
   }
-
-  // Verify we actually have valid Codex tokens
+  if (!isConfigReadingAllowed()) {
+    return false
+  }
   const tokens = getCodexOAuthTokens()
   return !!tokens?.accessToken
+}
+
+/**
+ * Check if the user is authenticated via GitHub Copilot OAuth.
+ * Returns true when a valid Copilot session token is present in the config.
+ */
+export function isCopilotSubscriber(): boolean {
+  if (getAPIProvider() !== 'copilot') {
+    return false
+  }
+  if (!isConfigReadingAllowed()) {
+    return false
+  }
+  const tokens = getCopilotOAuthTokens()
+  return !!tokens?.copilotToken
 }
 
 /**
@@ -1654,9 +1735,10 @@ export function hasProfileScope(): boolean {
 export function is1PApiCustomer(): boolean {
   // 1P API customers are users who are NOT:
   // 1. Claude.ai subscribers (Max, Pro, Enterprise, Team)
-  // 2. Vertex AI users
-  // 3. AWS Bedrock users
-  // 4. Foundry users
+  // 2. OpenAI ChatGPT/Codex users
+  // 3. Vertex AI users
+  // 4. AWS Bedrock users
+  // 5. Foundry users
 
   // Exclude Vertex, Bedrock, and Foundry customers
   if (
@@ -1669,6 +1751,14 @@ export function is1PApiCustomer(): boolean {
 
   // Exclude Claude.ai subscribers
   if (isClaudeAISubscriber()) {
+    return false
+  }
+
+  if (isCodexSubscriber()) {
+    return false
+  }
+
+  if (isCopilotSubscriber()) {
     return false
   }
 

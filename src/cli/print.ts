@@ -514,22 +514,8 @@ export async function runHeadless(
     void downloadUserSettings()
   }
 
-  // In headless mode there is no React tree, so the useSettingsChange hook
-  // never runs. Subscribe directly so that settings changes (including
-  // managed-settings / policy updates) are fully applied.
-  settingsChangeDetector.subscribe(source => {
-    applySettingsChange(source, setAppState)
-
-    // In headless mode, also sync the denormalized fastMode field from
-    // settings. The TUI manages fastMode via the UI so it skips this.
-    if (isFastModeEnabled()) {
-      setAppState(prev => {
-        const s = prev.settings as Record<string, unknown>
-        const fastMode = s.fastMode === true && !s.fastModePerSessionOptIn
-        return { ...prev, fastMode }
-      })
-    }
-  })
+  // Headless print sessions are short-lived and do not need live settings
+  // hot-reload; skipping the subscription keeps startup on the critical path.
 
   // Proactive activation is now handled in main.tsx before getTools() so
   // SleepTool passes isEnabled() filtering. This fallback covers the case

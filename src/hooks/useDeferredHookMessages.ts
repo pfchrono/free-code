@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { HookResultMessage, Message } from '../types/message.js'
+import { logForDebugging } from '../utils/debug.js'
+import { withTimeout } from '../utils/sleep.js'
+
+const DEFERRED_HOOK_MESSAGES_WAIT_MS = 5000
 
 /**
  * Manages deferred SessionStart hook messages so the REPL can render
@@ -20,27 +24,56 @@ export function useDeferredHookMessages(
     const promise = pendingRef.current
     if (!promise) return
     let cancelled = false
-    promise.then(msgs => {
-      if (cancelled) return
-      resolvedRef.current = true
-      pendingRef.current = null
-      if (msgs.length > 0) {
-        setMessages(prev => [...msgs, ...prev])
-      }
-    })
+    promise
+      .then(msgs => {
+        if (cancelled || resolvedRef.current || pendingRef.current !== promise) {
+          return
+        }
+        resolvedRef.current = true
+        pendingRef.current = null
+        if (msgs.length > 0) {
+          setMessages(prev => [...msgs, ...prev])
+        }
+      })
+      .catch(error => {
+        if (cancelled || resolvedRef.current || pendingRef.current !== promise) {
+          return
+        }
+        resolvedRef.current = true
+        pendingRef.current = null
+        logForDebugging(
+          `Deferred SessionStart hooks failed: ${error instanceof Error ? error.message : String(error)}`,
+          { level: 'warn' },
+        )
+      })
     return () => {
       cancelled = true
     }
   }, [setMessages])
 
   return useCallback(async () => {
-    if (resolvedRef.current || !pendingRef.current) return
-    const msgs = await pendingRef.current
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-    pendingRef.current = null
-    if (msgs.length > 0) {
-      setMessages(prev => [...msgs, ...prev])
+    const promise = pendingRef.current
+    if (resolvedRef.current || !promise) return
+    try {
+      const msgs = await withTimeout(
+        promise,
+        DEFERRED_HOOK_MESSAGES_WAIT_MS,
+        'Deferred SessionStart hooks timed out',
+      )
+      if (resolvedRef.current || pendingRef.current !== promise) return
+      resolvedRef.current = true
+      pendingRef.current = null
+      if (msgs.length > 0) {
+        setMessages(prev => [...msgs, ...prev])
+      }
+    } catch (error) {
+      if (resolvedRef.current || pendingRef.current !== promise) return
+      resolvedRef.current = true
+      pendingRef.current = null
+      logForDebugging(
+        `Deferred SessionStart hooks skipped before query: ${error instanceof Error ? error.message : String(error)}`,
+        { level: 'warn' },
+      )
     }
   }, [setMessages])
 }

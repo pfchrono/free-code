@@ -164,6 +164,15 @@ import { isEnvTruthy } from './envUtils.js'
 import { errorMessage, getErrnoCode } from './errors.js'
 
 const TOOL_HOOK_EXECUTION_TIMEOUT_MS = 10 * 60 * 1000
+const PRE_TOOL_HOOK_EXECUTION_TIMEOUT_MS_DEFAULT = 15 * 1000
+
+export function getPreToolHookTimeoutMs(): number {
+  const raw = process.env.CLAUDE_CODE_PRETOOL_HOOKS_TIMEOUT_MS
+  const parsed = raw ? parseInt(raw, 10) : NaN
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : PRE_TOOL_HOOK_EXECUTION_TIMEOUT_MS_DEFAULT
+}
 
 /**
  * SessionEnd hooks run during shutdown/clear and need a much tighter bound
@@ -3398,7 +3407,7 @@ export async function* executePreToolHooks<ToolInput>(
   toolUseContext: ToolUseContext,
   permissionMode?: string,
   signal?: AbortSignal,
-  timeoutMs: number = TOOL_HOOK_EXECUTION_TIMEOUT_MS,
+  timeoutMs: number = getPreToolHookTimeoutMs(),
   requestPrompt?: (
     sourceName: string,
     toolInputSummary?: string | null,

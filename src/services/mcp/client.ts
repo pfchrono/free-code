@@ -206,9 +206,14 @@ export function isMcpSessionExpiredError(error: Error): boolean {
 }
 
 /**
- * Default timeout for MCP tool calls (effectively infinite - ~27.8 hours).
+ * Default timeout for MCP tool calls.
+ *
+ * The previous default was effectively infinite (~27.8 hours), which caused
+ * flaky plugin/MCP calls to look like permanent hangs in the UI. Keep this
+ * configurable via MCP_TOOL_TIMEOUT, but fail closed by default so stalled
+ * tool calls surface an error and the model can recover.
  */
-const DEFAULT_MCP_TOOL_TIMEOUT_MS = 100_000_000
+const DEFAULT_MCP_TOOL_TIMEOUT_MS = 120_000
 
 /**
  * Cap on MCP tool descriptions and server instructions sent to the model.
@@ -3055,16 +3060,25 @@ async function callMCPTool({
 
     // Set up progress logging for long-running tools (every 30 seconds)
     progressInterval = setInterval(
-      (startTime, name, tool) => {
+      (startTime, name, tool, onProgress) => {
         const elapsed = Date.now() - startTime
         const elapsedSeconds = Math.floor(elapsed / 1000)
         const duration = `${elapsedSeconds}s`
         logMCPDebug(name, `Tool '${tool}' still running (${duration} elapsed)`)
+
+        onProgress?.({
+          type: 'mcp_progress',
+          status: 'progress',
+          serverName: name,
+          toolName: tool,
+          progressMessage: `Waiting on MCP server response (${duration} elapsed)`,
+        })
       },
       30000, // Log every 30 seconds
       toolStartTime,
       name,
       tool,
+      onProgress,
     )
 
     // Use Promise.race with our own timeout to handle cases where SDK's

@@ -1,5 +1,4 @@
 import { feature } from 'bun:bundle';
-import { appendFileSync } from 'fs';
 import React from 'react';
 import { logEvent } from 'src/services/analytics/index.js';
 import { gracefulShutdown, gracefulShutdownSync } from 'src/utils/gracefulShutdown.js';
@@ -99,6 +98,14 @@ export async function renderAndRun(root: Root, element: React.ReactNode): Promis
   root.render(element);
   startDeferredPrefetches();
   await root.waitUntilExit();
+  await gracefulShutdown(0);
+}
+
+export async function directRenderAndRun(_root: Root, element: React.ReactNode): Promise<void> {
+  const { render } = await import('./ink.js');
+  const instance = await render(element, getBaseRenderOptions(false));
+  startDeferredPrefetches();
+  await instance.waitUntilExit();
   await gracefulShutdown(0);
 }
 export async function showSetupScreens(root: Root, permissionMode: PermissionMode, allowDangerouslySkipPermissions: boolean, commands?: Command[], claudeInChrome?: boolean, devChannels?: ChannelEntry[]): Promise<boolean> {

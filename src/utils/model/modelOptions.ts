@@ -2,10 +2,12 @@
 import { getInitialMainLoopModel } from '../../bootstrap/state.js'
 import {
   isClaudeAISubscriber,
+  isCopilotSubscriber,
   isCodexSubscriber,
   isMaxSubscriber,
   isTeamPremiumSubscriber,
 } from '../auth.js'
+import { COPILOT_MODELS } from '../../services/api/copilot-fetch-adapter.js'
 import { getModelStrings } from './modelStrings.js'
 import {
   COST_TIER_3_15,
@@ -323,6 +325,17 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
       getGpt54Option(),
       getGpt53CodexOption(),
       getGpt54MiniOption(),
+    ]
+  }
+
+  if (isCopilotSubscriber()) {
+    return [
+      getDefaultOptionForUser(),
+      ...COPILOT_MODELS.map((model) => ({
+        value: model.id,
+        label: model.label,
+        description: model.description,
+      })),
     ]
   }
 

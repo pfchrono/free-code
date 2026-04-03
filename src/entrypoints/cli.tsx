@@ -1,4 +1,5 @@
 import { feature } from 'bun:bundle';
+import { applyRepoLocalApiProviderOverride } from '../utils/model/bootstrapProviderOverride.js';
 
 // Define MACRO global for development (normally injected by bun build --define)
 if (typeof MACRO === 'undefined') {
@@ -13,6 +14,9 @@ if (typeof MACRO === 'undefined') {
 // Bugfix for corepack auto-pinning, which adds yarnpkg to peoples' package.jsons
 // eslint-disable-next-line custom-rules/no-top-level-side-effects
 process.env.COREPACK_ENABLE_AUTO_PIN = '0';
+
+// Apply repo-local provider preferences before any config/auth bootstrap path.
+applyRepoLocalApiProviderOverride();
 
 // Set max heap size for child processes in CCR environments (containers have 16GB)
 // eslint-disable-next-line custom-rules/no-top-level-side-effects, custom-rules/no-process-env-top-level, custom-rules/safe-env-boolean-check

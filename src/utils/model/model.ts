@@ -9,11 +9,11 @@ import { getMainLoopModelOverride } from '../../bootstrap/state.js'
 import {
   getSubscriptionType,
   isClaudeAISubscriber,
+  isCopilotSubscriber,
   isCodexSubscriber,
   isMaxSubscriber,
   isProSubscriber,
   isTeamPremiumSubscriber,
-  isCodexSubscriber,
 } from '../auth.js'
 import { getAntModelOverrideConfig, resolveAntModel } from './antModels.js'
 import {
@@ -179,8 +179,30 @@ export function getRuntimeMainLoopModel(params: {
  * @returns The default model setting to use
  */
 export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
+  const apiProvider = getAPIProvider()
+
+  if (apiProvider === 'openai') {
+    return getModelStrings().gpt53codex
+  }
+
+  if (apiProvider === 'copilot') {
+    return getModelStrings().sonnet45
+  }
+
+  if (
+    apiProvider === 'bedrock' ||
+    apiProvider === 'vertex' ||
+    apiProvider === 'foundry'
+  ) {
+    return getDefaultSonnetModel()
+  }
+
   if (isCodexSubscriber()) {
     return getModelStrings().gpt53codex
+  }
+
+  if (isCopilotSubscriber()) {
+    return 'claude-sonnet-4'
   }
 
   // Ants default to defaultModel from flag config, or Opus 1M if not configured
@@ -305,6 +327,9 @@ export function getClaudeAiUserDefaultModelDescription(
 ): string {
   if (isCodexSubscriber()) {
     return 'GPT-5.3 Codex · Optimized for code generation and understanding'
+  }
+  if (isCopilotSubscriber()) {
+    return 'Claude Sonnet 4 · GitHub Copilot default coding model'
   }
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
     if (isOpus1mMergeEnabled()) {

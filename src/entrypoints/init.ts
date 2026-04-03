@@ -100,21 +100,17 @@ export const init = memoize(async (): Promise<void> => {
 
     // Configure global mTLS settings
     const mtlsStart = Date.now()
-    logForDebugging('[init] configureGlobalMTLS starting')
     configureGlobalMTLS()
     logForDiagnosticsNoPII('info', 'init_mtls_configured', {
       duration_ms: Date.now() - mtlsStart,
     })
-    logForDebugging('[init] configureGlobalMTLS complete')
 
     // Configure global HTTP agents (proxy and/or mTLS)
     const proxyStart = Date.now()
-    logForDebugging('[init] configureGlobalAgents starting')
     configureGlobalAgents()
     logForDiagnosticsNoPII('info', 'init_proxy_configured', {
       duration_ms: Date.now() - proxyStart,
     })
-    logForDebugging('[init] configureGlobalAgents complete')
     profileCheckpoint('init_network_configured')
 
     // Preconnect to the Anthropic API — overlap TCP+TLS handshake

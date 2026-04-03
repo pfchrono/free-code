@@ -396,6 +396,12 @@ export const SettingsSchema = lazySchema(() =>
             'model ID (e.g. a Bedrock inference profile ARN). Typically set in managed settings by ' +
             'enterprise administrators.',
         ),
+      apiProvider: z
+        .enum(['firstParty', 'openai', 'copilot'])
+        .optional()
+        .describe(
+          'Repo-local API provider preference. "openai" enables OpenAI mode for this project on the next launch; "copilot" enables GitHub Copilot mode for this project on the next launch; "firstParty" forces default Anthropic mode for this project.',
+        ),
       // Whether to automatically approve all MCP servers in the project
       enableAllProjectMcpServers: z
         .boolean()

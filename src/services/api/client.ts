@@ -13,6 +13,7 @@ import {
   getClaudeAIOAuthTokens,
   getCodexOAuthTokens,
   isClaudeAISubscriber,
+  isCopilotSubscriber,
   isCodexSubscriber,
   refreshAndGetAwsCredentials,
   refreshGcpCredentialsIfNeeded,
@@ -36,6 +37,7 @@ import {
   isEnvTruthy,
 } from '../../utils/envUtils.js'
 import { createCodexFetch } from './codex-fetch-adapter.js'
+import { createCopilotAnthropicClient } from './copilot-client.js'
 
 /**
  * Environment variables for different client types:
@@ -136,14 +138,7 @@ export async function getAnthropicClient({
     defaultHeaders['x-anthropic-additional-protection'] = 'true'
   }
 
-  logForDebugging('[API:auth] OAuth token check starting')
-  await checkAndRefreshOAuthTokenIfNeeded()
-  logForDebugging('[API:auth] OAuth token check complete')
-
-  if (!isClaudeAISubscriber()) {
-    await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
-  }
-
+  const apiProvider = getAPIProvider()
   const resolvedFetch = buildFetch(fetchOverride, source)
 
   const ARGS = {
@@ -157,6 +152,44 @@ export async function getAnthropicClient({
     ...(resolvedFetch && {
       fetch: resolvedFetch,
     }),
+  }
+
+  // ── Codex (OpenAI) provider via fetch adapter ─────────────────────
+  // OpenAI/Codex sessions do not require Anthropic OAuth refreshes or
+  // Anthropic auth headers. Running those checks first can block an OpenAI
+  // turn on unrelated Anthropic auth state.
+  if (apiProvider === 'openai' || isCodexSubscriber()) {
+    const codexTokens = getCodexOAuthTokens()
+    if (!codexTokens?.accessToken) {
+      throw new Error(
+        'OpenAI/Codex backend selected but no Codex OAuth tokens are available',
+      )
+    }
+    const codexFetch = createCodexFetch(codexTokens.accessToken)
+    const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
+      apiKey: 'codex-placeholder', // SDK requires a key but the fetch adapter handles auth
+      ...ARGS,
+      fetch: codexFetch as unknown as typeof globalThis.fetch,
+      ...(isDebugToStdErr() && { logger: createStderrLogger() }),
+    }
+    return new Anthropic(clientConfig)
+  }
+
+  if (apiProvider === 'copilot' || isCopilotSubscriber()) {
+    return createCopilotAnthropicClient({
+      baseArgs: {
+      ...ARGS,
+      },
+      ...(isDebugToStdErr() && { logger: createStderrLogger() }),
+    })
+  }
+
+  logForDebugging('[API:auth] OAuth token check starting')
+  await checkAndRefreshOAuthTokenIfNeeded()
+  logForDebugging('[API:auth] OAuth token check complete')
+
+  if (!isClaudeAISubscriber()) {
+    await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
   }
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)) {
     const { AnthropicBedrock } = await import('@anthropic-ai/bedrock-sdk')
@@ -303,21 +336,6 @@ export async function getAnthropicClient({
     }
     // we have always been lying about the return type - this doesn't support batching or models
     return new AnthropicVertex(vertexArgs) as unknown as Anthropic
-  }
-
-  // ── Codex (OpenAI) provider via fetch adapter ─────────────────────
-  if (isCodexSubscriber()) {
-    const codexTokens = getCodexOAuthTokens()
-    if (codexTokens?.accessToken) {
-      const codexFetch = createCodexFetch(codexTokens.accessToken)
-      const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-        apiKey: 'codex-placeholder', // SDK requires a key but the fetch adapter handles auth
-        ...ARGS,
-        fetch: codexFetch as unknown as typeof globalThis.fetch,
-        ...(isDebugToStdErr() && { logger: createStderrLogger() }),
-      }
-      return new Anthropic(clientConfig)
-    }
   }
 
   // Determine authentication method based on available tokens

@@ -42,9 +42,15 @@ export async function validateModel(
   }
 
   // Check if it's a known Codex/OpenAI model (skip Anthropic API validation)
-  const { isCodexSubscriber } = await import('../auth.js')
+  const { isCodexSubscriber, isCopilotSubscriber } = await import('../auth.js')
+  const { isCopilotModel } = await import('../../services/api/copilot-fetch-adapter.js')
   const { isCodexModel } = await import('../../services/api/codex-fetch-adapter.js')
   if (isCodexSubscriber() && isCodexModel(normalizedModel)) {
+    validModelCache.set(normalizedModel, true)
+    return { valid: true }
+  }
+
+  if (isCopilotSubscriber() && isCopilotModel(normalizedModel)) {
     validModelCache.set(normalizedModel, true)
     return { valid: true }
   }

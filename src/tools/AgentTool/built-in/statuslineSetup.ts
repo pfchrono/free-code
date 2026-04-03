@@ -64,14 +64,18 @@ How to use the statusLine command:
        "used_percentage": number | null,      // Pre-calculated: % of context used (0-100), null if no messages yet
        "remaining_percentage": number | null  // Pre-calculated: % of context remaining (0-100), null if no messages yet
      },
-     "rate_limits": {             // Optional: Claude.ai subscription usage limits. Only present for subscribers after first API response.
+     "rate_limits": {             // Optional: provider usage limits. Claude.ai uses named windows like five_hour/seven_day; Codex/OpenAI may expose provider-specific keys such as openai_0/openai_1.
        "five_hour": {             // Optional: 5-hour session limit (may be absent)
          "used_percentage": number,   // Percentage of limit used (0-100)
-         "resets_at": number          // Unix epoch seconds when this window resets
+         "resets_at": number | string // Unix epoch seconds or ISO timestamp when this window resets
        },
        "seven_day": {             // Optional: 7-day weekly limit (may be absent)
          "used_percentage": number,   // Percentage of limit used (0-100)
-         "resets_at": number          // Unix epoch seconds when this window resets
+         "resets_at": number | string // Unix epoch seconds or ISO timestamp when this window resets
+       },
+       "openai_0": {              // Optional: provider-specific Codex/OpenAI rate limit bucket
+         "used_percentage": number,
+         "resets_at": string | null
        }
      },
      "vim": {                     // Optional, only present when vim mode is enabled

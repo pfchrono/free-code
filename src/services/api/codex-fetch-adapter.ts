@@ -15,19 +15,24 @@
  * Endpoint: https://chatgpt.com/backend-api/codex/responses
  */
 
+import { roughTokenCountEstimation, roughTokenCountEstimationForMessages } from '../tokenEstimation.js'
+import { logForDebugging } from '../../utils/debug.js'
 import { getCodexOAuthTokens } from '../../utils/auth.js'
+import { jsonStringify } from '../../utils/slowOperations.js'
+import { setCodexUsage, type CodexRateLimit } from './codexUsage.js'
 
 // ── Available Codex models ──────────────────────────────────────────
 export const CODEX_MODELS = [
   { id: 'gpt-5.2-codex', label: 'GPT-5.2 Codex', description: 'Frontier agentic coding model' },
   { id: 'gpt-5.1-codex', label: 'GPT-5.1 Codex', description: 'Codex coding model' },
   { id: 'gpt-5.1-codex-mini', label: 'GPT-5.1 Codex Mini', description: 'Fast Codex model' },
+  { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', description: 'Fast 5.4 model' },
   { id: 'gpt-5.1-codex-max', label: 'GPT-5.1 Codex Max', description: 'Max Codex model' },
   { id: 'gpt-5.4', label: 'GPT-5.4', description: 'Latest GPT' },
   { id: 'gpt-5.2', label: 'GPT-5.2', description: 'GPT-5.2' },
 ] as const
 
-export const DEFAULT_CODEX_MODEL = 'gpt-5.2-codex'
+export const DEFAULT_CODEX_MODEL = 'gpt-5.4'
 
 /**
  * Maps Claude model names to corresponding Codex model names.
@@ -39,8 +44,8 @@ export function mapClaudeModelToCodex(claudeModel: string | null): string {
   if (isCodexModel(claudeModel)) return claudeModel
   const lower = claudeModel.toLowerCase()
   if (lower.includes('opus')) return 'gpt-5.1-codex-max'
-  if (lower.includes('haiku')) return 'gpt-5.1-codex-mini'
-  if (lower.includes('sonnet')) return 'gpt-5.2-codex'
+  if (lower.includes('haiku')) return 'gpt-5.4-mini'
+  if (lower.includes('sonnet')) return 'gpt-5.4'
   return DEFAULT_CODEX_MODEL
 }
 
@@ -51,6 +56,58 @@ export function mapClaudeModelToCodex(claudeModel: string | null): string {
  */
 export function isCodexModel(model: string): boolean {
   return CODEX_MODELS.some(m => m.id === model)
+}
+
+function parseOptionalNumber(value: string | null): number | null {
+  if (value === null) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function parseCodexReset(value: string | null): string | null {
+  if (!value) return null
+  const numericValue = Number(value)
+  if (Number.isFinite(numericValue)) {
+    return new Date(numericValue * 1000).toISOString()
+  }
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? value : new Date(parsed).toISOString()
+}
+
+function extractCodexRateLimits(headers: Headers): CodexRateLimit[] {
+  const tokenLimit = parseOptionalNumber(headers.get('x-ratelimit-limit-tokens'))
+  const tokenRemaining = parseOptionalNumber(headers.get('x-ratelimit-remaining-tokens'))
+  const tokenReset = parseCodexReset(headers.get('x-ratelimit-reset-tokens'))
+  const requestLimit = parseOptionalNumber(headers.get('x-ratelimit-limit-requests'))
+  const requestRemaining = parseOptionalNumber(headers.get('x-ratelimit-remaining-requests'))
+  const requestReset = parseCodexReset(headers.get('x-ratelimit-reset-requests'))
+
+  const limits: CodexRateLimit[] = []
+  if (tokenLimit !== null || tokenRemaining !== null || tokenReset !== null) {
+    limits.push({
+      label: 'Tokens',
+      limit: tokenLimit,
+      remaining: tokenRemaining,
+      used_percentage:
+        tokenLimit && tokenRemaining !== null
+          ? ((tokenLimit - tokenRemaining) / tokenLimit) * 100
+          : null,
+      resets_at: tokenReset,
+    })
+  }
+  if (requestLimit !== null || requestRemaining !== null || requestReset !== null) {
+    limits.push({
+      label: 'Requests',
+      limit: requestLimit,
+      remaining: requestRemaining,
+      used_percentage:
+        requestLimit && requestRemaining !== null
+          ? ((requestLimit - requestRemaining) / requestLimit) * 100
+          : null,
+      resets_at: requestReset,
+    })
+  }
+  return limits
 }
 
 // ── JWT helpers ─────────────────────────────────────────────────────
@@ -100,6 +157,44 @@ interface AnthropicTool {
   input_schema?: Record<string, unknown>
 }
 
+interface ToolReferenceBlock {
+  type: 'tool_reference'
+  tool_name: string
+}
+
+type CodexInputItem = Record<string, unknown>
+type CodexReasoningItem = Record<string, unknown>
+
+const MAX_REASONING_CACHE_ENTRIES = 512
+const DEFAULT_CODEX_CONTEXT_WINDOW_SIZE = 272000
+const reasoningItemsByToolCall = new Map<string, CodexReasoningItem[]>()
+
+function cacheReasoningItemsForToolCall(
+  callId: string,
+  items: CodexReasoningItem[],
+): void {
+  if (!callId || items.length === 0) return
+
+  reasoningItemsByToolCall.set(
+    callId,
+    structuredClone(items),
+  )
+
+  while (reasoningItemsByToolCall.size > MAX_REASONING_CACHE_ENTRIES) {
+    const oldestKey = reasoningItemsByToolCall.keys().next().value
+    if (oldestKey === undefined) break
+    reasoningItemsByToolCall.delete(oldestKey)
+  }
+}
+
+function getCachedReasoningItemsForToolCall(
+  callId: string | undefined,
+): CodexReasoningItem[] {
+  if (!callId) return []
+  const items = reasoningItemsByToolCall.get(callId)
+  return items ? structuredClone(items) : []
+}
+
 // ── Tool translation: Anthropic → Codex ─────────────────────────────
 
 /**
@@ -117,6 +212,42 @@ function translateTools(anthropicTools: AnthropicTool[]): Array<Record<string, u
   }))
 }
 
+function isToolReferenceBlock(block: unknown): block is ToolReferenceBlock {
+  return (
+    typeof block === 'object' &&
+    block !== null &&
+    'type' in block &&
+    (block as { type?: unknown }).type === 'tool_reference' &&
+    'tool_name' in block &&
+    typeof (block as { tool_name?: unknown }).tool_name === 'string'
+  )
+}
+
+function formatToolReferenceExpansion(
+  toolNames: string[],
+  anthropicTools: AnthropicTool[],
+): string {
+  const toolByName = new Map(anthropicTools.map(tool => [tool.name, tool]))
+  const functions = toolNames
+    .map(toolName => {
+      const tool = toolByName.get(toolName)
+      if (!tool) return null
+
+      return `<function>${jsonStringify({
+        description: tool.description || '',
+        name: tool.name,
+        parameters: tool.input_schema || { type: 'object', properties: {} },
+      })}</function>`
+    })
+    .filter((line): line is string => line !== null)
+
+  if (functions.length === 0) {
+    return ''
+  }
+
+  return `<functions>\n${functions.join('\n')}\n</functions>`
+}
+
 // ── Message translation: Anthropic → Codex input ────────────────────
 
 /**
@@ -127,8 +258,9 @@ function translateTools(anthropicTools: AnthropicTool[]): Array<Record<string, u
  */
 function translateMessages(
   anthropicMessages: AnthropicMessage[],
-): Array<Record<string, unknown>> {
-  const codexInput: Array<Record<string, unknown>> = []
+  anthropicTools: AnthropicTool[],
+): CodexInputItem[] {
+  const codexInput: CodexInputItem[] = []
   // Track tool_use IDs to generate call_ids for function_call_output
   // Anthropic uses tool_use_id, Codex uses call_id
   let toolCallCounter = 0
@@ -150,12 +282,23 @@ function translateMessages(
           if (typeof block.content === 'string') {
             outputText = block.content
           } else if (Array.isArray(block.content)) {
-            outputText = block.content
+            const textParts = block.content
               .map(c => {
                 if (c.type === 'text') return c.text
                 if (c.type === 'image') return '[Image data attached]'
                 return ''
               })
+              .filter(part => part.length > 0)
+
+            const expandedToolReferences = formatToolReferenceExpansion(
+              block.content
+                .filter(isToolReferenceBlock)
+                .map(c => c.tool_name),
+              anthropicTools,
+            )
+
+            outputText = [...textParts, expandedToolReferences]
+              .filter(part => part.length > 0)
               .join('\n')
           }
           codexInput.push({
@@ -187,7 +330,12 @@ function translateMessages(
     } else {
       // Process assistant or tool blocks
       for (const block of msg.content) {
-        if (block.type === 'text' && typeof block.text === 'string') {
+        if (
+          block.type === 'thinking' ||
+          block.type === 'redacted_thinking'
+        ) {
+          continue
+        } else if (block.type === 'text' && typeof block.text === 'string') {
           if (msg.role === 'assistant') {
             codexInput.push({
               type: 'message',
@@ -198,6 +346,12 @@ function translateMessages(
           }
         } else if (block.type === 'tool_use') {
           const callId = block.id || `call_${toolCallCounter++}`
+          const reasoningItems = getCachedReasoningItemsForToolCall(
+            typeof block.id === 'string' ? block.id : undefined,
+          )
+          if (reasoningItems.length > 0) {
+            codexInput.push(...reasoningItems)
+          }
           codexInput.push({
             type: 'function_call',
             call_id: callId,
@@ -212,6 +366,47 @@ function translateMessages(
   return codexInput
 }
 
+function estimateSystemPromptTokens(
+  systemPrompt:
+    | string
+    | Array<{ type: string; text?: string; cache_control?: unknown }>
+    | undefined,
+): number {
+  if (!systemPrompt) return 0
+
+  if (typeof systemPrompt === 'string') {
+    return roughTokenCountEstimation(systemPrompt)
+  }
+
+  return systemPrompt.reduce((total, block) => {
+    if (block.type !== 'text' || typeof block.text !== 'string') {
+      return total
+    }
+
+    return total + roughTokenCountEstimation(block.text)
+  }, 0)
+}
+
+function estimateInputTokens(
+  anthropicMessages: AnthropicMessage[],
+  systemPrompt:
+    | string
+    | Array<{ type: string; text?: string; cache_control?: unknown }>
+    | undefined,
+  anthropicTools: AnthropicTool[],
+): number {
+  const messageTokens = roughTokenCountEstimationForMessages(
+    anthropicMessages as Parameters<typeof roughTokenCountEstimationForMessages>[0],
+  )
+  const systemTokens = estimateSystemPromptTokens(systemPrompt)
+  const toolTokens =
+    anthropicTools.length > 0
+      ? roughTokenCountEstimation(jsonStringify(anthropicTools))
+      : 0
+
+  return messageTokens + systemTokens + toolTokens
+}
+
 // ── Full request translation ────────────────────────────────────────
 
 /**
@@ -222,6 +417,7 @@ function translateMessages(
 function translateToCodexBody(anthropicBody: Record<string, unknown>): {
   codexBody: Record<string, unknown>
   codexModel: string
+  estimatedInputTokens: number
 } {
   const anthropicMessages = (anthropicBody.messages || []) as AnthropicMessage[]
   const systemPrompt = anthropicBody.system as
@@ -232,6 +428,11 @@ function translateToCodexBody(anthropicBody: Record<string, unknown>): {
   const anthropicTools = (anthropicBody.tools || []) as AnthropicTool[]
 
   const codexModel = mapClaudeModelToCodex(claudeModel)
+  const estimatedInputTokens = estimateInputTokens(
+    anthropicMessages,
+    systemPrompt,
+    anthropicTools,
+  )
 
   // Build system instructions
   let instructions = ''
@@ -248,16 +449,20 @@ function translateToCodexBody(anthropicBody: Record<string, unknown>): {
   }
 
   // Convert messages
-  const input = translateMessages(anthropicMessages)
+  const input = translateMessages(anthropicMessages, anthropicTools)
 
   const codexBody: Record<string, unknown> = {
     model: codexModel,
     store: false,
     stream: true,
+    include: ['reasoning.encrypted_content'],
     instructions,
     input,
     tool_choice: 'auto',
-    parallel_tool_calls: true,
+    // The Anthropic-side streaming/tool loop expects a serial tool-use
+    // trajectory. Keep Codex on single-call turns until the adapter can
+    // faithfully translate overlapping function_call items.
+    parallel_tool_calls: false,
   }
 
   // Add tools if present
@@ -265,7 +470,7 @@ function translateToCodexBody(anthropicBody: Record<string, unknown>): {
     codexBody.tools = translateTools(anthropicTools)
   }
 
-  return { codexBody, codexModel }
+  return { codexBody, codexModel, estimatedInputTokens }
 }
 
 // ── Response translation: Codex SSE → Anthropic SSE ─────────────────
@@ -290,7 +495,20 @@ function formatSSE(event: string, data: string): string {
 async function translateCodexStreamToAnthropic(
   codexResponse: Response,
   codexModel: string,
+  estimatedInputTokens: number,
 ): Promise<Response> {
+  const initialRateLimits = extractCodexRateLimits(codexResponse.headers)
+  if (initialRateLimits.length > 0) {
+    setCodexUsage({
+      rate_limits: initialRateLimits,
+      context_window: {
+        context_window_size: DEFAULT_CODEX_CONTEXT_WINDOW_SIZE,
+        used_tokens: null,
+        remaining_tokens: null,
+        used_percentage: null,
+      },
+    })
+  }
   const messageId = `msg_codex_${Date.now()}`
 
   const readable = new ReadableStream({
@@ -298,7 +516,7 @@ async function translateCodexStreamToAnthropic(
       const encoder = new TextEncoder()
       let contentBlockIndex = 0
       let outputTokens = 0
-      let inputTokens = 0
+      let inputTokens = estimatedInputTokens
 
       // Emit Anthropic message_start
       controller.enqueue(
@@ -334,9 +552,56 @@ async function translateCodexStreamToAnthropic(
       let currentToolCallId = ''
       let currentToolCallName = ''
       let currentToolCallArgs = ''
+      let emittedToolCallArgs = ''
       let inToolCall = false
       let hadToolCalls = false
       let inReasoningBlock = false
+      let pendingReasoningItems: CodexReasoningItem[] = []
+      let shouldFinishAfterToolCall = false
+
+      function attachPendingReasoningToToolCall(callId: string) {
+        if (!callId || pendingReasoningItems.length === 0) return
+        cacheReasoningItemsForToolCall(callId, pendingReasoningItems)
+        pendingReasoningItems = []
+      }
+
+      function flushRemainingToolCallArgs() {
+        const remainingArgs = currentToolCallArgs.slice(emittedToolCallArgs.length)
+        if (remainingArgs.length === 0) return
+        controller.enqueue(
+          encoder.encode(
+            formatSSE('content_block_delta', JSON.stringify({
+              type: 'content_block_delta',
+              index: contentBlockIndex,
+              delta: {
+                type: 'input_json_delta',
+                partial_json: remainingArgs,
+              },
+            })),
+          ),
+        )
+        emittedToolCallArgs = currentToolCallArgs
+      }
+
+      function closeCurrentToolCallBlock() {
+        if (!inToolCall) return
+        attachPendingReasoningToToolCall(currentToolCallId)
+        flushRemainingToolCallArgs()
+        closeToolCallBlock(
+          controller,
+          encoder,
+          contentBlockIndex,
+          currentToolCallId,
+          currentToolCallName,
+          currentToolCallArgs,
+        )
+        contentBlockIndex++
+        inToolCall = false
+        currentToolCallId = ''
+        currentToolCallName = ''
+        currentToolCallArgs = ''
+        emittedToolCallArgs = ''
+      }
 
       try {
         const reader = codexResponse.body?.getReader()
@@ -348,6 +613,7 @@ async function translateCodexStreamToAnthropic(
 
         const decoder = new TextDecoder()
         let buffer = ''
+        let toolCallTerminateReason: string | null = null
 
         while (true) {
           const { done, value } = await reader.read()
@@ -397,10 +663,7 @@ async function translateCodexStreamToAnthropic(
               } else if (item?.type === 'message') {
                 // New text message block starting
                 if (inToolCall) {
-                  // Close the previous tool call block
-                  closeToolCallBlock(controller, encoder, contentBlockIndex, currentToolCallId, currentToolCallName, currentToolCallArgs)
-                  contentBlockIndex++
-                  inToolCall = false
+                  closeCurrentToolCallBlock()
                 }
               } else if (item?.type === 'function_call') {
                 // Close text block if open
@@ -421,6 +684,8 @@ async function translateCodexStreamToAnthropic(
                 currentToolCallId = (item.call_id as string) || `toolu_${Date.now()}`
                 currentToolCallName = (item.name as string) || ''
                 currentToolCallArgs = (item.arguments as string) || ''
+                emittedToolCallArgs = ''
+                attachPendingReasoningToToolCall(currentToolCallId)
                 inToolCall = true
                 hadToolCalls = true
 
@@ -438,6 +703,22 @@ async function translateCodexStreamToAnthropic(
                     })),
                   ),
                 )
+
+                if (currentToolCallArgs.length > 0) {
+                  controller.enqueue(
+                    encoder.encode(
+                      formatSSE('content_block_delta', JSON.stringify({
+                        type: 'content_block_delta',
+                        index: contentBlockIndex,
+                        delta: {
+                          type: 'input_json_delta',
+                          partial_json: currentToolCallArgs,
+                        },
+                      })),
+                    ),
+                  )
+                  emittedToolCallArgs = currentToolCallArgs
+                }
               }
             }
 
@@ -505,6 +786,7 @@ async function translateCodexStreamToAnthropic(
               const argDelta = event.delta as string
               if (typeof argDelta === 'string' && inToolCall) {
                 currentToolCallArgs += argDelta
+                emittedToolCallArgs += argDelta
                 controller.enqueue(
                   encoder.encode(
                     formatSSE('content_block_delta', JSON.stringify({
@@ -524,6 +806,13 @@ async function translateCodexStreamToAnthropic(
             else if (eventType === 'response.function_call_arguments.done') {
               if (inToolCall) {
                 currentToolCallArgs = (event.arguments as string) || currentToolCallArgs
+                // The Responses API guarantees this event when function-call
+                // arguments are complete. Close the Anthropic tool_use block
+                // here so the REPL can execute the tool immediately instead of
+                // waiting for a later response.output_item.done event.
+                closeCurrentToolCallBlock()
+                shouldFinishAfterToolCall = true
+                toolCallTerminateReason = 'response.function_call_arguments.done'
               }
             }
 
@@ -531,10 +820,11 @@ async function translateCodexStreamToAnthropic(
             else if (eventType === 'response.output_item.done') {
               const item = event.item as Record<string, unknown>
               if (item?.type === 'function_call') {
-                closeToolCallBlock(controller, encoder, contentBlockIndex, currentToolCallId, currentToolCallName, currentToolCallArgs)
-                contentBlockIndex++
-                inToolCall = false
-                currentToolCallArgs = ''
+                const finalArgs = (item.arguments as string) || currentToolCallArgs
+                currentToolCallArgs = finalArgs
+                closeCurrentToolCallBlock()
+                shouldFinishAfterToolCall = true
+                toolCallTerminateReason ??= 'response.output_item.done(function_call)'
               } else if (item?.type === 'message') {
                 if (currentTextBlockStarted) {
                   controller.enqueue(
@@ -550,6 +840,7 @@ async function translateCodexStreamToAnthropic(
                 }
               } else if (item?.type === 'reasoning') {
                 if (inReasoningBlock) {
+                  pendingReasoningItems.push(structuredClone(item))
                   controller.enqueue(
                     encoder.encode(
                       formatSSE('content_block_stop', JSON.stringify({
@@ -571,8 +862,48 @@ async function translateCodexStreamToAnthropic(
               if (usage) {
                 outputTokens = usage.output_tokens || outputTokens
                 inputTokens = usage.input_tokens || inputTokens
+                const totalTokens = usage.total_tokens ?? inputTokens + outputTokens
+                const contextWindowSize = DEFAULT_CODEX_CONTEXT_WINDOW_SIZE
+                const usedTokens = totalTokens ?? null
+                setCodexUsage({
+                  last_response_usage: {
+                    input_tokens: inputTokens,
+                    output_tokens: outputTokens,
+                    total_tokens: totalTokens ?? null,
+                  },
+                  context_window: {
+                    context_window_size: contextWindowSize,
+                    used_tokens: usedTokens,
+                    remaining_tokens:
+                      usedTokens !== null
+                        ? Math.max(contextWindowSize - usedTokens, 0)
+                        : null,
+                    used_percentage:
+                      usedTokens !== null
+                        ? Math.min((usedTokens / contextWindowSize) * 100, 100)
+                        : null,
+                  },
+                  rate_limits:
+                    initialRateLimits.length > 0 ? initialRateLimits : undefined,
+                })
               }
             }
+
+            if (shouldFinishAfterToolCall) {
+              logForDebugging(
+                `[codex-adapter] finishing translated stream after tool call (${toolCallTerminateReason ?? 'unknown'})`,
+              )
+              void reader.cancel().catch(error => {
+                logForDebugging(
+                  `[codex-adapter] reader.cancel() after tool call failed: ${String(error)}`,
+                )
+              })
+              break
+            }
+          }
+
+          if (shouldFinishAfterToolCall) {
+            break
           }
         }
       } catch (err) {
@@ -622,7 +953,7 @@ async function translateCodexStreamToAnthropic(
         )
       }
       if (inToolCall) {
-        closeToolCallBlock(controller, encoder, contentBlockIndex, currentToolCallId, currentToolCallName, currentToolCallArgs)
+        closeCurrentToolCallBlock()
       }
 
       finishStream(controller, encoder, outputTokens, inputTokens, hadToolCalls)
@@ -698,7 +1029,12 @@ async function translateCodexStreamToAnthropic(
           JSON.stringify({
             type: 'message_delta',
             delta: { stop_reason: stopReason, stop_sequence: null },
-            usage: { output_tokens: outputTokens },
+            usage: {
+              input_tokens: inputTokens,
+              output_tokens: outputTokens,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0,
+            },
           }),
         ),
       ),
@@ -775,7 +1111,7 @@ export function createCodexFetch(
     const currentToken = tokens?.accessToken || accessToken
 
     // Translate to Codex format
-    const { codexBody, codexModel } = translateToCodexBody(anthropicBody)
+    const { codexBody, codexModel, estimatedInputTokens } = translateToCodexBody(anthropicBody)
 
     // Call Codex API
     const codexResponse = await globalThis.fetch(CODEX_BASE_URL, {
@@ -807,6 +1143,10 @@ export function createCodexFetch(
     }
 
     // Translate streaming response
-    return translateCodexStreamToAnthropic(codexResponse, codexModel)
+    return translateCodexStreamToAnthropic(
+      codexResponse,
+      codexModel,
+      estimatedInputTokens,
+    )
   }
 }

@@ -212,5 +212,15 @@ export function getCommandName(cmd: CommandBase): string {
 
 /** Resolves whether the command is enabled, defaulting to true. */
 export function isCommandEnabled(cmd: CommandBase): boolean {
-  return cmd.isEnabled?.() ?? true
+  try {
+    return cmd.isEnabled?.() ?? true
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === 'Config accessed before allowed.'
+    ) {
+      return false
+    }
+    throw error
+  }
 }

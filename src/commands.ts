@@ -168,11 +168,14 @@ import {
 } from './utils/plugins/loadPluginCommands.js'
 import memoize from 'lodash-es/memoize.js'
 import { isUsing3PServices, isClaudeAISubscriber } from './utils/auth.js'
+import { isConfigReadingAllowed } from './utils/config.js'
 import { isFirstPartyAnthropicBaseUrl } from './utils/model/providers.js'
 import env from './commands/env/index.js'
 import exit from './commands/exit/index.js'
 import exportCommand from './commands/export/index.js'
 import model from './commands/model/index.js'
+import copilot from './commands/copilot/index.js'
+import openai from './commands/openai/index.js'
 import tag from './commands/tag/index.js'
 import outputStyle from './commands/output-style/index.js'
 import remoteEnv from './commands/remote-env/index.js'
@@ -257,6 +260,7 @@ export const INTERNAL_ONLY_COMMANDS = [
 const COMMANDS = memoize((): Command[] => [
   addDir,
   advisor,
+  copilot,
   agents,
   branch,
   btw,
@@ -287,6 +291,7 @@ const COMMANDS = memoize((): Command[] => [
   memory,
   mobile,
   model,
+  openai,
   outputStyle,
   remoteEnv,
   plugin,
@@ -416,6 +421,9 @@ const getWorkflowCommands = feature('WORKFLOW_SCRIPTS')
  */
 export function meetsAvailabilityRequirement(cmd: Command): boolean {
   if (!cmd.availability) return true
+  if (!isConfigReadingAllowed()) {
+    return false
+  }
   for (const a of cmd.availability) {
     switch (a) {
       case 'claude-ai':
