@@ -28,6 +28,21 @@ curl -fsSL https://raw.githubusercontent.com/paoloanzn/free-code/main/install.sh
 
 Checks your system, installs Bun if needed, clones the repo, builds with all experimental features enabled, and symlinks `free-code` on your PATH.
 
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/paoloanzn/free-code/main/install.ps1 | iex
+```
+
+The Windows installer will:
+
+- Verify Windows + Git + Bun prerequisites
+- Clone or update the repo
+- Install dependencies with Bun
+- Build the binary (`cli.exe` or `cli-dev.exe`)
+- Create launchers in `%USERPROFILE%\.local\bin` (`free-code.exe` and `free-code.cmd`)
+- Add `%USERPROFILE%\.local\bin` to your user PATH if missing
+
 Then run `free-code` and use the `/login` command to authenticate with your preferred model provider.
 
 ---
@@ -35,11 +50,14 @@ Then run `free-code` and use the `/login` command to authenticate with your pref
 ## Table of Contents
 
 - [What is this](#what-is-this)
+- [Latest Changes](#latest-changes)
 - [Model Providers](#model-providers)
 - [Quick Install](#quick-install)
+- [Windows Install and Build](#windows-install-and-build)
 - [Requirements](#requirements)
 - [Build](#build)
 - [Usage](#usage)
+- [ChatGPT and Copilot Workflow](#chatgpt-and-copilot-workflow)
 - [Experimental Features](#experimental-features)
 - [Project Structure](#project-structure)
 - [Tech Stack](#tech-stack)
@@ -73,6 +91,51 @@ This build strips those injections. The model's own safety training still applie
 
 Claude Code ships with 88 feature flags gated behind `bun:bundle` compile-time switches. Most are disabled in the public npm release. This build unlocks all 54 flags that compile cleanly. See [Experimental Features](#experimental-features) below, or refer to [FEATURES.md](FEATURES.md) for the full audit.
 
+## Latest Changes
+
+Recent updates added full provider workflow improvements across startup, auth, commands, and status UX:
+
+- Added GitHub Copilot provider integration (OAuth/token exchange + API adapter)
+- Added repo-local provider toggles:
+  - `/openai` to set OpenAI/ChatGPT-Codex mode for this repo
+  - `/copilot` to set GitHub Copilot mode for this repo
+- Added `/copilot models` to probe model support on Copilot `/chat/completions`
+- Added provider-aware usage/status updates in terminal statusline and usage views
+- Added startup provider override handling from `.claude/settings.json`
+- Added Windows install guidance and launcher flow in `install.ps1`
+
+Provider preference changes are repo-local and apply on the next launch.
+
+---
+
+## Windows Install and Build
+
+### Install from GitHub
+
+```powershell
+irm https://raw.githubusercontent.com/paoloanzn/free-code/main/install.ps1 | iex
+```
+
+### Build from local checkout
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+### Build dev/experimental binary
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\install.ps1 -Dev
+```
+
+After install:
+
+- Standard: `free-code` launches the standard build
+- Dev: `free-code` launches the dev/experimental build
+- One-shot mode: `free-code -p "your prompt"`
+
+If PATH was updated, open a new terminal session before first use.
+
 ---
 
 ## Model Providers
@@ -102,6 +165,13 @@ Use OpenAI's Codex models for code generation. Requires a Codex subscription.
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
 free-code
+```
+
+You can also switch repo-locally from inside free-code:
+
+```text
+/openai on
+/openai status
 ```
 
 ### AWS Bedrock
@@ -157,12 +227,15 @@ Supports custom deployment IDs as model names.
 | Google Vertex AI | `CLAUDE_CODE_USE_VERTEX=1` | `gcloud` ADC |
 | Anthropic Foundry | `CLAUDE_CODE_USE_FOUNDRY=1` | `ANTHROPIC_FOUNDRY_API_KEY` |
 
+Note: repo-local `/openai` and `/copilot` commands store provider preference in `.claude/settings.json` for this repository and apply after restart.
+
 ---
 
 ## Requirements
 
 - **Runtime**: [Bun](https://bun.sh) >= 1.3.11
 - **OS**: macOS or Linux (Windows via WSL)
+- **OS**: macOS, Linux, or Windows PowerShell
 - **Auth**: An API key or OAuth login for your chosen provider
 
 ```bash
@@ -222,6 +295,93 @@ bun run dev
 # OAuth login
 ./cli /login
 ```
+
+Provider control commands (inside free-code):
+
+```text
+/openai on
+/openai status
+/openai off
+
+/copilot on
+/copilot status
+/copilot models
+/copilot off
+```
+
+`/openai` and `/copilot` are repo-local toggles and take effect on next launch.
+
+---
+
+## ChatGPT and Copilot Workflow
+
+This is the recommended setup flow for teams that switch providers by repository.
+
+### 1) Install and verify
+
+Windows:
+
+```powershell
+irm https://raw.githubusercontent.com/paoloanzn/free-code/main/install.ps1 | iex
+free-code -p "health check"
+```
+
+macOS/Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/paoloanzn/free-code/main/install.sh | bash
+free-code -p "health check"
+```
+
+### 2) Authenticate
+
+Run:
+
+```text
+free-code /login
+```
+
+Choose one account type:
+
+- OpenAI Codex (ChatGPT Plus/Pro)
+- GitHub Copilot
+- Claude.ai
+
+### 3) Set repo-local provider mode
+
+For ChatGPT/Codex repos:
+
+```text
+/openai on
+/openai status
+```
+
+For GitHub Copilot repos:
+
+```text
+/copilot on
+/copilot status
+/copilot models
+```
+
+Restart free-code after setting mode.
+
+### 4) Daily workflow
+
+- Start in project root
+- Confirm provider status (`/openai status` or `/copilot status`)
+- Use normal coding loop (`free-code`, agent tools, edits, tests)
+- Keep provider scoped by repository rather than mutating global shell env each time
+
+### 5) Switch back to first-party mode
+
+```text
+/openai off
+# or
+/copilot off
+```
+
+Restart to apply.
 
 ### Environment Variables Reference
 
