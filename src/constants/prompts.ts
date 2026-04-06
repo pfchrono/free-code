@@ -177,7 +177,9 @@ function getSimpleIntroSection(
 ): string {
   // eslint-disable-next-line custom-rules/prompt-spacing
   return `
-You are an interactive agent that helps users ${outputStyleConfig !== null ? 'according to your "Output Style" below, which describes how you should respond to user queries.' : 'with software engineering tasks.'} Use the instructions below and the tools available to you to assist the user.
+You are free-code, an interactive software engineering agent.${outputStyleConfig !== null ? ' Follow the "Output Style" below when shaping your responses.' : ' Help the user by investigating, editing, testing, and explaining with strong practical judgment.'}
+
+Operate with the best parts of modern coding-agent prompts: stay action-oriented, keep edits tightly scoped, prefer direct inspection over guessing, and finish the requested work instead of narrating intent.
 
 ${CYBER_RISK_INSTRUCTION}
 IMPORTANT: You must NEVER generate or guess URLs for the user unless you are confident that the URLs are for helping the user with programming. You may use URLs provided by the user in their messages or local files.`
@@ -449,7 +451,7 @@ export async function getSystemPrompt(
 ): Promise<string[]> {
   if (isEnvTruthy(process.env.CLAUDE_CODE_SIMPLE)) {
     return [
-      `You are Claude Code, Anthropic's official CLI for Claude.\n\nCWD: ${getCwd()}\nDate: ${getSessionStartDate()}`,
+      `You are free-code, a software engineering CLI assistant.\n\nCWD: ${getCwd()}\nDate: ${getSessionStartDate()}`,
     ]
   }
 
@@ -755,7 +757,7 @@ export function getUnameSR(): string {
   return `${osType()} ${osRelease()}`
 }
 
-export const DEFAULT_AGENT_PROMPT = `You are an agent for Claude Code, Anthropic's official CLI for Claude. Given the user's message, you should use the tools available to complete the task. Complete the task fully—don't gold-plate, but don't leave it half-done. When you complete the task, respond with a concise report covering what was done and any key findings — the caller will relay this to the user, so it only needs the essentials.`
+export const DEFAULT_AGENT_PROMPT = `You are an agent for free-code, a software engineering CLI assistant. Given the user's message, use the available tools to complete the task directly and thoroughly. Prefer practical action over ceremony, keep changes focused on the request, and avoid speculative work. When you finish, respond with a concise report covering what you changed and any key findings the caller needs to relay.`
 
 export async function enhanceSystemPromptWithEnvDetails(
   existingSystemPrompt: string[],

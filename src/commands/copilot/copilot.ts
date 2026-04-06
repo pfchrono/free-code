@@ -2,12 +2,16 @@ import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from '../../services/analytics/index.js'
+import process from 'process'
 import type { ToolUseContext } from '../../Tool.js'
 import type {
   LocalJSXCommandContext,
   LocalJSXCommandOnDone,
 } from '../../types/command.js'
-import { probeCopilotChatCompletionsModels } from '../../services/api/copilot-client.js'
+import {
+  getCopilotModels,
+  probeCopilotChatCompletionsModels,
+} from '../../services/api/copilot-client.js'
 import { getAPIProvider } from '../../utils/model/providers.js'
 import {
   getSettingsForSource,
@@ -47,12 +51,38 @@ export async function call(
 
   if (normalizedArg === 'models') {
     try {
-      const results = await probeCopilotChatCompletionsModels()
+      const discovered = await getCopilotModels()
+      const pickerEnabled = discovered.filter(model => model.modelPickerEnabled)
+      const chatModels = pickerEnabled.filter(
+        (model) =>
+          (model.supportedEndpoints.length === 0 ||
+            model.supportedEndpoints.includes('/chat/completions')),
+      )
+      const hidden = discovered.filter(model => !model.modelPickerEnabled)
+      const completionTokenModels = chatModels.filter(
+        (model) => model.preferredTokenParameter === 'max_completion_tokens',
+      )
+      const results = await probeCopilotChatCompletionsModels(
+        chatModels.map((model) => model.id),
+      )
       const supported = results
         .filter((result) => result.supported)
         .map((result) => result.model)
       const unsupported = results.filter((result) => !result.supported)
-
+      const discoveredLine = `Discovered via /models (${discovered.length}): ${discovered.map((model) => model.id).join(', ')}`
+      const pickerLine = `Picker-enabled (${pickerEnabled.length}): ${pickerEnabled.map((model) => model.id).join(', ') || 'none'}`
+      const hiddenLine = `Hidden from picker (${hidden.length}): ${hidden.map((model) => model.id).join(', ') || 'none'}`
+      const visionLine = `Vision-capable on /models (${chatModels.filter((model) => model.supportsVision).length}): ${chatModels
+        .filter((model) => model.supportsVision)
+        .map((model) => model.id)
+        .join(', ') || 'none'}`
+      const toolsLine = `Tool-calling on /models (${chatModels.filter((model) => model.supportsToolCalls).length}): ${chatModels
+        .filter((model) => model.supportsToolCalls)
+        .map((model) => model.id)
+        .join(', ') || 'none'}`
+      const tokenParamLine = `Uses max_completion_tokens (${completionTokenModels.length}): ${completionTokenModels
+        .map((model) => model.id)
+        .join(', ') || 'none'}`
       const supportedLine = supported.length
         ? `Supported on /chat/completions (${supported.length}): ${supported.join(', ')}`
         : 'Supported on /chat/completions (0): none'
@@ -60,12 +90,12 @@ export async function call(
       const unsupportedLine = unsupported.length
         ? `Not supported (${unsupported.length}): ${unsupported
             .map((result) =>
-              `${result.model}${result.code ? ` [${result.code}]` : ''}`,
+              `${result.model}${result.code ? ` [${result.code}]` : ''}${result.message ? ` - ${result.message}` : ''}`,
             )
             .join(', ')}`
         : 'Not supported (0): none'
 
-      onDone(`${supportedLine}\n${unsupportedLine}`, { display: 'system' })
+      onDone(`${discoveredLine}\n${pickerLine}\n${hiddenLine}\n${visionLine}\n${toolsLine}\n${tokenParamLine}\n${supportedLine}\n${unsupportedLine}`, { display: 'system' })
       return null
     } catch (error) {
       const message =
@@ -105,15 +135,15 @@ export async function call(
 
   if (nextProvider === 'copilot') {
     onDone(
-      'Stored repo-local GitHub Copilot mode in .claude/settings.json. Restart free-code in this repo to use Copilot without changing your global environment. Use /copilot status to check the stored preference.',
+      'Stored repo-local GitHub Copilot mode in .claude/settings.json. This session must end now to avoid mixed provider state. Restart free-code in this repo to continue with Copilot. Use /copilot status after relaunch to confirm.',
       { display: 'system' },
     )
-    return null
+    process.exit(0)
   }
 
   onDone(
-    'Stored repo-local first-party mode in .claude/settings.json. Restart free-code in this repo to stop using Copilot here. Use /copilot status to check the stored preference.',
+    'Stored repo-local first-party mode in .claude/settings.json. This session must end now to avoid mixed provider state. Restart free-code in this repo to continue with first-party mode. Use /copilot status after relaunch to confirm.',
     { display: 'system' },
   )
-  return null
+  process.exit(0)
 }

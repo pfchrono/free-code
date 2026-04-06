@@ -4,6 +4,7 @@
  */
 import type { Command } from '../../commands.js'
 import { isClaudeAISubscriber } from '../../utils/auth.js'
+import { shouldAllowAnthropicHostedServices } from '../../utils/model/providers.js'
 
 const cost = {
   type: 'local',

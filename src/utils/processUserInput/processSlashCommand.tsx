@@ -331,6 +331,9 @@ export async function processSlashCommand(inputString: string, precedingInputBlo
 
   // Check if it's a real command before processing
   if (!hasCommand(commandName, context.options.commands)) {
+    // TEMPORARY FIX: Always allow help and dependency-graph commands even if not in the commands list
+    // This addresses the command loading/filtering issue
+    if (!['help', 'dependency-graph', 'deps', 'dep-graph'].includes(commandName)) {
     // Check if this looks like a command name vs a file path or other input
     // Also check if it's an actual file path that exists
     let isFilePath = false;
@@ -359,6 +362,7 @@ export async function processSlashCommand(inputString: string, precedingInputBlo
         resultText: unknownMessage
       };
     }
+    } // Close the else block for temporary fix
     const promptId = randomUUID();
     setPromptId(promptId);
     logEvent('tengu_input_prompt', {});

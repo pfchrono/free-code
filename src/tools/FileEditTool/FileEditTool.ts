@@ -70,11 +70,15 @@ import {
   userFacingName,
 } from './UI.js'
 import {
-  areFileEditsInputsEquivalent,
   findActualString,
   getPatchForEdit,
   preserveQuoteStyle,
 } from './utils.js'
+import {
+  parseLineAnchor,
+  validateHashAnchor,
+  type HashAnchorValidationResult,
+} from './hashAnchor.js'
 
 // V8/Bun string length limit is ~2^30 characters (~1 billion). For typical
 // ASCII/Latin-1 files, 1 byte on disk = 1 character, so 1 GiB in stat bytes
@@ -135,7 +139,7 @@ export const FileEditTool = buildTool({
   renderToolUseRejectedMessage,
   renderToolUseErrorMessage,
   async validateInput(input: FileEditInput, toolUseContext: ToolUseContext) {
-    const { file_path, old_string, new_string, replace_all = false } = input
+    const { file_path, old_string, new_string, replace_all = false, line_anchor } = input
     // Use expandPath for consistent path normalization (especially on Windows
     // where "/" vs "\" can cause readFileState lookup mismatches)
     const fullFilePath = expandPath(file_path)
@@ -311,6 +315,35 @@ export const FileEditTool = buildTool({
     }
 
     const file = fileContent
+
+    // Hash-anchored edit validation (inspired by oh-my-openagent LINE#ID pattern)
+    if (line_anchor) {
+      const parsedAnchor = parseLineAnchor(line_anchor)
+      if (!parsedAnchor) {
+        return {
+          result: false,
+          behavior: 'ask',
+          message: `Invalid line anchor format. Expected format: "123#abc123" (line number # content hash)`,
+          errorCode: 11,
+        }
+      }
+
+      const anchorValidation = validateHashAnchor(file, parsedAnchor, old_string)
+      if (!anchorValidation.isValid) {
+        return {
+          result: false,
+          behavior: 'ask',
+          message: `Hash anchor validation failed: ${anchorValidation.message}`,
+          meta: {
+            expectedHash: anchorValidation.expectedHash,
+            actualHash: anchorValidation.actualHash,
+            actualLineContent: anchorValidation.actualLineContent,
+            lineNumber: parsedAnchor.lineNumber,
+          },
+          errorCode: 12,
+        }
+      }
+    }
 
     // Use findActualString to handle quote normalization
     const actualOldString = findActualString(file, old_string)

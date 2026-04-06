@@ -20,6 +20,7 @@ import {
   type GitHubActionsMetadata,
   getUserForGrowthBook,
 } from '../../utils/user.js'
+import { shouldAllowAnthropicHostedServices } from '../../utils/model/providers.js'
 import {
   is1PEventLoggingEnabled,
   logGrowthBookExperimentTo1P,
@@ -490,6 +491,17 @@ function getUserAttributes(): GrowthBookUserAttributes {
 const getGrowthBookClient = memoize(
   (): { client: GrowthBook; initialized: Promise<void> } | null => {
     if (!isGrowthBookEnabled()) {
+      return null
+    }
+
+    // SECURITY: Skip GrowthBook initialization when using third-party providers.
+    // GrowthBook feature flags are Anthropic-internal and only relevant for
+    // first-party users. This prevents API calls to api.anthropic.com in
+    // Codex/Copilot/OpenAI modes.
+    if (!shouldAllowAnthropicHostedServices()) {
+      logForDebugging(
+        '[GrowthBook] Skipped client initialization in third-party provider mode',
+      )
       return null
     }
 

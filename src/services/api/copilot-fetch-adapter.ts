@@ -1,89 +1,77 @@
-import { randomUUID } from 'crypto'
+import axios from 'axios'
+import { createHash, randomUUID } from 'crypto'
+import { Readable } from 'stream'
 import { roughTokenCountEstimation, roughTokenCountEstimationForMessages } from '../tokenEstimation.js'
-import { COPILOT_API_BASE_URL } from '../../constants/copilot-oauth.js'
+import type { CopilotTokens } from '../oauth/copilot-client.js'
+import type { CopilotDiscoveredModel } from './copilot-client.js'
+import { reportAnthropicHostedRequest } from '../../utils/anthropicLeakDetection.js'
+import { isEnvTruthy } from '../../utils/envUtils.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { setCodexUsage } from './codexUsage.js'
+import {
+  COPILOT_EDITOR_VERSION,
+  COPILOT_PLUGIN_VERSION,
+  COPILOT_USER_AGENT,
+  COPILOT_API_VERSION,
+  DEFAULT_COPILOT_MODEL,
+  DEFAULT_COPILOT_CONTEXT_WINDOW_SIZE,
+  getCopilotApiBaseUrl,
+  COPILOT_FALLBACK_MODELS,
+  getCopilotTokenParameter,
+} from './copilot-constants.js'
 
-const COPILOT_EDITOR_VERSION = 'vscode/1.80.1'
-const COPILOT_PLUGIN_VERSION = 'copilot-chat/0.26.7'
-const COPILOT_USER_AGENT = 'GitHubCopilotChat/0.26.7'
-const COPILOT_API_VERSION = '2025-04-01'
+// Export the fallback models as COPILOT_MODELS for backward compatibility
+export const COPILOT_MODELS = COPILOT_FALLBACK_MODELS
+export { DEFAULT_COPILOT_MODEL }
 
-export const COPILOT_MODELS = [
-  {
-    id: 'claude-opus-4.6',
-    label: 'Claude Opus 4.6',
-    description: 'High-capability Claude model for complex reasoning and coding',
-  },
-  {
-    id: 'claude-sonnet-4.6',
-    label: 'Claude Sonnet 4.6',
-    description: 'Balanced Claude model for everyday coding tasks',
-  },
-  {
-    id: 'gpt-5.3-codex',
-    label: 'GPT-5.3-Codex',
-    description: 'Latest Codex-focused GPT model for coding workflows',
-  },
-  {
-    id: 'gpt-5.4',
-    label: 'GPT-5.4',
-    description: 'Latest general-purpose GPT model',
-  },
-  {
-    id: 'claude-haiku-4.5',
-    label: 'Claude Haiku 4.5',
-    description: 'Fast Claude model optimized for lightweight tasks',
-  },
-  {
-    id: 'claude-opus-4.5',
-    label: 'Claude Opus 4.5',
-    description: 'Previous-generation high-capability Claude model',
-  },
-  {
-    id: 'claude-opus-4.6-fast',
-    label: 'Claude Opus 4.6 (fast mode)',
-    description: 'Preview fast-mode variant of Claude Opus 4.6',
-  },
-  {
-    id: 'claude-sonnet-4',
-    label: 'Claude Sonnet 4',
-    description: 'Balanced high-quality coding model',
-  },
-  {
-    id: 'claude-sonnet-4.5',
-    label: 'Claude Sonnet 4.5',
-    description: 'Previous-generation balanced Claude model',
-  },
-  {
-    id: 'gemini-2.5-pro',
-    label: 'Gemini 2.5 Pro',
-    description: 'Google Gemini pro model available via Copilot',
-  },
-  {
-    id: 'gemini-3-flash',
-    label: 'Gemini 3 Flash (Preview)',
-    description: 'Preview fast Gemini model',
-  },
-  {
-    id: 'gemini-3.1-pro',
-    label: 'Gemini 3.1 Pro (Preview)',
-    description: 'Preview Gemini pro model',
-  },
-  { id: 'gpt-4.1', label: 'GPT-4.1', description: 'High-quality general coding model' },
-  { id: 'gpt-4o', label: 'GPT-4o', description: 'Fast multimodal general model' },
-  { id: 'gpt-5-mini', label: 'GPT-5 mini', description: 'Compact GPT-5 variant' },
-  { id: 'gpt-5.1', label: 'GPT-5.1', description: 'GPT-5.1 model' },
-  { id: 'gpt-5.2', label: 'GPT-5.2', description: 'GPT-5.2 model' },
-  { id: 'gpt-5.2-codex', label: 'GPT-5.2-Codex', description: 'Codex-focused GPT-5.2 variant' },
-  { id: 'gpt-5.4-mini', label: 'GPT-5.4 mini', description: 'Compact GPT-5.4 variant' },
-  { id: 'grok-code-fast-1', label: 'Grok Code Fast 1', description: 'Fast Grok coding model' },
-  { id: 'raptor-mini', label: 'Raptor mini (Preview)', description: 'Preview compact coding model' },
-] as const
+/**
+ * Smart model aliases that map to the best available model
+ */
+const MODEL_ALIASES: Record<string, string> = {
+  'claude-sonnet': 'claude-sonnet-4.6',
+  'claude-haiku': 'claude-haiku-4.5',
+  'claude-opus': 'claude-opus-4.6',
+  'gpt-latest': 'gpt-5.4',
+  'fast': 'claude-haiku-4.5',
+  'coding': 'claude-sonnet-4.6',
+}
 
-export const DEFAULT_COPILOT_MODEL = 'gpt-5.3-codex'
-const DEFAULT_COPILOT_CONTEXT_WINDOW_SIZE = 256_000
+const DEFAULT_COMPACTION_RATIO = 0.8
+const DEFAULT_MIN_CONTEXT_MESSAGES = 24
+const MIN_CONTEXT_MESSAGES_FLOOR = 8
+const DEFAULT_DEDUP_TTL_MS = 15_000
+
+function getCompactionTargetTokens(): number | null {
+  const raw = Number(process.env.COPILOT_CONTEXT_COMPACTION_TARGET_TOKENS)
+  if (!Number.isInteger(raw)) return null
+  return Math.max(raw, 1_000)
+}
+
+function getCompactionRatio(): number {
+  const raw = Number(process.env.COPILOT_CONTEXT_COMPACTION_RATIO)
+  if (!Number.isFinite(raw)) return DEFAULT_COMPACTION_RATIO
+  return Math.min(Math.max(raw, 0.3), 0.95)
+}
+
+function getMinContextMessages(): number {
+  const raw = Number(process.env.COPILOT_CONTEXT_MIN_MESSAGES)
+  if (!Number.isInteger(raw)) return DEFAULT_MIN_CONTEXT_MESSAGES
+  if (getCompactionTargetTokens() !== null) {
+    return Math.max(raw, 2)
+  }
+  return Math.max(raw, MIN_CONTEXT_MESSAGES_FLOOR)
+}
+
+function getDedupTtlMs(): number {
+  const raw = Number(process.env.COPILOT_DEDUP_TTL_MS)
+  if (!Number.isInteger(raw)) return DEFAULT_DEDUP_TTL_MS
+  return Math.max(raw, 1_000)
+}
+
+export function resolveModelAlias(model: string): string {
+  return MODEL_ALIASES[model.toLowerCase()] ?? model
+}
 
 interface AnthropicContentBlock {
   type: string
@@ -123,14 +111,81 @@ function isAnthropicMessagesEndpoint(url: string): boolean {
   }
 }
 
+// ── Transport helpers ────────────────────────────────────────────
+const COPILOT_REQUEST_TIMEOUT_MS = 180_000
+
+/**
+ * Normalize axios response headers to standard Headers format
+ */
+function normalizeAxiosHeaders(
+  headers: Record<string, string | string[] | number | boolean>,
+): Record<string, string> {
+  const normalized: Record<string, string> = {}
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value === 'string') {
+      normalized[key] = value
+    } else if (typeof value === 'number' || typeof value === 'boolean') {
+      normalized[key] = String(value)
+    } else if (Array.isArray(value)) {
+      normalized[key] = value.join(', ')
+    }
+  }
+  return normalized
+}
+
+/**
+ * Post to Copilot API with transport fallback.
+ * Tries fetch first (preferred), falls back to axios for network brittleness.
+ */
+async function postCopilotChat(
+  baseUrl: string,
+  body: string,
+  headers: Record<string, string>,
+): Promise<Response> {
+  try {
+    return await globalThis.fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body,
+    })
+  } catch (error) {
+    // Bun/undici fetch can intermittently fail at transport level while
+    // Node's HTTP stack succeeds; fallback keeps adapter mode from surfacing
+    // as a generic Anthropic SDK connection error.
+    logForDebugging(
+      `[copilot-adapter] fetch transport failed, retrying with axios fallback: ${String(error)}`,
+      { level: 'error' },
+    )
+
+    const axiosResponse = await axios.post(`${baseUrl}/chat/completions`, body, {
+      headers,
+      responseType: 'stream',
+      timeout: COPILOT_REQUEST_TIMEOUT_MS,
+      validateStatus: () => true,
+    })
+
+    const streamBody = Readable.toWeb(
+      axiosResponse.data as Readable,
+    ) as unknown as BodyInit
+
+    return new Response(streamBody, {
+      status: axiosResponse.status,
+      headers: normalizeAxiosHeaders(axiosResponse.headers),
+    })
+  }
+}
+
 export function isCopilotModel(model: string): boolean {
   return COPILOT_MODELS.some((entry) => entry.id === model)
 }
 
 export function mapClaudeModelToCopilot(model: string | null): string {
   if (!model) return DEFAULT_COPILOT_MODEL
-  if (isCopilotModel(model)) return model
 
+  const resolvedModel = resolveModelAlias(model)
+  if (isCopilotModel(resolvedModel)) return resolvedModel
+
+  // Legacy model mapping for backward compatibility
   const lower = model.toLowerCase()
   if (lower.includes('opus 4.6')) return 'claude-opus-4.6'
   if (lower.includes('opus')) return 'claude-opus-4.5'
@@ -152,6 +207,54 @@ function translateTools(tools: AnthropicTool[]): Array<Record<string, unknown>> 
   }))
 }
 
+/**
+ * Check if the request contains vision content (images)
+ */
+function hasVisionContent(messages: Array<Record<string, unknown>>): boolean {
+  return messages.some((message) => {
+    const content = message.content
+    return (
+      Array.isArray(content) &&
+      content.some(
+        (part) =>
+          typeof part === 'object' &&
+          part !== null &&
+          (part as { type?: string }).type === 'image_url',
+      )
+    )
+  })
+}
+
+function getImageDataUrl(source: Record<string, unknown> | undefined): string | null {
+  if (!source || source.type !== 'base64') return null
+  const mediaType = typeof source.media_type === 'string' ? source.media_type : null
+  const data = typeof source.data === 'string' ? source.data : null
+  if (!mediaType || !data) return null
+  if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mediaType)) {
+    return null
+  }
+  return `data:${mediaType};base64,${data}`
+}
+
+function translateUserContentPart(
+  block: AnthropicContentBlock,
+): Record<string, unknown> | null {
+  if (block.type === 'text' && block.text) {
+    return { type: 'text', text: block.text }
+  }
+
+  if (block.type === 'image') {
+    const imageUrl = getImageDataUrl(block.source)
+    if (!imageUrl) return null
+    return {
+      type: 'image_url',
+      image_url: { url: imageUrl },
+    }
+  }
+
+  return null
+}
+
 function flattenUserContent(content: string | AnthropicContentBlock[]): string {
   if (typeof content === 'string') return content
 
@@ -159,13 +262,21 @@ function flattenUserContent(content: string | AnthropicContentBlock[]): string {
     .map((block) => {
       if (block.type === 'text') return block.text || ''
       if (block.type === 'image') return '[Image omitted]'
+      if (block.type === 'tool_reference') {
+        const toolName = typeof (block as { tool_name?: string }).tool_name === 'string'
+          ? (block as { tool_name?: string }).tool_name
+          : 'unknown_tool'
+        return `[Tool reference: ${toolName}]`
+      }
       return ''
     })
     .filter(Boolean)
     .join('\n')
 }
 
-function translateMessages(messages: AnthropicMessage[]): Array<Record<string, unknown>> {
+function translateMessages(
+  messages: AnthropicMessage[],
+): Array<Record<string, unknown>> {
   const translated: Array<Record<string, unknown>> = []
 
   for (const message of messages) {
@@ -188,9 +299,10 @@ function translateMessages(messages: AnthropicMessage[]): Array<Record<string, u
         }
       }
 
-      const textContent = flattenUserContent(message.content)
-      if (textContent.length > 0) {
-        translated.push({ role: 'user', content: textContent })
+      const contentParts = message.content.map(translateUserContentPart)
+      const filteredParts = contentParts.filter((part): part is Record<string, unknown> => part !== null)
+      if (filteredParts.length > 0) {
+        translated.push({ role: 'user', content: filteredParts })
       }
       continue
     }
@@ -255,11 +367,269 @@ function estimateInputTokens(
   return messageTokens + systemTokens + toolTokens
 }
 
-function translateToCopilotBody(anthropicBody: Record<string, unknown>): {
+function estimateTranslatedMessageTokens(
+  messages: Array<Record<string, unknown>>,
+): number {
+  return roughTokenCountEstimation(jsonStringify(messages))
+}
+
+function removeEmptyMessages(
+  messages: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  return messages.filter((message) => {
+    const toolCalls = message.tool_calls
+    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+      return true
+    }
+
+    const content = message.content
+    if (typeof content === 'string') {
+      return content.trim().length > 0
+    }
+    if (Array.isArray(content)) {
+      return content.length > 0
+    }
+
+    return false
+  })
+}
+
+function createSyntheticToolResultMessage(toolCallId: string): Record<string, unknown> {
+  return {
+    role: 'tool',
+    tool_call_id: toolCallId,
+    content: '[Tool execution interrupted before result was recorded]',
+  }
+}
+
+function repairTranslatedToolPairing(
+  messages: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const repaired: Array<Record<string, unknown>> = []
+  let pendingToolCalls = new Set<string>()
+  let repairedMismatches = false
+
+  const flushMissingToolResults = () => {
+    if (pendingToolCalls.size === 0) return
+    for (const toolCallId of pendingToolCalls) {
+      repaired.push(createSyntheticToolResultMessage(toolCallId))
+    }
+    pendingToolCalls = new Set<string>()
+    repairedMismatches = true
+  }
+
+  for (const message of messages) {
+    const role = typeof message.role === 'string' ? message.role : ''
+
+    if (role === 'assistant') {
+      flushMissingToolResults()
+
+      const toolCalls = Array.isArray(message.tool_calls)
+        ? (message.tool_calls as Array<Record<string, unknown>>)
+        : []
+
+      if (toolCalls.length > 0) {
+        const seenIds = new Set<string>()
+        const dedupedToolCalls = toolCalls.filter((toolCall) => {
+          const id = typeof toolCall.id === 'string' ? toolCall.id : ''
+          if (!id || seenIds.has(id)) {
+            repairedMismatches = true
+            return false
+          }
+          seenIds.add(id)
+          return true
+        })
+
+        repaired.push(
+          dedupedToolCalls.length === toolCalls.length
+            ? message
+            : { ...message, tool_calls: dedupedToolCalls },
+        )
+        pendingToolCalls = new Set(seenIds)
+        continue
+      }
+
+      repaired.push(message)
+      continue
+    }
+
+    if (role === 'tool') {
+      const toolCallId = typeof message.tool_call_id === 'string' ? message.tool_call_id : ''
+      if (!toolCallId || !pendingToolCalls.has(toolCallId)) {
+        repairedMismatches = true
+        continue
+      }
+
+      pendingToolCalls.delete(toolCallId)
+      repaired.push(message)
+      continue
+    }
+
+    flushMissingToolResults()
+    repaired.push(message)
+  }
+
+  flushMissingToolResults()
+
+  if (repairedMismatches) {
+    logForDebugging(
+      `[copilot-adapter] repaired translated tool pairing (${messages.length} -> ${repaired.length} messages)`,
+    )
+  }
+
+  return repaired
+}
+
+function compactTranslatedMessages(
+  messages: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  if (isEnvTruthy(process.env.COPILOT_DISABLE_CONTEXT_COMPACTION)) {
+    return messages
+  }
+
+  const targetInputTokens =
+    getCompactionTargetTokens() ??
+    Math.floor(DEFAULT_COPILOT_CONTEXT_WINDOW_SIZE * getCompactionRatio())
+  const minContextMessages = getMinContextMessages()
+  const initialEstimate = estimateTranslatedMessageTokens(messages)
+  if (initialEstimate <= targetInputTokens) {
+    return messages
+  }
+
+  const firstRole = typeof messages[0]?.role === 'string' ? messages[0]?.role : null
+  const keepSystemPrefix = firstRole === 'system' ? [messages[0] as Record<string, unknown>] : []
+  const tailStart = Math.max(
+    keepSystemPrefix.length,
+    messages.length - minContextMessages,
+  )
+  const tail = messages.slice(tailStart)
+  const compacted = [...keepSystemPrefix, ...tail]
+  let removedToolResults = 0
+
+  if (isEnvTruthy(process.env.COPILOT_STRICT_TOOL_RESULT_PRUNING)) {
+    while (
+      compacted.length > keepSystemPrefix.length + MIN_CONTEXT_MESSAGES_FLOOR &&
+      estimateTranslatedMessageTokens(compacted) > targetInputTokens
+    ) {
+      // Find the first tool-result message to prune
+      const toolIdx = compacted.findIndex(
+        (msg, idx) => idx >= keepSystemPrefix.length && msg.role === 'tool',
+      )
+      if (toolIdx === -1) break
+
+      const toolCallId = (compacted[toolIdx] as { tool_call_id?: string }).tool_call_id
+
+      // Find the assistant turn that owns this tool result so we can remove the
+      // entire exchange (assistant + all its tool results).  Removing only the
+      // tool result would leave a dangling tool_call reference causing a 400.
+      let assistantIdx = -1
+      for (let i = toolIdx - 1; i >= keepSystemPrefix.length; i--) {
+        const msg = compacted[i] as { role?: string; tool_calls?: Array<{ id?: string }> }
+        if (
+          msg.role === 'assistant' &&
+          Array.isArray(msg.tool_calls) &&
+          msg.tool_calls.some((tc) => tc.id === toolCallId)
+        ) {
+          assistantIdx = i
+          break
+        }
+      }
+
+      if (assistantIdx !== -1) {
+        const assistantMsg = compacted[assistantIdx] as { tool_calls: Array<{ id?: string }> }
+        const ownedIds = new Set(assistantMsg.tool_calls.map((tc) => tc.id))
+        // Remove the assistant turn first
+        compacted.splice(assistantIdx, 1)
+        removedToolResults++
+        // Remove all tool results that belong to this assistant turn (indices shifted)
+        let i = assistantIdx
+        while (i < compacted.length) {
+          const msg = compacted[i] as { role?: string; tool_call_id?: string }
+          if (msg.role === 'tool' && ownedIds.has(msg.tool_call_id)) {
+            compacted.splice(i, 1)
+            removedToolResults++
+          } else {
+            i++
+          }
+        }
+      } else {
+        // No owning assistant found — remove the orphaned tool result only
+        compacted.splice(toolIdx, 1)
+        removedToolResults++
+      }
+    }
+  }
+
+  while (
+    compacted.length > keepSystemPrefix.length + MIN_CONTEXT_MESSAGES_FLOOR &&
+    estimateTranslatedMessageTokens(compacted) > targetInputTokens
+  ) {
+    compacted.splice(keepSystemPrefix.length, 1)
+  }
+
+  const finalEstimate = estimateTranslatedMessageTokens(compacted)
+  if (finalEstimate < initialEstimate) {
+    const reductionPct = Math.round((1 - finalEstimate / initialEstimate) * 100)
+    logForDebugging(
+      `[copilot-adapter] compacted request context from ~${initialEstimate} to ~${finalEstimate} tokens (${reductionPct}% reduction, ${messages.length} -> ${compacted.length} messages, removed_tool_results=${removedToolResults})`,
+    )
+  }
+
+  return compacted
+}
+
+function buildRequestFingerprint(
+  model: string,
+  body: Record<string, unknown>,
+): string {
+  const serialized = jsonStringify({ model, body })
+  return createHash('sha1').update(serialized).digest('hex')
+}
+
+type CachedReplay = {
+  payload: string
+  expiresAt: number
+}
+
+type Deferred<T> = {
+  promise: Promise<T>
+  resolve: (value: T) => void
+  reject: (reason?: unknown) => void
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+function buildReplayResponse(payload: string): Response {
+  return new Response(payload, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream',
+      Connection: 'keep-alive',
+      'Cache-Control': 'no-cache',
+    },
+  })
+}
+
+async function translateToCopilotBody(
+  anthropicBody: Record<string, unknown>,
+  selectedModel?: CopilotDiscoveredModel,
+): Promise<{
   copilotBody: Record<string, unknown>
   copilotModel: string
   estimatedInputTokens: number
-} {
+  requestInputTokens: number
+  originalMessageCount: number
+  requestMessageCount: number
+  hasVisionRequest: boolean
+}> {
   const anthropicMessages = (anthropicBody.messages as AnthropicMessage[]) || []
   const anthropicTools = (anthropicBody.tools as AnthropicTool[]) || []
   const systemPrompt = anthropicBody.system as
@@ -269,6 +639,7 @@ function translateToCopilotBody(anthropicBody: Record<string, unknown>): {
 
   const copilotModel = mapClaudeModelToCopilot((anthropicBody.model as string) || null)
   const translatedMessages = translateMessages(anthropicMessages)
+  const hasTranslatedVisionContent = hasVisionContent(translatedMessages)
   if (systemPrompt) {
     const text =
       typeof systemPrompt === 'string'
@@ -282,11 +653,40 @@ function translateToCopilotBody(anthropicBody: Record<string, unknown>): {
     }
   }
 
+  const supportsVision = selectedModel?.supportsVision ?? true
+  const requestMessages =
+    hasTranslatedVisionContent && !supportsVision
+      ? translatedMessages.map((message) => {
+          const content = message.content
+          if (!Array.isArray(content)) return message
+          return {
+            ...message,
+            content: content.filter(
+              (part) =>
+                typeof part !== 'object' ||
+                part === null ||
+                (part as { type?: string }).type !== 'image_url',
+            ),
+          }
+        })
+      : translatedMessages
+
+    const repairedMessages = repairTranslatedToolPairing(requestMessages)
+    const cleanedMessages = removeEmptyMessages(repairedMessages)
+    const compactedMessages = compactTranslatedMessages(cleanedMessages)
+    const requestInputTokens = estimateTranslatedMessageTokens(compactedMessages)
+
+  const tokenParamKey = getCopilotTokenParameter(
+    copilotModel,
+    selectedModel?.preferredTokenParameter,
+  )
+
   const copilotBody: Record<string, unknown> = {
     model: copilotModel,
     stream: true,
     stream_options: { include_usage: true },
-    messages: translatedMessages,
+      messages: compactedMessages,
+    [tokenParamKey]: anthropicBody.max_tokens ?? 4096,
   }
 
   if (anthropicTools.length > 0) {
@@ -301,6 +701,10 @@ function translateToCopilotBody(anthropicBody: Record<string, unknown>): {
       systemPrompt,
       anthropicTools,
     ),
+    requestInputTokens,
+    originalMessageCount: translatedMessages.length,
+    requestMessageCount: compactedMessages.length,
+    hasVisionRequest: supportsVision && hasVisionContent(compactedMessages),
   }
 }
 
@@ -413,6 +817,12 @@ async function translateCopilotStreamToAnthropic(
             if (usage) {
               inputTokens = usage.prompt_tokens || inputTokens
               outputTokens = usage.completion_tokens || outputTokens
+              logForDebugging(
+                `[copilot-adapter] response usage prompt_tokens=${usage.prompt_tokens ?? inputTokens} completion_tokens=${usage.completion_tokens ?? outputTokens} total_tokens=${usage.total_tokens ?? inputTokens + outputTokens}`,
+              )
+
+              const contextWindowSize = DEFAULT_COPILOT_CONTEXT_WINDOW_SIZE
+
               setCodexUsage({
                 provider: 'copilot',
                 usage_source: 'github-copilot-stream',
@@ -422,21 +832,15 @@ async function translateCopilotStreamToAnthropic(
                   total_tokens: usage.total_tokens ?? inputTokens + outputTokens,
                 },
                 context_window: {
-                  context_window_size: DEFAULT_COPILOT_CONTEXT_WINDOW_SIZE,
+                  context_window_size: contextWindowSize,
                   used_tokens: usage.total_tokens ?? inputTokens + outputTokens,
                   remaining_tokens:
                     usage.total_tokens !== undefined
-                      ? Math.max(
-                          DEFAULT_COPILOT_CONTEXT_WINDOW_SIZE - usage.total_tokens,
-                          0,
-                        )
+                      ? Math.max(contextWindowSize - usage.total_tokens, 0)
                       : null,
                   used_percentage:
                     usage.total_tokens !== undefined
-                      ? Math.min(
-                          (usage.total_tokens / DEFAULT_COPILOT_CONTEXT_WINDOW_SIZE) * 100,
-                          100,
-                        )
+                      ? Math.min((usage.total_tokens / contextWindowSize) * 100, 100)
                       : null,
                 },
               })
@@ -618,8 +1022,13 @@ async function translateCopilotStreamToAnthropic(
   })
 }
 
-export function createCopilotFetch(copilotToken: string): typeof fetch {
-  return async (input, init) => {
+export function createCopilotFetch(
+  copilotTokens: Pick<CopilotTokens, 'copilotToken' | 'enterpriseUrl'>,
+  options?: { getModelById?: (modelId: string) => Promise<CopilotDiscoveredModel | undefined> },
+): typeof fetch {
+  const responseReplayCache = new Map<string, CachedReplay>()
+  const inflightReplays = new Map<string, Promise<string | null>>()
+  const wrappedFetch = Object.assign(async (input, init) => {
     const url = getRequestUrl(input)
     const method = init?.method || 'GET'
 
@@ -627,24 +1036,76 @@ export function createCopilotFetch(copilotToken: string): typeof fetch {
       return globalThis.fetch(input, init)
     }
 
-    let anthropicBody: Record<string, unknown>
-    try {
-      const bodyText =
-        init?.body instanceof ReadableStream
-          ? await new Response(init.body).text()
-          : typeof init?.body === 'string'
-            ? init.body
-            : '{}'
-      anthropicBody = JSON.parse(bodyText)
-    } catch {
-      anthropicBody = {}
-    }
+    reportAnthropicHostedRequest({
+      transport: 'fetch',
+      url,
+      context: 'copilot-adapter-intercept',
+      operation: 'anthropic-messages->copilot-chat',
+    })
 
-    const { copilotBody, copilotModel, estimatedInputTokens } =
-      translateToCopilotBody(anthropicBody)
+    try {
+      let anthropicBody: Record<string, unknown>
+      try {
+        const bodyText =
+          init?.body instanceof ReadableStream
+            ? await new Response(init.body).text()
+            : typeof init?.body === 'string'
+              ? init.body
+              : '{}'
+        anthropicBody = JSON.parse(bodyText)
+      } catch {
+        anthropicBody = {}
+      }
+
+    const requestedModel = mapClaudeModelToCopilot((anthropicBody.model as string) || null)
+    const selectedModel = await options?.getModelById?.(requestedModel)
+    const {
+      copilotBody,
+      copilotModel,
+      estimatedInputTokens,
+      requestInputTokens,
+      originalMessageCount,
+      requestMessageCount,
+      hasVisionRequest,
+    } =
+      await translateToCopilotBody(anthropicBody, selectedModel)
+    const copilotApiBaseUrl = getCopilotApiBaseUrl(copilotTokens.enterpriseUrl)
+    const dedupEnabled = !isEnvTruthy(process.env.COPILOT_DISABLE_REQUEST_DEDUP)
+    const dedupTtlMs = getDedupTtlMs()
+    const requestFingerprint = buildRequestFingerprint(copilotModel, copilotBody)
+
+    let replayDeferred: Deferred<string | null> | null = null
+
+    if (dedupEnabled) {
+      const now = Date.now()
+      const cached = responseReplayCache.get(requestFingerprint)
+      if (cached && cached.expiresAt > now) {
+        logForDebugging(
+          `[copilot-adapter] replay cache hit for fingerprint=${requestFingerprint.slice(0, 12)}`,
+        )
+        return buildReplayResponse(cached.payload)
+      }
+
+      const inflight = inflightReplays.get(requestFingerprint)
+      if (inflight) {
+        logForDebugging(
+          `[copilot-adapter] coalescing duplicate request fingerprint=${requestFingerprint.slice(0, 12)}`,
+        )
+        const payload = await inflight
+        if (payload) {
+          return buildReplayResponse(payload)
+        }
+      }
+
+      replayDeferred = createDeferred<string | null>()
+      inflightReplays.set(requestFingerprint, replayDeferred.promise)
+    }
 
     logForDebugging(
       `[copilot-adapter] forwarding ${method} ${url} as model=${copilotModel}`,
+    )
+    logForDebugging(
+      `[copilot-adapter] request usage estimated_input_tokens=${estimatedInputTokens} request_input_tokens=${requestInputTokens} original_message_count=${originalMessageCount} request_message_count=${requestMessageCount}`,
     )
 
     // Strip Anthropic-specific routing options (ANTHROPIC_UNIX_SOCKET tunnel,
@@ -662,7 +1123,7 @@ export function createCopilotFetch(copilotToken: string): typeof fetch {
       method: 'POST',
       headers: {
         ...(init?.headers ? Object.fromEntries(new Headers(init.headers).entries()) : {}),
-        Authorization: `Bearer ${copilotToken}`,
+        Authorization: `Bearer ${copilotTokens.copilotToken}`,
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
         'Copilot-Integration-Id': 'vscode-chat',
@@ -673,13 +1134,24 @@ export function createCopilotFetch(copilotToken: string): typeof fetch {
         'X-GitHub-Api-Version': COPILOT_API_VERSION,
         'X-Request-Id': randomUUID(),
         'X-Vscode-User-Agent-Library-Version': 'electron-fetch',
+        'Copilot-Vision-Request': String(hasVisionRequest),
+        'x-initiator': 'user',
       },
       body: JSON.stringify(copilotBody),
     }
 
-    const response = await fetch(`${COPILOT_API_BASE_URL}/chat/completions`, {
-      ...upstreamInit,
-    })
+    let response: Response
+    try {
+      response = await postCopilotChat(
+        copilotApiBaseUrl,
+        JSON.stringify(copilotBody),
+        upstreamInit.headers as Record<string, string>,
+      )
+    } catch (error) {
+      replayDeferred?.resolve(null)
+      inflightReplays.delete(requestFingerprint)
+      throw error
+    }
 
     logForDebugging(
       `[copilot-adapter] response status=${response.status} ok=${response.ok}`,
@@ -702,6 +1174,8 @@ export function createCopilotFetch(copilotToken: string): typeof fetch {
             : response.status === 429
               ? 'rate_limit_error'
               : 'api_error'
+      replayDeferred?.resolve(null)
+      inflightReplays.delete(requestFingerprint)
       return new Response(
         JSON.stringify({
           type: 'error',
@@ -717,10 +1191,61 @@ export function createCopilotFetch(copilotToken: string): typeof fetch {
       )
     }
 
-    return translateCopilotStreamToAnthropic(
+    const translatedResponse = await translateCopilotStreamToAnthropic(
       response,
       copilotModel,
       estimatedInputTokens,
     )
-  }
+
+    if (dedupEnabled) {
+      const replayPromise = translatedResponse
+        .clone()
+        .text()
+        .then((payload) => {
+          responseReplayCache.set(requestFingerprint, {
+            payload,
+            expiresAt: Date.now() + dedupTtlMs,
+          })
+          return payload
+        })
+        .catch((error) => {
+          logForDebugging(
+            `[copilot-adapter] replay cache population failed: ${String(error)}`,
+          )
+          replayDeferred?.resolve(null)
+          return null
+        })
+        .finally(() => {
+          inflightReplays.delete(requestFingerprint)
+        })
+      void replayPromise.then((payload) => replayDeferred?.resolve(payload))
+    }
+
+    return translatedResponse
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      logForDebugging(
+        `[copilot-adapter] adapter pipeline failure: ${errorMessage}`,
+        { level: 'error' },
+      )
+
+      const errorBody = {
+        type: 'error',
+        error: {
+          type: 'api_error',
+          message: `Copilot adapter error: ${errorMessage}`,
+        },
+      }
+
+      return new Response(JSON.stringify(errorBody), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+  }, {
+    preconnect: globalThis.fetch.preconnect?.bind(globalThis.fetch),
+  }) as typeof fetch
+
+  return wrappedFetch
 }

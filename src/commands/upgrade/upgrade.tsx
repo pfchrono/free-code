@@ -4,12 +4,13 @@ import { getOauthProfileFromOauthToken } from '../../services/oauth/getOauthProf
 import type { LocalJSXCommandOnDone } from '../../types/command.js';
 import { getClaudeAIOAuthTokens, isClaudeAISubscriber } from '../../utils/auth.js';
 import { openBrowser } from '../../utils/browser.js';
+import { shouldAllowAnthropicHostedServices } from '../../utils/model/providers.js';
 import { logError } from '../../utils/log.js';
 import { Login } from '../login/login.js';
 export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXCommandContext): Promise<React.ReactNode | null> {
   try {
     // Check if user is already on the highest Max plan (20x)
-    if (isClaudeAISubscriber()) {
+    if (shouldAllowAnthropicHostedServices() && isClaudeAISubscriber()) {
       const tokens = getClaudeAIOAuthTokens();
       let isMax20x = false;
       if (tokens?.subscriptionType && tokens?.rateLimitTier) {

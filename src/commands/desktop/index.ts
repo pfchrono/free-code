@@ -1,4 +1,5 @@
 import type { Command } from '../../commands.js'
+import { shouldAllowAnthropicHostedServices } from '../../utils/model/providers.js'
 
 function isSupportedPlatform(): boolean {
   if (process.platform === 'darwin') {
@@ -16,9 +17,10 @@ const desktop = {
   aliases: ['app'],
   description: 'Continue the current session in Claude Desktop',
   availability: ['claude-ai'],
-  isEnabled: isSupportedPlatform,
+  isEnabled: () =>
+    shouldAllowAnthropicHostedServices() && isSupportedPlatform(),
   get isHidden() {
-    return !isSupportedPlatform()
+    return !shouldAllowAnthropicHostedServices() || !isSupportedPlatform()
   },
   load: () => import('./desktop.js'),
 } satisfies Command

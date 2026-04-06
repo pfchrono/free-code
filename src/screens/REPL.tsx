@@ -30,6 +30,8 @@ import { useTerminalNotification } from '../ink/useTerminalNotification.js';
 import { hasCursorUpViewportYankBug } from '../ink/terminal.js';
 import { createFileStateCacheWithSizeLimit, mergeFileStateCaches, READ_FILE_STATE_CACHE_SIZE } from '../utils/fileStateCache.js';
 import { updateLastInteractionTime, getLastInteractionTime, getOriginalCwd, getProjectRoot, getSessionId, switchSession, setCostStateForRestore, getTurnHookDurationMs, getTurnHookCount, resetTurnHookDuration, getTurnToolDurationMs, getTurnToolCount, resetTurnToolDuration, getTurnClassifierDurationMs, getTurnClassifierCount, resetTurnClassifierDuration } from '../bootstrap/state.js';
+import { getSessionManager } from '../services/memory/sessionContinuityManager.js';
+import { getLiveDependencyGraphIntegration } from '../utils/codebase/integration.js';
 import { asSessionId, asAgentId } from '../types/ids.js';
 import { logForDebugging } from '../utils/debug.js';
 import { QueryGuard } from '../utils/QueryGuard.js';
@@ -302,9 +304,8 @@ const HISTORY_STUB = {
   maybeLoadOlder: (_: ScrollBoxHandle) => {}
 };
 // Window after a user-initiated scroll during which type-into-empty does NOT
-// repin to bottom. Josh Rosen's workflow: Claude emits long output → scroll
-// up to read the start → start typing → before this fix, snapped to bottom.
-// https://anthropic.slack.com/archives/C07VBSHV7EV/p1773545449871739
+// repin to bottom. In the reported workflow, long output followed by scrolling
+// up to read earlier content and then starting to type would snap back down.
 const RECENT_SCROLL_REPIN_WINDOW_MS = 3000;
 
 // Use LRU cache to prevent unbounded memory growth
@@ -4017,6 +4018,21 @@ export function REPL({
       content,
       isMeta: options?.isMeta ? true : undefined
     });
+    const plainTextContent = typeof content === 'string' ? content : '';
+    if (plainTextContent.trim()) {
+      void getSessionManager().addInsight(`User request: ${plainTextContent.slice(0, 200)}`, 0.5).catch(() => {});
+      const recommendationTerms = plainTextContent
+        .split(/\s+/)
+        .map(term => term.replace(/[^\w.-]/g, '').toLowerCase())
+        .filter(term => term.length > 3)
+        .slice(0, 8);
+      if (recommendationTerms.length > 0) {
+        const recommendations = getLiveDependencyGraphIntegration().getContextRecommendations(recommendationTerms, 3);
+        if (recommendations.length > 0) {
+          setMessages(prev => [...prev, createSystemMessage(`Suggested context: ${recommendations.map(rec => rec.path).join(', ')}`, 'info')]);
+        }
+      }
+    }
     void onQuery([userMessage], newAbortController, true, [], mainLoopModel);
     return true;
   }, [onQuery, mainLoopModel, store]);

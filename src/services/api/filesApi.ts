@@ -16,6 +16,7 @@ import { getCwd } from '../../utils/cwd.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { errorMessage } from '../../utils/errors.js'
 import { logError } from '../../utils/log.js'
+import { getAPIProvider, shouldAllowAnthropicHostedServices } from '../../utils/model/providers.js'
 import { sleep } from '../../utils/sleep.js'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -27,9 +28,20 @@ import {
 const FILES_API_BETA_HEADER = 'files-api-2025-04-14,oauth-2025-04-20'
 const ANTHROPIC_VERSION = '2023-06-01'
 
+function assertAnthropicFilesApiAllowed(): void {
+  if (shouldAllowAnthropicHostedServices()) {
+    return
+  }
+
+  throw new Error(
+    `Anthropic Files API is disabled when apiProvider=${getAPIProvider()}`,
+  )
+}
+
 // API base URL - uses ANTHROPIC_BASE_URL set by env-manager for the appropriate environment
 // Falls back to public API for standalone usage
 function getDefaultApiBaseUrl(): string {
+  assertAnthropicFilesApiAllowed()
   return (
     process.env.ANTHROPIC_BASE_URL ||
     process.env.CLAUDE_CODE_API_BASE_URL ||
@@ -133,6 +145,7 @@ export async function downloadFile(
   fileId: string,
   config: FilesApiConfig,
 ): Promise<Buffer> {
+  assertAnthropicFilesApiAllowed()
   const baseUrl = config.baseUrl || getDefaultApiBaseUrl()
   const url = `${baseUrl}/v1/files/${fileId}/content`
 

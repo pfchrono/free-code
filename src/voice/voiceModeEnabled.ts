@@ -4,6 +4,7 @@ import {
   getClaudeAIOAuthTokens,
   isAnthropicAuthEnabled,
 } from '../utils/auth.js'
+import { shouldAllowAnthropicHostedServices } from '../utils/model/providers.js'
 
 /**
  * Kill-switch check for voice mode. Returns true unless the
@@ -30,10 +31,10 @@ export function isVoiceGrowthBookEnabled(): boolean {
  * cold spawn per refresh is expected. Cheap enough for usage-time checks.
  */
 export function hasVoiceAuth(): boolean {
-  // Voice mode requires Anthropic OAuth — it uses the voice_stream
-  // endpoint on claude.ai which is not available with API keys,
-  // Bedrock, Vertex, or Foundry.
-  if (!isAnthropicAuthEnabled()) {
+  // Voice mode requires Anthropic-hosted first-party auth — it uses the
+  // voice_stream endpoint on claude.ai and should be hidden for third-party
+  // providers even if a stale Claude OAuth token is still stored locally.
+  if (!shouldAllowAnthropicHostedServices() || !isAnthropicAuthEnabled()) {
     return false
   }
   // isAnthropicAuthEnabled only checks the auth *provider*, not whether

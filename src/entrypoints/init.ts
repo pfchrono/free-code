@@ -13,6 +13,7 @@ import {
   initializeRemoteManagedSettingsLoadingPromise,
   isEligibleForRemoteManagedSettings,
 } from '../services/remoteManagedSettings/index.js'
+import { installAnthropicLeakFetchDetector } from '../utils/anthropicLeakDetection.js'
 import { preconnectAnthropicApi } from '../utils/apiPreconnect.js'
 import { applyExtraCACertsFromConfig } from '../utils/caCertsConfig.js'
 import { registerCleanup } from '../utils/cleanupRegistry.js'
@@ -112,6 +113,8 @@ export const init = memoize(async (): Promise<void> => {
       duration_ms: Date.now() - proxyStart,
     })
     profileCheckpoint('init_network_configured')
+
+    installAnthropicLeakFetchDetector()
 
     // Preconnect to the Anthropic API — overlap TCP+TLS handshake
     // (~100-200ms) with the ~100ms of action-handler work before the API

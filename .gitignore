@@ -10,3 +10,4 @@ openclaw/
 benchmark-results/*
 .claude/settings.local.json
 .claude/worktrees/
+temp-uncommitted/

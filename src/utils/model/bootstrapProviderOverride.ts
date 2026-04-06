@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 
-type RepoLocalApiProvider = 'firstParty' | 'openai' | 'copilot'
+type RepoLocalApiProvider = 'firstParty' | 'codex' | 'openai' | 'openrouter' | 'copilot' | 'lmstudio'
 
 type RepoLocalProviderSettings = {
   apiProvider?: RepoLocalApiProvider
@@ -24,8 +24,11 @@ function readRepoLocalApiProvider(): RepoLocalApiProvider | null {
     ) as RepoLocalProviderSettings
 
     return parsed.apiProvider === 'firstParty' ||
+      parsed.apiProvider === 'codex' ||
       parsed.apiProvider === 'openai' ||
-      parsed.apiProvider === 'copilot'
+      parsed.apiProvider === 'openrouter' ||
+      parsed.apiProvider === 'copilot' ||
+      parsed.apiProvider === 'lmstudio'
       ? parsed.apiProvider
       : null
   } catch {
@@ -37,8 +40,11 @@ function clearProviderFlags(): void {
   delete process.env.CLAUDE_CODE_USE_BEDROCK
   delete process.env.CLAUDE_CODE_USE_VERTEX
   delete process.env.CLAUDE_CODE_USE_FOUNDRY
+  delete process.env.CLAUDE_CODE_USE_CODEX
   delete process.env.CLAUDE_CODE_USE_OPENAI
+  delete process.env.CLAUDE_CODE_USE_OPENROUTER
   delete process.env.CLAUDE_CODE_USE_COPILOT
+  delete process.env.CLAUDE_CODE_USE_LMSTUDIO
 }
 
 export function applyRepoLocalApiProviderOverride(): void {
@@ -50,12 +56,27 @@ export function applyRepoLocalApiProviderOverride(): void {
 
   clearProviderFlags()
 
+  if (apiProvider === 'codex') {
+    process.env.CLAUDE_CODE_USE_CODEX = '1'
+    return
+  }
+
   if (apiProvider === 'openai') {
     process.env.CLAUDE_CODE_USE_OPENAI = '1'
     return
   }
 
+  if (apiProvider === 'openrouter') {
+    process.env.CLAUDE_CODE_USE_OPENROUTER = '1'
+    return
+  }
+
   if (apiProvider === 'copilot') {
     process.env.CLAUDE_CODE_USE_COPILOT = '1'
+    return
+  }
+
+  if (apiProvider === 'lmstudio') {
+    process.env.CLAUDE_CODE_USE_LMSTUDIO = '1'
   }
 }

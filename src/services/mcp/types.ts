@@ -121,6 +121,15 @@ export const McpClaudeAIProxyServerConfigSchema = lazySchema(() =>
   }),
 )
 
+export const McpProviderManagedProxyServerConfigSchema = lazySchema(() =>
+  z.object({
+    type: z.literal('provider-managed-proxy'),
+    provider: z.enum(['copilot', 'codex', 'openai', 'openrouter']),
+    url: z.string(),
+    id: z.string(),
+  }),
+)
+
 export const McpServerConfigSchema = lazySchema(() =>
   z.union([
     McpStdioServerConfigSchema(),
@@ -131,6 +140,7 @@ export const McpServerConfigSchema = lazySchema(() =>
     McpWebSocketServerConfigSchema(),
     McpSdkServerConfigSchema(),
     McpClaudeAIProxyServerConfigSchema(),
+    McpProviderManagedProxyServerConfigSchema(),
   ]),
 )
 
@@ -157,6 +167,9 @@ export type McpSdkServerConfig = z.infer<
 >
 export type McpClaudeAIProxyServerConfig = z.infer<
   ReturnType<typeof McpClaudeAIProxyServerConfigSchema>
+>
+export type McpProviderManagedProxyServerConfig = z.infer<
+  ReturnType<typeof McpProviderManagedProxyServerConfigSchema>
 >
 export type McpServerConfig = z.infer<ReturnType<typeof McpServerConfigSchema>>
 

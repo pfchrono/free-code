@@ -10,7 +10,7 @@ import { useKeybindings } from '../keybindings/useKeybinding.js';
 import { useAppState, useSetAppState } from '../state/AppState.js';
 import { convertEffortValueToLevel, type EffortLevel, getDefaultEffortForModel, modelSupportsEffort, modelSupportsMaxEffort, resolvePickerEffortPersistence, toPersistableEffort } from '../utils/effort.js';
 import { getDefaultMainLoopModel, type ModelSetting, modelDisplayString, parseUserSpecifiedModel } from '../utils/model/model.js';
-import { getModelOptions } from '../utils/model/modelOptions.js';
+import { getModelOptions, getModelPickerAvailabilitySummary } from '../utils/model/modelOptions.js';
 import { getSettingsForSource, updateSettingsForSource } from '../utils/settings/settings.js';
 import { ConfigurableShortcutHint } from './ConfigurableShortcutHint.js';
 import { Select } from './CustomSelect/index.js';
@@ -37,7 +37,7 @@ export type Props = {
 };
 const NO_PREFERENCE = '__NO_PREFERENCE__';
 export function ModelPicker(t0) {
-  const $ = _c(82);
+  const $ = _c(85);
   const {
     initial,
     sessionModel,
@@ -74,6 +74,7 @@ export function ModelPicker(t0) {
     t3 = $[3];
   }
   const modelOptions = t3;
+  const availabilitySummary = getModelPickerAvailabilitySummary();
   let t4;
   bb0: {
     if (initial !== null && !modelOptions.some(opt => opt.value === initial)) {
@@ -275,113 +276,122 @@ export function ModelPicker(t0) {
     t17 = $[43];
   }
   let t18;
-  if ($[44] !== sessionModel) {
-    t18 = sessionModel && <Text dimColor={true}>Currently using {modelDisplayString(sessionModel)} for this session (set by plan mode). Selecting a model will undo this.</Text>;
-    $[44] = sessionModel;
+  if ($[44] !== availabilitySummary) {
+    t18 = availabilitySummary && <Text dimColor={true}>{availabilitySummary}</Text>;
+    $[44] = availabilitySummary;
     $[45] = t18;
   } else {
     t18 = $[45];
   }
   let t19;
-  if ($[46] !== t17 || $[47] !== t18) {
-    t19 = <Box marginBottom={1} flexDirection="column">{t15}{t17}{t18}</Box>;
-    $[46] = t17;
-    $[47] = t18;
-    $[48] = t19;
+  if ($[46] !== sessionModel) {
+    t19 = sessionModel && <Text dimColor={true}>Currently using {modelDisplayString(sessionModel)} for this session (set by plan mode). Selecting a model will undo this.</Text>;
+    $[46] = sessionModel;
+    $[47] = t19;
   } else {
-    t19 = $[48];
+    t19 = $[47];
   }
-  const t20 = onCancel ?? _temp4;
-  let t21;
-  if ($[49] !== handleFocus || $[50] !== handleSelect || $[51] !== initialFocusValue || $[52] !== initialValue || $[53] !== selectOptions || $[54] !== t20 || $[55] !== visibleCount) {
-    t21 = <Box flexDirection="column"><Select defaultValue={initialValue} defaultFocusValue={initialFocusValue} options={selectOptions} onChange={handleSelect} onFocus={handleFocus} onCancel={t20} visibleOptionCount={visibleCount} /></Box>;
-    $[49] = handleFocus;
-    $[50] = handleSelect;
-    $[51] = initialFocusValue;
-    $[52] = initialValue;
-    $[53] = selectOptions;
-    $[54] = t20;
-    $[55] = visibleCount;
-    $[56] = t21;
+  let t20;
+  if ($[48] !== t17 || $[49] !== t18 || $[50] !== t19) {
+    t20 = <Box marginBottom={1} flexDirection="column">{t15}{t17}{t18}{t19}</Box>;
+    $[48] = t17;
+    $[49] = t18;
+    $[50] = t19;
+    $[51] = t20;
   } else {
-    t21 = $[56];
+    t20 = $[51];
+  }
+  const t30 = onCancel ?? _temp4;
+  let t21;
+  if ($[52] !== handleFocus || $[53] !== handleSelect || $[54] !== initialFocusValue || $[55] !== initialValue || $[56] !== selectOptions || $[57] !== t30 || $[58] !== visibleCount) {
+    t21 = <Box flexDirection="column"><Select defaultValue={initialValue} defaultFocusValue={initialFocusValue} options={selectOptions} onChange={handleSelect} onFocus={handleFocus} onCancel={t30} visibleOptionCount={visibleCount} /></Box>;
+    $[52] = handleFocus;
+    $[53] = handleSelect;
+    $[54] = initialFocusValue;
+    $[55] = initialValue;
+    $[56] = selectOptions;
+    $[57] = t30;
+    $[58] = visibleCount;
+    $[59] = t21;
+  } else {
+    t21 = $[59];
   }
   let t22;
-  if ($[57] !== hiddenCount) {
+  if ($[60] !== hiddenCount) {
     t22 = hiddenCount > 0 && <Box paddingLeft={3}><Text dimColor={true}>and {hiddenCount} more…</Text></Box>;
-    $[57] = hiddenCount;
-    $[58] = t22;
+    $[60] = hiddenCount;
+    $[61] = t22;
   } else {
-    t22 = $[58];
+    t22 = $[61];
   }
   let t23;
-  if ($[59] !== t21 || $[60] !== t22) {
+  if ($[62] !== t21 || $[63] !== t22) {
     t23 = <Box flexDirection="column" marginBottom={1}>{t21}{t22}</Box>;
-    $[59] = t21;
-    $[60] = t22;
-    $[61] = t23;
+    $[62] = t21;
+    $[63] = t22;
+    $[64] = t23;
   } else {
-    t23 = $[61];
+    t23 = $[64];
   }
   let t24;
-  if ($[62] !== displayEffort || $[63] !== focusedDefaultEffort || $[64] !== focusedModelName || $[65] !== focusedSupportsEffort) {
+  if ($[65] !== displayEffort || $[66] !== focusedDefaultEffort || $[67] !== focusedModelName || $[68] !== focusedSupportsEffort) {
     t24 = <Box marginBottom={1} flexDirection="column">{focusedSupportsEffort ? <Text dimColor={true}><EffortLevelIndicator effort={displayEffort} />{" "}{capitalize(displayEffort)} effort{displayEffort === focusedDefaultEffort ? " (default)" : ""}{" "}<Text color="subtle">← → to adjust</Text></Text> : <Text color="subtle"><EffortLevelIndicator effort={undefined} /> Effort not supported{focusedModelName ? ` for ${focusedModelName}` : ""}</Text>}</Box>;
-    $[62] = displayEffort;
-    $[63] = focusedDefaultEffort;
-    $[64] = focusedModelName;
-    $[65] = focusedSupportsEffort;
-    $[66] = t24;
+    $[65] = displayEffort;
+    $[66] = focusedDefaultEffort;
+    $[67] = focusedModelName;
+    $[68] = focusedSupportsEffort;
+    $[69] = t24;
   } else {
-    t24 = $[66];
+    t24 = $[69];
   }
   let t25;
-  if ($[67] !== showFastModeNotice) {
+  if ($[70] !== showFastModeNotice) {
     t25 = isFastModeEnabled() ? showFastModeNotice ? <Box marginBottom={1}><Text dimColor={true}>Fast mode is <Text bold={true}>ON</Text> and available with{" "}{FAST_MODE_MODEL_DISPLAY} only (/fast). Switching to other models turn off fast mode.</Text></Box> : isFastModeAvailable() && !isFastModeCooldown() ? <Box marginBottom={1}><Text dimColor={true}>Use <Text bold={true}>/fast</Text> to turn on Fast mode ({FAST_MODE_MODEL_DISPLAY} only).</Text></Box> : null : null;
-    $[67] = showFastModeNotice;
-    $[68] = t25;
+    $[70] = showFastModeNotice;
+    $[71] = t25;
   } else {
-    t25 = $[68];
+    t25 = $[71];
   }
   let t26;
-  if ($[69] !== t19 || $[70] !== t23 || $[71] !== t24 || $[72] !== t25) {
-    t26 = <Box flexDirection="column">{t19}{t23}{t24}{t25}</Box>;
-    $[69] = t19;
-    $[70] = t23;
-    $[71] = t24;
-    $[72] = t25;
-    $[73] = t26;
+  if ($[72] !== t20 || $[73] !== t23 || $[74] !== t24 || $[75] !== t25) {
+    t26 = <Box flexDirection="column">{t20}{t23}{t24}{t25}</Box>;
+    $[72] = t20;
+    $[73] = t23;
+    $[74] = t24;
+    $[75] = t25;
+    $[76] = t26;
   } else {
-    t26 = $[73];
+    t26 = $[76];
   }
   let t27;
-  if ($[74] !== exitState || $[75] !== isStandaloneCommand) {
+  if ($[77] !== exitState || $[78] !== isStandaloneCommand) {
     t27 = isStandaloneCommand && <Text dimColor={true} italic={true}>{exitState.pending ? <>Press {exitState.keyName} again to exit</> : <Byline><KeyboardShortcutHint shortcut="Enter" action="confirm" /><ConfigurableShortcutHint action="select:cancel" context="Select" fallback="Esc" description="exit" /></Byline>}</Text>;
-    $[74] = exitState;
-    $[75] = isStandaloneCommand;
-    $[76] = t27;
+    $[77] = exitState;
+    $[78] = isStandaloneCommand;
+    $[79] = t27;
   } else {
-    t27 = $[76];
+    t27 = $[79];
   }
   let t28;
-  if ($[77] !== t26 || $[78] !== t27) {
+  if ($[80] !== t26 || $[81] !== t27) {
     t28 = <Box flexDirection="column">{t26}{t27}</Box>;
-    $[77] = t26;
-    $[78] = t27;
-    $[79] = t28;
+    $[80] = t26;
+    $[81] = t27;
+    $[82] = t28;
   } else {
-    t28 = $[79];
+    t28 = $[82];
   }
   const content = t28;
   if (!isStandaloneCommand) {
     return content;
   }
   let t29;
-  if ($[80] !== content) {
+  if ($[83] !== content) {
     t29 = <Pane color="permission">{content}</Pane>;
-    $[80] = content;
-    $[81] = t29;
+    $[83] = content;
+    $[84] = t29;
   } else {
-    t29 = $[81];
+    t29 = $[84];
   }
   return t29;
 }

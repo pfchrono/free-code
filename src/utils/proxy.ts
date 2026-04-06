@@ -9,6 +9,7 @@ import { HttpsProxyAgent, type HttpsProxyAgentOptions } from 'https-proxy-agent'
 import memoize from 'lodash-es/memoize.js'
 import type * as undici from 'undici'
 import { getCACertificates } from './caCerts.js'
+import { reportAxiosAnthropicHostedRequest } from './anthropicLeakDetection.js'
 import { logForDebugging } from './debug.js'
 import { isEnvTruthy } from './envUtils.js'
 import {
@@ -171,14 +172,19 @@ export function createAxiosInstance(
   const proxyUrl = getProxyUrl()
   const mtlsAgent = getMTLSAgent()
   const instance = axios.create({ proxy: false })
+  const proxyAgent = proxyUrl
+    ? createHttpsProxyAgent(proxyUrl, extra)
+    : undefined
 
-  if (!proxyUrl) {
-    if (mtlsAgent) instance.defaults.httpsAgent = mtlsAgent
-    return instance
-  }
-
-  const proxyAgent = createHttpsProxyAgent(proxyUrl, extra)
   instance.interceptors.request.use(config => {
+    reportAxiosAnthropicHostedRequest(config, 'createAxiosInstance')
+    if (!proxyUrl) {
+      if (mtlsAgent) {
+        config.httpsAgent = mtlsAgent
+        config.httpAgent = mtlsAgent
+      }
+      return config
+    }
     if (config.url && shouldBypassProxy(config.url)) {
       config.httpsAgent = mtlsAgent
       config.httpAgent = mtlsAgent
@@ -339,33 +345,42 @@ export function configureGlobalAgents(): void {
   axios.defaults.httpAgent = undefined
   axios.defaults.httpsAgent = undefined
 
+  proxyInterceptorId = axios.interceptors.request.use(config => {
+    reportAxiosAnthropicHostedRequest(config, 'configureGlobalAgents')
+
+    if (!proxyUrl) {
+      if (mtlsAgent) {
+        config.httpsAgent = mtlsAgent
+        config.httpAgent = mtlsAgent
+      }
+      return config
+    }
+
+    // workaround for https://github.com/axios/axios/issues/4531
+    const proxyAgent = createHttpsProxyAgent(proxyUrl)
+
+    // Check if URL should bypass proxy based on NO_PROXY
+    if (config.url && shouldBypassProxy(config.url)) {
+      // Bypass proxy - use mTLS agent if configured, otherwise undefined
+      if (mtlsAgent) {
+        config.httpsAgent = mtlsAgent
+        config.httpAgent = mtlsAgent
+      } else {
+        // Remove any proxy agents to use direct connection
+        delete config.httpsAgent
+        delete config.httpAgent
+      }
+    } else {
+      // Use proxy agent
+      config.httpsAgent = proxyAgent
+      config.httpAgent = proxyAgent
+    }
+    return config
+  })
+
   if (proxyUrl) {
     // workaround for https://github.com/axios/axios/issues/4531
     axios.defaults.proxy = false
-
-    // Create proxy agent with mTLS options if available
-    const proxyAgent = createHttpsProxyAgent(proxyUrl)
-
-    // Add axios request interceptor to handle NO_PROXY
-    proxyInterceptorId = axios.interceptors.request.use(config => {
-      // Check if URL should bypass proxy based on NO_PROXY
-      if (config.url && shouldBypassProxy(config.url)) {
-        // Bypass proxy - use mTLS agent if configured, otherwise undefined
-        if (mtlsAgent) {
-          config.httpsAgent = mtlsAgent
-          config.httpAgent = mtlsAgent
-        } else {
-          // Remove any proxy agents to use direct connection
-          delete config.httpsAgent
-          delete config.httpAgent
-        }
-      } else {
-        // Use proxy agent
-        config.httpsAgent = proxyAgent
-        config.httpAgent = proxyAgent
-      }
-      return config
-    })
 
     // Set global dispatcher that now respects NO_PROXY via EnvHttpProxyAgent
     // eslint-disable-next-line @typescript-eslint/no-require-imports

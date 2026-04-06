@@ -243,6 +243,10 @@ export function buildAPIProviderProperties(): Property[] {
   if (apiProvider !== 'firstParty') {
     const providerLabel = {
       bedrock: 'AWS Bedrock',
+      codex: 'ChatGPT Codex',
+      openai: 'OpenAI API',
+      openrouter: 'OpenRouter',
+      copilot: 'GitHub Copilot',
       vertex: 'Google Vertex AI',
       foundry: 'Microsoft Foundry'
     }[apiProvider];

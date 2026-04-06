@@ -15,21 +15,75 @@
  * Endpoint: https://chatgpt.com/backend-api/codex/responses
  */
 
+import axios from 'axios'
+import { createHash } from 'crypto'
+import { Readable } from 'stream'
 import { roughTokenCountEstimation, roughTokenCountEstimationForMessages } from '../tokenEstimation.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { getCodexOAuthTokens } from '../../utils/auth.js'
+import { reportAnthropicHostedRequest } from '../../utils/anthropicLeakDetection.js'
+import { isEnvTruthy } from '../../utils/envUtils.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { setCodexUsage, type CodexRateLimit } from './codexUsage.js'
 
 // ── Available Codex models ──────────────────────────────────────────
 export const CODEX_MODELS = [
-  { id: 'gpt-5.2-codex', label: 'GPT-5.2 Codex', description: 'Frontier agentic coding model' },
-  { id: 'gpt-5.1-codex', label: 'GPT-5.1 Codex', description: 'Codex coding model' },
-  { id: 'gpt-5.1-codex-mini', label: 'GPT-5.1 Codex Mini', description: 'Fast Codex model' },
-  { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini', description: 'Fast 5.4 model' },
-  { id: 'gpt-5.1-codex-max', label: 'GPT-5.1 Codex Max', description: 'Max Codex model' },
-  { id: 'gpt-5.4', label: 'GPT-5.4', description: 'Latest GPT' },
-  { id: 'gpt-5.2', label: 'GPT-5.2', description: 'GPT-5.2' },
+  {
+    id: 'gpt-5.4',
+    label: 'GPT-5.4',
+    description: 'Latest general Codex-compatible GPT model',
+    family: 'gpt',
+    supportsVision: true,
+    supportsTools: true,
+  },
+  {
+    id: 'gpt-5.4-mini',
+    label: 'GPT-5.4 Mini',
+    description: 'Fast general GPT model for lightweight turns',
+    family: 'gpt',
+    supportsVision: true,
+    supportsTools: true,
+  },
+  {
+    id: 'gpt-5.2-codex',
+    label: 'GPT-5.2 Codex',
+    description: 'Frontier coding-focused Codex model',
+    family: 'codex',
+    supportsVision: false,
+    supportsTools: true,
+  },
+  {
+    id: 'gpt-5.1-codex-max',
+    label: 'GPT-5.1 Codex Max',
+    description: 'Highest-end Codex model for complex coding work',
+    family: 'codex',
+    supportsVision: false,
+    supportsTools: true,
+  },
+  {
+    id: 'gpt-5.1-codex',
+    label: 'GPT-5.1 Codex',
+    description: 'Balanced Codex coding model',
+    family: 'codex',
+    supportsVision: false,
+    supportsTools: true,
+  },
+  {
+    id: 'gpt-5.1-codex-mini',
+    label: 'GPT-5.1 Codex Mini',
+    description: 'Fast Codex model for smaller coding tasks',
+    family: 'codex',
+    supportsVision: false,
+    supportsTools: true,
+  },
+  {
+    id: 'gpt-5.2',
+    label: 'GPT-5.2',
+    description: 'Previous-generation general GPT model',
+    family: 'gpt',
+    supportsVision: true,
+    supportsTools: true,
+  },
 ] as const
 
 export const DEFAULT_CODEX_MODEL = 'gpt-5.4'
@@ -167,7 +221,79 @@ type CodexReasoningItem = Record<string, unknown>
 
 const MAX_REASONING_CACHE_ENTRIES = 512
 const DEFAULT_CODEX_CONTEXT_WINDOW_SIZE = 272000
+const DEFAULT_CODEX_DEDUP_TTL_MS = 15_000
+const CODEX_REQUEST_TIMEOUT_MS = 120_000
 const reasoningItemsByToolCall = new Map<string, CodexReasoningItem[]>()
+
+function getCodexDedupTtlMs(): number {
+  const raw = Number(process.env.CODEX_DEDUP_TTL_MS)
+  if (!Number.isInteger(raw)) return DEFAULT_CODEX_DEDUP_TTL_MS
+  return Math.max(raw, 1_000)
+}
+
+function normalizeAxiosHeaders(
+  headers: Record<string, string | string[] | undefined>,
+): Headers {
+  const normalized = new Headers()
+  for (const [key, value] of Object.entries(headers)) {
+    if (Array.isArray(value)) {
+      normalized.set(key, value.join(', '))
+      continue
+    }
+    if (typeof value === 'string') {
+      normalized.set(key, value)
+    }
+  }
+  return normalized
+}
+
+async function postCodexResponses(
+  token: string,
+  accountId: string,
+  codexBody: Record<string, unknown>,
+): Promise<Response> {
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'text/event-stream',
+    Authorization: `Bearer ${token}`,
+    'chatgpt-account-id': accountId,
+    originator: 'pi',
+    'OpenAI-Beta': 'responses=experimental',
+  }
+  const serializedBody = JSON.stringify(codexBody)
+
+  try {
+    return await globalThis.fetch(CODEX_BASE_URL, {
+      method: 'POST',
+      headers,
+      body: serializedBody,
+    })
+  } catch (error) {
+    // Bun/undici fetch can intermittently fail at transport level while
+    // Node's HTTP stack succeeds; fallback keeps adapter mode from surfacing
+    // as a generic Anthropic SDK connection error.
+    logForDebugging(
+      `[codex-adapter] fetch transport failed, retrying with axios fallback: ${String(error)}`,
+      { level: 'error' },
+    )
+
+    const axiosResponse = await axios.post(CODEX_BASE_URL, serializedBody, {
+      headers,
+      responseType: 'stream',
+      timeout: CODEX_REQUEST_TIMEOUT_MS,
+      validateStatus: () => true,
+    })
+
+    const streamBody = Readable.toWeb(
+      axiosResponse.data as Readable,
+    ) as unknown as BodyInit
+
+    return new Response(streamBody, {
+      status: axiosResponse.status,
+      headers: normalizeAxiosHeaders(axiosResponse.headers),
+    })
+  }
+}
 
 function cacheReasoningItemsForToolCall(
   callId: string,
@@ -293,7 +419,11 @@ function translateMessages(
             const expandedToolReferences = formatToolReferenceExpansion(
               block.content
                 .filter(isToolReferenceBlock)
-                .map(c => c.tool_name),
+                .map(c => c.tool_name)
+                .filter(
+                  (toolName): toolName is string =>
+                    typeof toolName === 'string' && toolName.length > 0,
+                ),
               anthropicTools,
             )
 
@@ -396,7 +526,9 @@ function estimateInputTokens(
   anthropicTools: AnthropicTool[],
 ): number {
   const messageTokens = roughTokenCountEstimationForMessages(
-    anthropicMessages as Parameters<typeof roughTokenCountEstimationForMessages>[0],
+    anthropicMessages as unknown as Parameters<
+      typeof roughTokenCountEstimationForMessages
+    >[0],
   )
   const systemTokens = estimateSystemPromptTokens(systemPrompt)
   const toolTokens =
@@ -405,6 +537,39 @@ function estimateInputTokens(
       : 0
 
   return messageTokens + systemTokens + toolTokens
+}
+
+function estimateCodexInputTokens(items: CodexInputItem[]): number {
+  return roughTokenCountEstimation(jsonStringify(items))
+}
+
+function buildCodexRequestFingerprint(
+  model: string,
+  body: Record<string, unknown>,
+): string {
+  const serialized = jsonStringify({ model, body })
+  return createHash('sha1').update(serialized).digest('hex')
+}
+
+type CachedCodexReplay = {
+  payload: string
+  expiresAt: number
+}
+
+type CodexInflightReplay = {
+  replay: Promise<string | null>
+  expiresAt: number
+}
+
+function buildReplayResponse(payload: string): Response {
+  return new Response(payload, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream',
+      Connection: 'keep-alive',
+      'Cache-Control': 'no-cache',
+    },
+  })
 }
 
 // ── Full request translation ────────────────────────────────────────
@@ -418,6 +583,9 @@ function translateToCodexBody(anthropicBody: Record<string, unknown>): {
   codexBody: Record<string, unknown>
   codexModel: string
   estimatedInputTokens: number
+  requestInputTokens: number
+  originalInputItemCount: number
+  requestInputItemCount: number
 } {
   const anthropicMessages = (anthropicBody.messages || []) as AnthropicMessage[]
   const systemPrompt = anthropicBody.system as
@@ -450,6 +618,7 @@ function translateToCodexBody(anthropicBody: Record<string, unknown>): {
 
   // Convert messages
   const input = translateMessages(anthropicMessages, anthropicTools)
+  const requestInputTokens = estimateCodexInputTokens(input)
 
   const codexBody: Record<string, unknown> = {
     model: codexModel,
@@ -470,7 +639,14 @@ function translateToCodexBody(anthropicBody: Record<string, unknown>): {
     codexBody.tools = translateTools(anthropicTools)
   }
 
-  return { codexBody, codexModel, estimatedInputTokens }
+  return {
+    codexBody,
+    codexModel,
+    estimatedInputTokens,
+    requestInputTokens,
+    originalInputItemCount: input.length,
+    requestInputItemCount: input.length,
+  }
 }
 
 // ── Response translation: Codex SSE → Anthropic SSE ─────────────────
@@ -1083,6 +1259,8 @@ export function createCodexFetch(
   accessToken: string,
 ): (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
   const accountId = extractAccountId(accessToken)
+  const responseReplayCache = new Map<string, CachedCodexReplay>()
+  const inflightReplays = new Map<string, CodexInflightReplay>()
 
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = input instanceof Request ? input.url : String(input)
@@ -1092,40 +1270,119 @@ export function createCodexFetch(
       return globalThis.fetch(input, init)
     }
 
-    // Parse the Anthropic request body
-    let anthropicBody: Record<string, unknown>
+    reportAnthropicHostedRequest({
+      transport: 'fetch',
+      url,
+      context: 'codex-adapter-intercept',
+      operation: 'anthropic-messages->codex-response',
+    })
+
     try {
-      const bodyText =
-        init?.body instanceof ReadableStream
-          ? await new Response(init.body).text()
-          : typeof init?.body === 'string'
-            ? init.body
-            : '{}'
-      anthropicBody = JSON.parse(bodyText)
-    } catch {
-      anthropicBody = {}
+      // Parse the Anthropic request body
+      let anthropicBody: Record<string, unknown>
+      try {
+        const bodyText =
+          init?.body instanceof ReadableStream
+            ? await new Response(init.body).text()
+            : typeof init?.body === 'string'
+              ? init.body
+              : '{}'
+        anthropicBody = JSON.parse(bodyText)
+      } catch {
+        anthropicBody = {}
+      }
+
+      // Get current token (may have been refreshed)
+      const tokens = getCodexOAuthTokens()
+      const currentToken = tokens?.accessToken || accessToken
+
+      // Translate to Codex format
+      const {
+        codexBody,
+        codexModel,
+        estimatedInputTokens,
+        requestInputTokens,
+        originalInputItemCount,
+        requestInputItemCount,
+      } = translateToCodexBody(anthropicBody)
+    const dedupEnabled = !isEnvTruthy(process.env.CODEX_DISABLE_REQUEST_DEDUP)
+    const dedupTtlMs = getCodexDedupTtlMs()
+    const requestFingerprint = buildCodexRequestFingerprint(codexModel, codexBody)
+
+    if (dedupEnabled) {
+      const now = Date.now()
+      const cached = responseReplayCache.get(requestFingerprint)
+      if (cached && cached.expiresAt > now) {
+        logForDebugging(
+          `[codex-adapter] replay cache hit for fingerprint=${requestFingerprint.slice(0, 12)}`,
+        )
+        return buildReplayResponse(cached.payload)
+      }
+
+      const inflight = inflightReplays.get(requestFingerprint)
+      if (inflight && inflight.expiresAt > now) {
+        logForDebugging(
+          `[codex-adapter] coalescing duplicate request fingerprint=${requestFingerprint.slice(0, 12)}`,
+        )
+        const payload = await inflight.replay
+        if (payload) {
+          return buildReplayResponse(payload)
+        }
+      }
+      if (inflight && inflight.expiresAt <= now) {
+        inflightReplays.delete(requestFingerprint)
+      }
     }
 
-    // Get current token (may have been refreshed)
-    const tokens = getCodexOAuthTokens()
-    const currentToken = tokens?.accessToken || accessToken
+    logForDebugging(
+      `[codex-adapter] request usage estimated_input_tokens=${estimatedInputTokens} request_input_tokens=${requestInputTokens} original_input_item_count=${originalInputItemCount} request_input_item_count=${requestInputItemCount}`,
+    )
 
-    // Translate to Codex format
-    const { codexBody, codexModel, estimatedInputTokens } = translateToCodexBody(anthropicBody)
+    const requestPromise = postCodexResponses(
+      currentToken,
+      accountId,
+      codexBody,
+    )
 
-    // Call Codex API
-    const codexResponse = await globalThis.fetch(CODEX_BASE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-        Authorization: `Bearer ${currentToken}`,
-        'chatgpt-account-id': accountId,
-        originator: 'pi',
-        'OpenAI-Beta': 'responses=experimental',
-      },
-      body: JSON.stringify(codexBody),
-    })
+    if (dedupEnabled) {
+      const replay = requestPromise
+        .then(async response => {
+          if (!response.ok) return null
+          // Use a cloned response for replay caching so the primary response
+          // stream remains readable for the live caller.
+          const replayResponse = response.clone()
+          const translated = await translateCodexStreamToAnthropic(
+            replayResponse,
+            codexModel,
+            estimatedInputTokens,
+          )
+          const payload = await translated.clone().text()
+          responseReplayCache.set(requestFingerprint, {
+            payload,
+            expiresAt: Date.now() + dedupTtlMs,
+          })
+          return payload
+        })
+        .catch(error => {
+          logForDebugging(
+            `[codex-adapter] replay cache population failed: ${String(error)}`,
+          )
+          return null
+        })
+        .finally(() => {
+          const currentInflight = inflightReplays.get(requestFingerprint)
+          if (currentInflight?.replay === replay) {
+            inflightReplays.delete(requestFingerprint)
+          }
+        })
+
+      inflightReplays.set(requestFingerprint, {
+        replay,
+        expiresAt: Date.now() + dedupTtlMs,
+      })
+    }
+
+    const codexResponse = await requestPromise
 
     if (!codexResponse.ok) {
       const errorText = await codexResponse.text()
@@ -1142,11 +1399,31 @@ export function createCodexFetch(
       })
     }
 
-    // Translate streaming response
     return translateCodexStreamToAnthropic(
       codexResponse,
       codexModel,
       estimatedInputTokens,
     )
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
+      logForDebugging(
+        `[codex-adapter] adapter pipeline failure: ${errorMessage}`,
+        { level: 'error' },
+      )
+
+      const errorBody = {
+        type: 'error',
+        error: {
+          type: 'api_error',
+          message: `Codex adapter error: ${errorMessage}`,
+        },
+      }
+
+      return new Response(JSON.stringify(errorBody), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
   }
 }

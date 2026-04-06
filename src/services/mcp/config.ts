@@ -40,7 +40,7 @@ import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from '../analytics/index.js'
-import { fetchClaudeAIMcpConfigsIfEligible } from './claudeai.js'
+import { fetchProviderManagedMcpConfigsIfEligible } from './claudeai.js'
 import { expandEnvVarsInString } from './envExpansion.js'
 import {
   type ConfigScope,
@@ -278,8 +278,8 @@ export function dedupPluginMcpServers(
  * Only enabled manual servers count as dedup targets — a disabled manual server
  * mustn't suppress its connector twin, or neither runs.
  */
-export function dedupClaudeAiMcpServers(
-  claudeAiServers: Record<string, ScopedMcpServerConfig>,
+export function dedupManagedMcpServers(
+  managedServers: Record<string, ScopedMcpServerConfig>,
   manualServers: Record<string, ScopedMcpServerConfig>,
 ): {
   servers: Record<string, ScopedMcpServerConfig>
@@ -294,12 +294,12 @@ export function dedupClaudeAiMcpServers(
 
   const servers: Record<string, ScopedMcpServerConfig> = {}
   const suppressed: Array<{ name: string; duplicateOf: string }> = []
-  for (const [name, config] of Object.entries(claudeAiServers)) {
+  for (const [name, config] of Object.entries(managedServers)) {
     const sig = getMcpServerSignature(config)
     const manualDup = sig !== null ? manualSigs.get(sig) : undefined
     if (manualDup !== undefined) {
       logForDebugging(
-        `Suppressing claude.ai connector "${name}": duplicates manually-configured "${manualDup}"`,
+        `Suppressing managed MCP connector "${name}": duplicates manually-configured "${manualDup}"`,
       )
       suppressed.push({ name, duplicateOf: manualDup })
       continue
@@ -307,6 +307,16 @@ export function dedupClaudeAiMcpServers(
     servers[name] = config
   }
   return { servers, suppressed }
+}
+
+export function dedupClaudeAiMcpServers(
+  claudeAiServers: Record<string, ScopedMcpServerConfig>,
+  manualServers: Record<string, ScopedMcpServerConfig>,
+): {
+  servers: Record<string, ScopedMcpServerConfig>
+  suppressed: Array<{ name: string; duplicateOf: string }>
+} {
+  return dedupManagedMcpServers(claudeAiServers, manualServers)
 }
 
 /**
@@ -605,6 +615,7 @@ function expandEnvVars(config: McpServerConfig): {
       expanded = config
       break
     case 'claudeai-proxy':
+    case 'provider-managed-proxy':
       expanded = config
       break
   }
@@ -1259,32 +1270,32 @@ export async function getAllMcpConfigs(): Promise<{
   servers: Record<string, ScopedMcpServerConfig>
   errors: PluginError[]
 }> {
-  // In enterprise mode, don't load claude.ai servers (enterprise has exclusive control)
+  // In enterprise mode, don't load provider-managed servers (enterprise has exclusive control)
   if (doesEnterpriseMcpConfigExist()) {
     return getClaudeCodeMcpConfigs()
   }
 
-  // Kick off the claude.ai fetch before getClaudeCodeMcpConfigs so it overlaps
+  // Kick off provider-managed fetch before getClaudeCodeMcpConfigs so it overlaps
   // with loadAllPluginsCacheOnly() inside. Memoized — the awaited call below is a cache hit.
-  const claudeaiPromise = fetchClaudeAIMcpConfigsIfEligible()
+  const managedPromise = fetchProviderManagedMcpConfigsIfEligible()
   const { servers: claudeCodeServers, errors } = await getClaudeCodeMcpConfigs(
     {},
-    claudeaiPromise,
+    managedPromise,
   )
-  const { allowed: claudeaiMcpServers } = filterMcpServersByPolicy(
-    await claudeaiPromise,
+  const { allowed: managedMcpServers } = filterMcpServersByPolicy(
+    await managedPromise,
   )
 
-  // Suppress claude.ai connectors that duplicate an enabled manual server.
-  // Keys never collide (`slack` vs `claude.ai Slack`) so the merge below
-  // won't catch this — need content-based dedup by URL signature.
-  const { servers: dedupedClaudeAi } = dedupClaudeAiMcpServers(
-    claudeaiMcpServers,
+  // Suppress managed connectors that duplicate an enabled manual server.
+  // Keys can differ (`slack` vs `copilot managed Slack`) so we need
+  // content-based dedup by URL signature.
+  const { servers: dedupedManaged } = dedupManagedMcpServers(
+    managedMcpServers,
     claudeCodeServers,
   )
 
-  // Merge with claude.ai having lowest precedence
-  const servers = Object.assign({}, dedupedClaudeAi, claudeCodeServers)
+  // Merge with provider-managed connectors having lowest precedence
+  const servers = Object.assign({}, dedupedManaged, claudeCodeServers)
 
   return { servers, errors }
 }
@@ -1351,6 +1362,7 @@ export function parseMcpConfig(params: {
     if (
       getPlatform() === 'windows' &&
       (!configToCheck.type || configToCheck.type === 'stdio') &&
+      'command' in configToCheck &&
       (configToCheck.command === 'npx' ||
         configToCheck.command.endsWith('\\npx') ||
         configToCheck.command.endsWith('/npx'))

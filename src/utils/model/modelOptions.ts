@@ -7,6 +7,7 @@ import {
   isMaxSubscriber,
   isTeamPremiumSubscriber,
 } from '../auth.js'
+import { CODEX_MODELS } from '../../services/api/codex-fetch-adapter.js'
 import { COPILOT_MODELS } from '../../services/api/copilot-fetch-adapter.js'
 import { getModelStrings } from './modelStrings.js'
 import {
@@ -18,6 +19,7 @@ import {
 import { getSettings_DEPRECATED } from '../settings/settings.js'
 import { checkOpus1mAccess, checkSonnet1mAccess } from './check1mAccess.js'
 import { getAPIProvider } from './providers.js'
+import { getAntModels } from './antModels.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import {
   getCanonicalName,
@@ -35,6 +37,11 @@ import {
 } from './model.js'
 import { has1mContext } from '../context.js'
 import { getGlobalConfig } from '../config.js'
+import { getOpenAIModelCapabilities } from './openaiCapabilities.js'
+import {
+  getDefaultLMStudioModel,
+  getLMStudioModelCapabilities,
+} from './lmstudioCapabilities.js'
 
 // @[MODEL LAUNCH]: Update all the available and default model option strings below.
 
@@ -43,6 +50,93 @@ export type ModelOption = {
   label: string
   description: string
   descriptionForModel?: string
+}
+
+function joinModelDetails(parts: Array<string | null | undefined>): string {
+  return parts.filter(Boolean).join(' · ')
+}
+
+function getCopilotCompatibilityReason(modelId: string): string | null {
+  const capability = getGlobalConfig().copilotCapabilityCache?.capabilities?.[modelId]
+  if (!capability) return null
+  if (capability.supported) return null
+  if (capability.error?.message) {
+    return capability.error.code
+      ? `${capability.error.code}: ${capability.error.message}`
+      : capability.error.message
+  }
+  return 'unsupported on /chat/completions'
+}
+
+function getCopilotPickerReason(model: {
+  id: string
+  modelPickerEnabled: boolean
+  supportedEndpoints: string[]
+}): string | null {
+  if (!model.modelPickerEnabled) {
+    return 'hidden by Copilot model picker'
+  }
+  if (
+    model.supportedEndpoints.length > 0 &&
+    !model.supportedEndpoints.includes('/chat/completions')
+  ) {
+    return 'not exposed on /chat/completions'
+  }
+  return getCopilotCompatibilityReason(model.id)
+}
+
+export function getModelPickerAvailabilitySummary(): string | null {
+  const provider = getAPIProvider()
+
+  if (provider === 'openai') {
+    const models = getOpenAIModelCapabilities()
+    if (models.length > 0) {
+      return `Showing ${models.length} native OpenAI models discovered from /v1/models.`
+    }
+    return 'Showing fallback native OpenAI models.'
+  }
+
+  if (provider === 'lmstudio') {
+    const models = getLMStudioModelCapabilities()
+    const activeModel = getDefaultLMStudioModel()
+    if (models.length > 0 && activeModel) {
+      return `Showing ${models.length} LM Studio local models discovered from /v1/models. Defaulting to loaded model ${activeModel}.`
+    }
+    return 'LM Studio is selected, but no local model was discovered from /v1/models yet.'
+  }
+
+  if (provider === 'codex' || isCodexSubscriber()) {
+    return `Showing ${CODEX_MODELS.length} curated ChatGPT Codex models.`
+  }
+
+  if (provider === 'copilot' || isCopilotSubscriber()) {
+    const discovered = getGlobalConfig().copilotModelsCache?.models
+    if (!discovered?.length) {
+      return `Showing ${COPILOT_MODELS.length} fallback GitHub Copilot models.`
+    }
+
+    const usable = discovered.filter(
+      model =>
+        model.modelPickerEnabled &&
+        (model.supportedEndpoints.length === 0 ||
+          model.supportedEndpoints.includes('/chat/completions')) &&
+        getGlobalConfig().copilotCapabilityCache?.capabilities?.[model.id]?.supported !==
+          false,
+    )
+    const hidden = discovered.filter(model => !usable.includes(model))
+    if (hidden.length === 0) {
+      return `Showing ${usable.length} usable GitHub Copilot models discovered from /models.`
+    }
+
+    const examples = hidden
+      .slice(0, 2)
+      .map(model => `${model.id} (${getCopilotPickerReason(model) || 'filtered'})`)
+      .join('; ')
+
+    return `Showing ${usable.length} usable GitHub Copilot models from /models. Hidden ${hidden.length}${examples ? `: ${examples}` : '.'}`
+  }
+
+  return null
 }
 
 export function getDefaultOptionForUser(fastMode = false): ModelOption {
@@ -239,6 +333,84 @@ function getGpt54MiniOption(): ModelOption {
   }
 }
 
+function getCodexModelOptions(): ModelOption[] {
+  return CODEX_MODELS.map(model => ({
+    value: model.id,
+    label: model.label,
+    description: joinModelDetails([
+      'curated Codex catalog',
+      model.family === 'codex' ? 'coding' : 'general',
+      model.supportsVision ? 'vision' : null,
+      model.supportsTools ? 'tools' : null,
+    ]),
+    descriptionForModel: joinModelDetails([
+      model.description,
+      'usable via ChatGPT Codex backend',
+      model.family === 'codex' ? 'coding-focused' : 'general-purpose',
+      model.supportsVision ? 'supports vision' : null,
+      model.supportsTools ? 'supports tools' : null,
+    ]),
+  }))
+}
+
+function getOpenAIModelOptions(): ModelOption[] {
+  const models = getOpenAIModelCapabilities()
+  if (models.length === 0) {
+    return [getGpt54Option(), getGpt54MiniOption()]
+  }
+
+  return models.map(model => ({
+    value: model.id,
+    label: model.id,
+    description: joinModelDetails([
+      'discovered via /v1/models',
+      model.performance_tier,
+      model.capabilities?.reasoning ? 'reasoning' : null,
+      model.capabilities?.vision ? 'vision' : null,
+      model.capabilities?.function_calling ? 'functions' : null,
+    ]),
+    descriptionForModel: joinModelDetails([
+      'native OpenAI API model',
+      'discovered via /v1/models',
+      model.performance_tier ? `${model.performance_tier} tier` : null,
+      model.capabilities?.reasoning ? 'supports reasoning' : null,
+      model.capabilities?.vision ? 'supports vision' : null,
+      model.capabilities?.function_calling ? 'supports function calling' : null,
+      model.preferredTokenParameter
+        ? `uses ${model.preferredTokenParameter}`
+        : null,
+    ]),
+  }))
+}
+
+function getLMStudioModelOptions(): ModelOption[] {
+  const models = getLMStudioModelCapabilities()
+  if (models.length === 0) {
+    return []
+  }
+
+  return models.map((model, index) => ({
+    value: model.id,
+    label: model.id,
+    description: joinModelDetails([
+      index === 0 ? 'currently loaded' : 'available locally',
+      'LM Studio /v1/models',
+      model.performance_tier,
+      model.capabilities?.reasoning ? 'reasoning' : null,
+      model.capabilities?.vision ? 'vision' : null,
+      model.capabilities?.function_calling ? 'functions' : null,
+    ]),
+    descriptionForModel: joinModelDetails([
+      'LM Studio local model',
+      index === 0 ? 'used as default loaded model' : null,
+      model.performance_tier ? `${model.performance_tier} tier` : null,
+      model.capabilities?.reasoning ? 'supports reasoning' : null,
+      model.capabilities?.vision ? 'supports vision' : null,
+      model.capabilities?.function_calling ? 'supports function calling' : null,
+    ]),
+  }))
+}
+
 function getMaxOpusOption(fastMode = false): ModelOption {
   return {
     value: 'opus',
@@ -299,6 +471,61 @@ function getOpusPlanOption(): ModelOption {
 
 // @[MODEL LAUNCH]: Update the model picker lists below to include/reorder options for the new model.
 // Each user tier (ant, Max/Team Premium, Pro/Team Standard/Enterprise, PAYG 1P, PAYG 3P) has its own list.
+function getCopilotModelOptions(): ModelOption[] {
+  const capabilityCache = getGlobalConfig().copilotCapabilityCache?.capabilities ?? {}
+  const cached = getGlobalConfig().copilotModelsCache?.models?.filter(
+    (model) =>
+      model.modelPickerEnabled &&
+      capabilityCache[model.id]?.supported !== false &&
+      (model.supportedEndpoints.length === 0 ||
+        model.supportedEndpoints.includes('/chat/completions')),
+  )
+
+  if (cached?.length) {
+    return cached.map((model) => ({
+      value: model.id,
+      label: model.name,
+      description: joinModelDetails([
+        'discovered via Copilot /models',
+        'usable on /chat/completions',
+        model.maxContextWindowTokens !== undefined
+          ? `${Intl.NumberFormat('en-US').format(model.maxContextWindowTokens)} context`
+          : null,
+        model.preferredTokenParameter
+          ? `uses ${model.preferredTokenParameter}`
+          : null,
+      ]),
+      descriptionForModel: joinModelDetails([
+        model.id,
+        'discovered via Copilot /models',
+        'usable on /chat/completions',
+        model.supportsToolCalls ? 'supports tool calling' : 'no tool calling metadata',
+        model.supportsVision ? 'supports vision' : 'no vision metadata',
+        model.maxContextWindowTokens !== undefined
+          ? `${Intl.NumberFormat('en-US').format(model.maxContextWindowTokens)} context window`
+          : null,
+        model.preferredTokenParameter
+          ? `uses ${model.preferredTokenParameter}`
+          : null,
+      ]),
+    }))
+  }
+
+  return COPILOT_MODELS.map((model) => ({
+    value: model.id,
+    label: model.label,
+    description: joinModelDetails([
+      'fallback Copilot catalog',
+      model.description,
+    ]),
+    descriptionForModel: joinModelDetails([
+      model.description,
+      'fallback Copilot catalog entry',
+      'usability inferred without live /models metadata',
+    ]),
+  }))
+}
+
 function getModelOptionsBase(fastMode = false): ModelOption[] {
   if (process.env.USER_TYPE === 'ant') {
     // Build options from antModels config
@@ -318,25 +545,21 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
     ]
   }
 
-  // Codex subscribers get OpenAI model options
+  // Codex subscribers get the curated Codex model catalog
   if (isCodexSubscriber()) {
-    return [
-      getDefaultOptionForUser(),
-      getGpt54Option(),
-      getGpt53CodexOption(),
-      getGpt54MiniOption(),
-    ]
+    return [getDefaultOptionForUser(), ...getCodexModelOptions()]
+  }
+
+  if (getAPIProvider() === 'openai') {
+    return [getDefaultOptionForUser(), ...getOpenAIModelOptions()]
+  }
+
+  if (getAPIProvider() === 'lmstudio') {
+    return [getDefaultOptionForUser(), ...getLMStudioModelOptions()]
   }
 
   if (isCopilotSubscriber()) {
-    return [
-      getDefaultOptionForUser(),
-      ...COPILOT_MODELS.map((model) => ({
-        value: model.id,
-        label: model.label,
-        description: model.description,
-      })),
-    ]
+    return [getDefaultOptionForUser(), ...getCopilotModelOptions()]
   }
 
   if (isClaudeAISubscriber()) {

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { extraUsage as extraUsageCommand } from 'src/commands/extra-usage/index.js';
 import { formatCost, getModelUsage, getTotalCacheCreationInputTokens, getTotalCacheReadInputTokens, getTotalInputTokens, getTotalOutputTokens, hasUnknownModelCost } from 'src/cost-tracker.js';
 import { getSubscriptionType, isCopilotSubscriber, isCodexSubscriber } from 'src/utils/auth.js';
+import { getAPIProvider } from 'src/utils/model/providers.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { Box, Text } from '../../ink.js';
 import { useKeybinding } from '../../keybindings/useKeybinding.js';
@@ -190,6 +191,24 @@ function CurrentSessionUsageSection(t0) {
   }
   return <Box flexDirection="column" gap={1}><Text bold={true}>Current session</Text><Text>{providerLabel}</Text><Text>{formatNumber(totalInputTokens)} input, {formatNumber(totalOutputTokens)} output, {formatNumber(totalCacheReadInputTokens)} cache read, {formatNumber(totalCacheCreationInputTokens)} cache write</Text>{modelUsage.map(([model, usage]) => <Text key={model} dimColor={true}>{renderModelName(model)} · {formatNumber(usage.inputTokens ?? 0)} input, {formatNumber(usage.outputTokens ?? 0)} output, {formatNumber(usage.cacheReadInputTokens ?? 0)} cache read, {formatNumber(usage.cacheCreationInputTokens ?? 0)} cache write</Text>)}{codexUsage.context_window && <Text dimColor={true}>Context window · {formatNumber(codexUsage.context_window.used_tokens ?? 0)} used / {formatNumber(codexUsage.context_window.context_window_size ?? 0)} total{codexUsage.context_window.remaining_tokens !== null && codexUsage.context_window.remaining_tokens !== undefined ? ` · ${formatNumber(codexUsage.context_window.remaining_tokens)} remaining` : ''}</Text>}{codexUsage.rate_limits.map(limit => <Text key={limit.label} dimColor={true}>{limit.label} · {limit.used_percentage !== null && limit.used_percentage !== undefined ? `${Math.floor(limit.used_percentage)}% used` : 'usage unavailable'}{limit.limit !== undefined && limit.limit !== null ? ` of ${formatNumber(limit.limit)}` : ''}{limit.remaining !== undefined && limit.remaining !== null ? ` · ${formatNumber(limit.remaining)} remaining` : ''}</Text>)}{showProviderNote && codexUsage.rate_limits.length === 0 && <Text dimColor={true}>Third-party account limits are not currently exposed here. This section reflects the active session only.</Text>}{hasUnknownModelCost() && <Text dimColor={true}>Cost estimates may be inaccurate for one or more active models.</Text>}</Box>;
 }
+function getThirdPartyUsageProviderLabel() {
+  switch (getAPIProvider()) {
+    case 'codex':
+      return 'ChatGPT/Codex';
+    case 'openai':
+      return 'OpenAI API';
+    case 'copilot':
+      return 'GitHub Copilot';
+    case 'bedrock':
+      return 'Amazon Bedrock';
+    case 'vertex':
+      return 'Google Vertex AI';
+    case 'foundry':
+      return 'Azure AI Foundry';
+    default:
+      return 'Third-party provider';
+  }
+}
 export function Usage(): React.ReactNode {
   const [utilization, setUtilization] = useState<Utilization | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -199,8 +218,16 @@ export function Usage(): React.ReactNode {
   } = useTerminalSize();
   const availableWidth = columns - 2; // 2 for screen padding
   const maxWidth = Math.min(availableWidth, 80);
-  const isCodexUsageView = isCodexSubscriber() || isCopilotSubscriber();
+  const apiProvider = getAPIProvider();
+  const isThirdPartyUsageView = apiProvider !== 'firstParty';
+  const supportsStreamUsageDetails = isCodexSubscriber() || isCopilotSubscriber();
   const loadUtilization = React.useCallback(async () => {
+    if (isThirdPartyUsageView) {
+      setUtilization(null);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -218,7 +245,7 @@ export function Usage(): React.ReactNode {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isThirdPartyUsageView]);
   useEffect(() => {
     void loadUtilization();
   }, [loadUtilization]);
@@ -239,7 +266,16 @@ export function Usage(): React.ReactNode {
         </Text>
       </Box>;
   }
-  if (!utilization) {
+  if (isThirdPartyUsageView) {
+    return <Box flexDirection="column" gap={1} width="100%">
+        <CurrentSessionUsageSection providerLabel={getThirdPartyUsageProviderLabel()} showProviderNote={true} />
+        {!supportsStreamUsageDetails && <Text dimColor={true}>Hosted plan and rate-limit data is only available for Anthropic first-party accounts. This provider currently exposes session usage only.</Text>}
+        <Text dimColor>
+          <ConfigurableShortcutHint action="confirm:no" context="Settings" fallback="Esc" description="cancel" />
+        </Text>
+      </Box>;
+  }
+  if (isLoading || !utilization) {
     return <Box flexDirection="column" gap={1}>
         <Text dimColor>Loading usage data…</Text>
         <Text dimColor>
@@ -265,20 +301,20 @@ export function Usage(): React.ReactNode {
     limit: utilization.seven_day_sonnet
   }] : [])];
   return <Box flexDirection="column" gap={1} width="100%">
-      {isCodexUsageView && <CurrentSessionUsageSection providerLabel={isCopilotSubscriber() ? "GitHub Copilot" : "ChatGPT/Codex"} showProviderNote={true} />}
+      {supportsStreamUsageDetails && <CurrentSessionUsageSection providerLabel={isCopilotSubscriber() ? "GitHub Copilot" : "ChatGPT/Codex"} showProviderNote={true} />}
 
       {limits.some(({
       limit
-    }) => limit) || isCodexUsageView || <Text dimColor>/usage is only available for subscription plans.</Text>}
+    }) => limit) || supportsStreamUsageDetails || <Text dimColor>/usage is only available for subscription plans.</Text>}
 
       {limits.map(({
       title,
       limit: limit_0
     }) => limit_0 && <LimitBar key={title} title={title} limit={limit_0} maxWidth={maxWidth} />)}
 
-      {!isCodexUsageView && utilization.extra_usage && <ExtraUsageSection extraUsage={utilization.extra_usage} maxWidth={maxWidth} />}
+      {!supportsStreamUsageDetails && utilization.extra_usage && <ExtraUsageSection extraUsage={utilization.extra_usage} maxWidth={maxWidth} />}
 
-      {!isCodexUsageView && isEligibleForOverageCreditGrant() && <OverageCreditUpsell maxWidth={maxWidth} />}
+      {!supportsStreamUsageDetails && isEligibleForOverageCreditGrant() && <OverageCreditUpsell maxWidth={maxWidth} />}
 
       <Text dimColor>
         <ConfigurableShortcutHint action="confirm:no" context="Settings" fallback="Esc" description="cancel" />

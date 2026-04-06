@@ -59,6 +59,8 @@ import { count } from '../../utils/array.js'
 import {
   checkAndRefreshOAuthTokenIfNeeded,
   getClaudeAIOAuthTokens,
+  getCodexOAuthTokens,
+  getCopilotOAuthTokens,
   handleOAuth401Error,
 } from '../../utils/auth.js'
 import { registerCleanup } from '../../utils/cleanupRegistry.js'
@@ -338,14 +340,14 @@ function mcpBaseUrlAnalytics(serverRef: ScopedMcpServerConfig): {
 }
 
 /**
- * Shared handler for sse/http/claudeai-proxy auth failures during connect:
- * emits tengu_mcp_server_needs_auth, caches the needs-auth entry, and returns
- * the needs-auth connection result.
+ * Shared handler for sse/http/claudeai-proxy/provider-managed-proxy auth
+ * failures during connect: emits tengu_mcp_server_needs_auth, caches the
+ * needs-auth entry, and returns the needs-auth connection result.
  */
 function handleRemoteAuthFailure(
   name: string,
   serverRef: ScopedMcpServerConfig,
-  transportType: 'sse' | 'http' | 'claudeai-proxy',
+  transportType: 'sse' | 'http' | 'claudeai-proxy' | 'provider-managed-proxy',
 ): MCPServerConnection {
   logEvent('tengu_mcp_server_needs_auth', {
     transportType:
@@ -356,6 +358,7 @@ function handleRemoteAuthFailure(
     sse: 'SSE',
     http: 'HTTP',
     'claudeai-proxy': 'claude.ai proxy',
+    'provider-managed-proxy': 'provider-managed proxy',
   }
   logMCPDebug(
     name,
@@ -423,6 +426,37 @@ export function createClaudeAiProxyFetch(innerFetch: FetchLike): FetchLike {
       // outer handler can classify it.
       return response
     }
+  }
+}
+
+function getProviderManagedProxyToken(
+  provider: 'copilot' | 'codex' | 'openai' | 'openrouter',
+): string | null {
+  if (provider === 'copilot') {
+    return getCopilotOAuthTokens()?.copilotToken ?? null
+  }
+  if (provider === 'codex') {
+    return getCodexOAuthTokens()?.accessToken ?? null
+  }
+  if (provider === 'openrouter') {
+    return process.env.OPENROUTER_API_KEY ?? null
+  }
+  return process.env.OPENAI_API_KEY ?? null
+}
+
+export function createProviderManagedProxyFetch(
+  innerFetch: FetchLike,
+  provider: 'copilot' | 'codex' | 'openai' | 'openrouter',
+): FetchLike {
+  return async (url, init) => {
+    const token = getProviderManagedProxyToken(provider)
+    if (!token) {
+      throw new Error(`No ${provider} auth token available for managed MCP proxy`)
+    }
+    // eslint-disable-next-line eslint-plugin-n/no-unsupported-features/node-builtins
+    const headers = new Headers(init?.headers)
+    headers.set('Authorization', `Bearer ${token}`)
+    return innerFetch(url, { ...init, headers })
   }
 }
 
@@ -620,6 +654,7 @@ export const connectToServer = memoize(
       // If we have the session ingress JWT, we will connect via the session ingress rather than
       // to remote MCP's directly.
       const sessionIngressToken = getSessionIngressAuthToken()
+      const serverTypeForChecks = serverRef.type
 
       if (serverRef.type === 'sse') {
         // Create an auth provider for this server
@@ -907,8 +942,38 @@ export const connectToServer = memoize(
           transportOptions,
         )
         logMCPDebug(name, `claude.ai proxy transport created successfully`)
+      } else if (serverRef.type === 'provider-managed-proxy') {
+        logMCPDebug(
+          name,
+          `Initializing provider-managed proxy transport for provider ${serverRef.provider} and server ${serverRef.id}`,
+        )
+
+        const fetchWithAuth = createProviderManagedProxyFetch(
+          globalThis.fetch,
+          serverRef.provider,
+        )
+
+        const proxyOptions = getProxyFetchOptions()
+        const transportOptions: StreamableHTTPClientTransportOptions = {
+          fetch: wrapFetchWithTimeout(fetchWithAuth),
+          requestInit: {
+            ...proxyOptions,
+            headers: {
+              'User-Agent': getMCPUserAgent(),
+              'X-Mcp-Client-Session-Id': getSessionId(),
+              'X-Mcp-Provider': serverRef.provider,
+            },
+          },
+        }
+
+        transport = new StreamableHTTPClientTransport(
+          new URL(serverRef.url),
+          transportOptions,
+        )
+        logMCPDebug(name, 'provider-managed proxy transport created successfully')
       } else if (
-        (serverRef.type === 'stdio' || !serverRef.type) &&
+        (serverTypeForChecks === 'stdio' || !serverTypeForChecks) &&
+        'command' in serverRef &&
         isClaudeInChromeMCPServer(name)
       ) {
         // Run the Chrome MCP server in-process to avoid spawning a ~325 MB subprocess
@@ -931,7 +996,8 @@ export const connectToServer = memoize(
         logMCPDebug(name, `In-process Chrome MCP server started`)
       } else if (
         feature('CHICAGO_MCP') &&
-        (serverRef.type === 'stdio' || !serverRef.type) &&
+        (serverTypeForChecks === 'stdio' || !serverTypeForChecks) &&
+        'command' in serverRef &&
         isComputerUseMCPServer!(name)
       ) {
         // Run the Computer Use MCP server in-process — same rationale as
@@ -948,7 +1014,7 @@ export const connectToServer = memoize(
         await inProcessServer.connect(serverTransport)
         transport = clientTransport
         logMCPDebug(name, `In-process Computer Use MCP server started`)
-      } else if (serverRef.type === 'stdio' || !serverRef.type) {
+      } else if ('command' in serverRef) {
         const finalCommand =
           process.env.CLAUDE_CODE_SHELL_PREFIX || serverRef.command
         const finalArgs = process.env.CLAUDE_CODE_SHELL_PREFIX
@@ -964,7 +1030,7 @@ export const connectToServer = memoize(
           stderr: 'pipe', // prevents error output from the MCP server from printing to the UI
         })
       } else {
-        throw new Error(`Unsupported server type: ${serverRef.type}`)
+        throw new Error(`Unsupported server type: ${String(serverTypeForChecks ?? 'unknown')}`)
       }
 
       // Set up stderr logging for stdio transport before connecting in case there are any stderr
@@ -972,7 +1038,7 @@ export const connectToServer = memoize(
       // Store handler reference for cleanup to prevent memory leaks
       let stderrHandler: ((data: Buffer) => void) | undefined
       let stderrOutput = ''
-      if (serverRef.type === 'stdio' || !serverRef.type) {
+      if (serverTypeForChecks === 'stdio' || !serverTypeForChecks) {
         const stdioTransport = transport as StdioClientTransport
         if (stdioTransport.stderr) {
           stderrHandler = (data: Buffer) => {
@@ -1009,7 +1075,7 @@ export const connectToServer = memoize(
       )
 
       // Add debug logging for client events if available
-      if (serverRef.type === 'http') {
+      if (serverTypeForChecks === 'http') {
         logMCPDebug(name, `Client created, setting up request handler`)
       }
 
@@ -1031,7 +1097,7 @@ export const connectToServer = memoize(
       )
 
       // For HTTP transport, try a basic connectivity test first
-      if (serverRef.type === 'http') {
+      if (serverTypeForChecks === 'http') {
         logMCPDebug(name, `Testing basic HTTP connectivity to ${serverRef.url}`)
         try {
           const testUrl = new URL(serverRef.url)
@@ -1142,6 +1208,20 @@ export const connectToServer = memoize(
           const errorCode = (error as Error & { code?: number }).code
           if (errorCode === 401) {
             return handleRemoteAuthFailure(name, serverRef, 'claudeai-proxy')
+          }
+        } else if (
+          serverRef.type === 'provider-managed-proxy' &&
+          error instanceof Error
+        ) {
+          logMCPDebug(
+            name,
+            `provider-managed proxy connection failed after ${elapsed}ms: ${error.message}`,
+          )
+          logMCPError(name, error)
+
+          const errorCode = (error as Error & { code?: number }).code
+          if (errorCode === 401) {
+            return handleRemoteAuthFailure(name, serverRef, 'provider-managed-proxy')
           }
         } else if (
           serverRef.type === 'sse-ide' ||
@@ -1321,7 +1401,9 @@ export const connectToServer = memoize(
         // and close the transport so pending tool calls reject and the next
         // call reconnects with a fresh session ID.
         if (
-          (transportType === 'http' || transportType === 'claudeai-proxy') &&
+          (transportType === 'http' ||
+            transportType === 'claudeai-proxy' ||
+            transportType === 'provider-managed-proxy') &&
           isMcpSessionExpiredError(error)
         ) {
           logMCPDebug(
@@ -1340,7 +1422,8 @@ export const connectToServer = memoize(
         if (
           transportType === 'sse' ||
           transportType === 'http' ||
-          transportType === 'claudeai-proxy'
+          transportType === 'claudeai-proxy' ||
+          transportType === 'provider-managed-proxy'
         ) {
           // The SDK's StreamableHTTP transport fires this after exhausting its
           // own SSE reconnect attempts (default maxRetries: 2) — but it never
@@ -2313,6 +2396,7 @@ export async function getMcpToolsCommandsAndResources(
       // discovery, and print mode awaits the whole batch (main.tsx:3503).
       if (
         (config.type === 'claudeai-proxy' ||
+          config.type === 'provider-managed-proxy' ||
           config.type === 'http' ||
           config.type === 'sse') &&
         ((await isMcpAuthCached(name)) ||
@@ -3235,7 +3319,9 @@ async function callMCPTool({
         'code' in e &&
         (e as Error & { code?: number }).code === -32000 &&
         e.message.includes('Connection closed') &&
-        (config.type === 'http' || config.type === 'claudeai-proxy')
+        (config.type === 'http' ||
+          config.type === 'claudeai-proxy' ||
+          config.type === 'provider-managed-proxy')
       if (isSessionExpired || isConnectionClosedOnHttp) {
         logMCPDebug(
           name,

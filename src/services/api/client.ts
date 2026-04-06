@@ -13,8 +13,6 @@ import {
   getClaudeAIOAuthTokens,
   getCodexOAuthTokens,
   isClaudeAISubscriber,
-  isCopilotSubscriber,
-  isCodexSubscriber,
   refreshAndGetAwsCredentials,
   refreshGcpCredentialsIfNeeded,
 } from 'src/utils/auth.js'
@@ -30,6 +28,7 @@ import {
   getSessionId,
 } from '../../bootstrap/state.js'
 import { getOauthConfig } from '../../constants/oauth.js'
+import { getSettingsForSource } from '../../utils/settings/settings.js'
 import { isDebugToStdErr, logForDebugging } from '../../utils/debug.js'
 import {
   getAWSRegion,
@@ -38,6 +37,9 @@ import {
 } from '../../utils/envUtils.js'
 import { createCodexFetch } from './codex-fetch-adapter.js'
 import { createCopilotAnthropicClient } from './copilot-client.js'
+import { createOpenAIFetch } from './openai-fetch-adapter.js'
+import { getOpenAIModelCapability } from '../../utils/model/openaiCapabilities.js'
+import { getLMStudioModelCapability } from '../../utils/model/lmstudioCapabilities.js'
 
 /**
  * Environment variables for different client types:
@@ -141,45 +143,120 @@ export async function getAnthropicClient({
   const apiProvider = getAPIProvider()
   const resolvedFetch = buildFetch(fetchOverride, source)
 
-  const ARGS = {
+  logForDebugging(
+    `[API:request] Provider resolution apiProvider=${apiProvider} hasFetchOverride=${!!fetchOverride} hasResolvedFetch=${!!resolvedFetch}`,
+  )
+
+  const timeout = parseInt(process.env.API_TIMEOUT_MS || String(600 * 1000), 10)
+  const baseArgs = {
     defaultHeaders,
     maxRetries,
-    timeout: parseInt(process.env.API_TIMEOUT_MS || String(600 * 1000), 10),
+    timeout,
     dangerouslyAllowBrowser: true,
-    fetchOptions: getProxyFetchOptions({
-      forAnthropicAPI: true,
-    }) as ClientOptions['fetchOptions'],
     ...(resolvedFetch && {
       fetch: resolvedFetch,
     }),
   }
+  const anthropicArgs = {
+    ...baseArgs,
+    fetchOptions: getProxyFetchOptions({
+      forAnthropicAPI: true,
+    }) as ClientOptions['fetchOptions'],
+  }
 
-  // ── Codex (OpenAI) provider via fetch adapter ─────────────────────
-  // OpenAI/Codex sessions do not require Anthropic OAuth refreshes or
+  // ── Codex provider via fetch adapter ───────────────────────────────
+  // Codex sessions do not require Anthropic OAuth refreshes or
   // Anthropic auth headers. Running those checks first can block an OpenAI
   // turn on unrelated Anthropic auth state.
-  if (apiProvider === 'openai' || isCodexSubscriber()) {
+  if (apiProvider === 'codex') {
+    logForDebugging('[API:request] Using Codex fetch adapter')
     const codexTokens = getCodexOAuthTokens()
     if (!codexTokens?.accessToken) {
       throw new Error(
-        'OpenAI/Codex backend selected but no Codex OAuth tokens are available',
+        'ChatGPT Codex backend selected but no Codex OAuth tokens are available',
       )
     }
     const codexFetch = createCodexFetch(codexTokens.accessToken)
     const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
       apiKey: 'codex-placeholder', // SDK requires a key but the fetch adapter handles auth
-      ...ARGS,
+      ...baseArgs,
       fetch: codexFetch as unknown as typeof globalThis.fetch,
       ...(isDebugToStdErr() && { logger: createStderrLogger() }),
     }
     return new Anthropic(clientConfig)
   }
 
-  if (apiProvider === 'copilot' || isCopilotSubscriber()) {
-    return createCopilotAnthropicClient({
-      baseArgs: {
-      ...ARGS,
+  if (apiProvider === 'openai') {
+    logForDebugging('[API:request] Using OpenAI fetch adapter')
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) {
+      throw new Error(
+        'Native OpenAI backend selected but OPENAI_API_KEY is not set',
+      )
+    }
+    const openaiFetch = createOpenAIFetch({
+      apiKey,
+      getModelCapability: getOpenAIModelCapability,
+    })
+    const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
+      apiKey: 'openai-placeholder',
+      ...baseArgs,
+      fetch: openaiFetch as unknown as typeof globalThis.fetch,
+      ...(isDebugToStdErr() && { logger: createStderrLogger() }),
+    }
+    return new Anthropic(clientConfig)
+  }
+
+  if (apiProvider === 'openrouter') {
+    logForDebugging('[API:request] Using OpenRouter fetch adapter')
+    const openrouterApiKey =
+      process.env.OPENROUTER_API_KEY ??
+      getSettingsForSource('localSettings')?.openrouterApiKey
+    if (!openrouterApiKey) {
+      throw new Error(
+        'OpenRouter backend selected but OPENROUTER_API_KEY is not set',
+      )
+    }
+    const openrouterFetch = createOpenAIFetch({
+      apiKey: openrouterApiKey,
+      baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+      getModelCapability: getOpenAIModelCapability,
+      extraHeaders: {
+        'HTTP-Referer': process.env.OPENROUTER_HTTP_REFERER || 'https://github.com/pfchrs/free-code',
+        'X-Title': process.env.OPENROUTER_X_TITLE || 'free-code',
       },
+    })
+    const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
+      apiKey: 'openrouter-placeholder',
+      ...baseArgs,
+      fetch: openrouterFetch as unknown as typeof globalThis.fetch,
+      ...(isDebugToStdErr() && { logger: createStderrLogger() }),
+    }
+    return new Anthropic(clientConfig)
+  }
+
+  if (apiProvider === 'lmstudio') {
+    logForDebugging('[API:request] Using LM Studio fetch adapter')
+    const lmstudioFetch = createOpenAIFetch({
+      apiKey: process.env.LMSTUDIO_API_KEY || 'lmstudio',
+      baseUrl: process.env.LMSTUDIO_BASE_URL || 'http://127.0.0.1:1234/v1',
+      getModelCapability: getLMStudioModelCapability,
+      forceToolChoice: 'auto',
+      disableParallelToolCalls: true,
+    })
+    const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
+      apiKey: 'lmstudio-placeholder',
+      ...baseArgs,
+      fetch: lmstudioFetch as unknown as typeof globalThis.fetch,
+      ...(isDebugToStdErr() && { logger: createStderrLogger() }),
+    }
+    return new Anthropic(clientConfig)
+  }
+
+  if (apiProvider === 'copilot') {
+    logForDebugging('[API:request] Using Copilot fetch adapter client')
+    return createCopilotAnthropicClient({
+      baseArgs,
       ...(isDebugToStdErr() && { logger: createStderrLogger() }),
     })
   }
@@ -201,7 +278,7 @@ export async function getAnthropicClient({
         : getAWSRegion()
 
     const bedrockArgs: ConstructorParameters<typeof AnthropicBedrock>[0] = {
-      ...ARGS,
+      ...anthropicArgs,
       awsRegion,
       ...(isEnvTruthy(process.env.CLAUDE_CODE_SKIP_BEDROCK_AUTH) && {
         skipAuth: true,
@@ -252,7 +329,7 @@ export async function getAnthropicClient({
     }
 
     const foundryArgs: ConstructorParameters<typeof AnthropicFoundry>[0] = {
-      ...ARGS,
+      ...anthropicArgs,
       ...(azureADTokenProvider && { azureADTokenProvider }),
       ...(isDebugToStdErr() && { logger: createStderrLogger() }),
     }
@@ -329,13 +406,19 @@ export async function getAnthropicClient({
         })
 
     const vertexArgs: ConstructorParameters<typeof AnthropicVertex>[0] = {
-      ...ARGS,
+      ...anthropicArgs,
       region: getVertexRegionForModel(model),
       googleAuth,
       ...(isDebugToStdErr() && { logger: createStderrLogger() }),
     }
     // we have always been lying about the return type - this doesn't support batching or models
     return new AnthropicVertex(vertexArgs) as unknown as Anthropic
+  }
+
+  if (apiProvider !== 'firstParty') {
+    throw new Error(
+      `Anthropic client requested while third-party provider '${apiProvider}' is active`,
+    )
   }
 
   // Determine authentication method based on available tokens
@@ -349,7 +432,7 @@ export async function getAnthropicClient({
     isEnvTruthy(process.env.USE_STAGING_OAUTH)
       ? { baseURL: getOauthConfig().BASE_API_URL }
       : {}),
-    ...ARGS,
+    ...anthropicArgs,
     ...(isDebugToStdErr() && { logger: createStderrLogger() }),
   }
 

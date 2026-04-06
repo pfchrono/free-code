@@ -25,6 +25,10 @@
 
 import { getOauthConfig } from '../constants/oauth.js'
 import { isEnvTruthy } from './envUtils.js'
+import {
+  getAPIProvider,
+  isFirstPartyAnthropicBaseUrl,
+} from './model/providers.js'
 
 let fired = false
 
@@ -32,8 +36,12 @@ export function preconnectAnthropicApi(): void {
   if (fired) return
   fired = true
 
-  // Skip if using a cloud provider — different endpoint + auth
+  // Only warm direct first-party Anthropic API sessions. Third-party providers
+  // (Codex/OpenAI/Copilot/Bedrock/Vertex/Foundry) have different endpoints or
+  // auth paths, and warming api.anthropic.com here creates pointless leakage.
   if (
+    getAPIProvider() !== 'firstParty' ||
+    !isFirstPartyAnthropicBaseUrl() ||
     isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
     isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
     isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)

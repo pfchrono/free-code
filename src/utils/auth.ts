@@ -116,10 +116,7 @@ export function isAnthropicAuthEnabled(): boolean {
     return !!process.env.CLAUDE_CODE_OAUTH_TOKEN
   }
 
-  const is3P =
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
+  const is3P = getAPIProvider() !== 'firstParty'
 
   // Check if user has configured an external API key source
   // This allows externally-provided API keys to work (without requiring proxy configuration)
@@ -1270,6 +1267,9 @@ export const getClaudeAIOAuthTokens = memoize((): OAuthTokens | null => {
   // --bare: API-key-only. No OAuth env tokens, no keychain, no credentials file.
   if (isBareMode()) return null
 
+  // In third-party provider mode, Claude.ai OAuth must be completely inert.
+  if (getAPIProvider() !== 'firstParty') return null
+
   // Check for force-set OAuth token from environment variable
   if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
     // Return an inference-only token (unknown refresh and expiry)
@@ -1382,6 +1382,17 @@ export function clearCodexOAuthTokens(): void {
 /**
  * Saves the GitHub Copilot tokens to GlobalConfig.
  */
+export function isGitHubEnterpriseHostname(value: string): boolean {
+  try {
+    const hostname = new URL(
+      value.includes('://') ? value : `https://${value}`,
+    ).hostname.toLowerCase()
+    return hostname.length > 0 && hostname !== 'github.com'
+  } catch {
+    return false
+  }
+}
+
 export function saveCopilotOAuthTokens(tokens: CopilotTokens): void {
   saveGlobalConfig((cfg) => ({
     ...cfg,
@@ -1391,6 +1402,7 @@ export function saveCopilotOAuthTokens(tokens: CopilotTokens): void {
       expiresAt: tokens.expiresAt,
       login: tokens.login,
       scopes: tokens.scopes,
+      enterpriseUrl: tokens.enterpriseUrl,
     },
   }))
 }
@@ -1416,6 +1428,7 @@ export function getCopilotOAuthTokens(): CopilotTokens | null {
     expiresAt: stored.expiresAt,
     login: stored.login,
     scopes: stored.scopes,
+    enterpriseUrl: stored.enterpriseUrl,
   }
 }
 
@@ -1517,6 +1530,7 @@ async function handleOAuth401ErrorImpl(
  */
 export async function getClaudeAIOAuthTokensAsync(): Promise<OAuthTokens | null> {
   if (isBareMode()) return null
+  if (getAPIProvider() !== 'firstParty') return null
 
   // Env var and FD tokens are sync and don't hit the keychain
   if (
@@ -1693,7 +1707,7 @@ export function isClaudeAISubscriber(): boolean {
  * Returns true when a valid Codex access token is present in the config.
  */
 export function isCodexSubscriber(): boolean {
-  if (getAPIProvider() !== 'openai') {
+  if (getAPIProvider() !== 'codex') {
     return false
   }
   if (!isConfigReadingAllowed()) {
@@ -1733,19 +1747,7 @@ export function hasProfileScope(): boolean {
 }
 
 export function is1PApiCustomer(): boolean {
-  // 1P API customers are users who are NOT:
-  // 1. Claude.ai subscribers (Max, Pro, Enterprise, Team)
-  // 2. OpenAI ChatGPT/Codex users
-  // 3. Vertex AI users
-  // 4. AWS Bedrock users
-  // 5. Foundry users
-
-  // Exclude Vertex, Bedrock, and Foundry customers
-  if (
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
-  ) {
+  if (getAPIProvider() !== 'firstParty') {
     return false
   }
 
@@ -1886,13 +1888,9 @@ export function getSubscriptionName(): string {
   }
 }
 
-/** Check if using third-party services (Bedrock or Vertex or Foundry) */
+/** Check if using any third-party provider instead of Anthropic first-party */
 export function isUsing3PServices(): boolean {
-  return !!(
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX) ||
-    isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)
-  )
+  return getAPIProvider() !== 'firstParty'
 }
 
 /**

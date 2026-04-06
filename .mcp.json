@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "description": "Live documentation lookup for npm libraries and SDKs (Anthropic SDK, MCP SDK, AWS SDK, Azure, OpenTelemetry)"
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "description": "GitHub MCP for issues, PRs, branches, and CI status — supports autofix-pr, commit-push-pr, and issue commands"
+    }
+  }
+}

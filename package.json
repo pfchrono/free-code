@@ -1,13 +1,13 @@
 {
-  "name": "claude-code-source-snapshot",
-  "version": "2.1.87",
+  "name": "free-code-source",
+  "version": "0.3.1",
   "private": true,
-  "description": "Reconstructed Bun CLI workspace for the Claude Code source snapshot.",
+  "description": "Freecode CLI workspace for agentic coding.",
   "type": "module",
   "packageManager": "bun@1.3.11",
   "bin": {
-    "claude": "./cli",
-    "claude-source": "./cli"
+    "free-code": "./cli",
+    "free-code-source": "./cli"
   },
   "engines": {
     "bun": ">=1.3.11"
@@ -16,8 +16,15 @@
     "build": "bun run ./scripts/build.ts",
     "build:dev": "bun run ./scripts/build.ts --dev",
     "build:dev:full": "bun run ./scripts/build.ts --dev --feature-set=dev-full",
+    "build:no-telemetry": "bun run ./scripts/build.ts --no-telemetry",
+    "build:dev:full:no-telemetry": "bun run ./scripts/build.ts --dev --feature-set=dev-full --no-telemetry",
     "compile": "bun run ./scripts/build.ts --compile",
-    "dev": "bun run ./src/entrypoints/cli.tsx"
+    "compile:dev:full": "bun run ./scripts/build.ts --compile --dev --feature-set=dev-full",
+    "compile:no-telemetry": "bun run ./scripts/build.ts --compile --no-telemetry",
+    "compile:dev:full:no-telemetry": "bun run ./scripts/build.ts --compile --dev --feature-set=dev-full --no-telemetry",
+    "dev": "bun run ./src/entrypoints/cli.tsx",
+    "verify:no-phone-home": "bun run ./scripts/verify-no-phone-home.ts",
+    "verify:no-phone-home:compile": "bun run ./scripts/verify-no-phone-home.ts dist/cli"
   },
   "dependencies": {
     "@alcalzone/ansi-tokenize": "^0.3.0",

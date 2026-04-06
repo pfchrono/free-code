@@ -7,6 +7,7 @@ import { getProxyUrl, shouldBypassProxy } from '../proxy.js'
 // Import as namespace so spyOn works in tests (direct imports bypass spies)
 import * as settingsModule from '../settings/settings.js'
 import type { HttpHook } from '../settings/types.js'
+import { shouldAllowAnthropicHostedServices } from '../model/providers.js'
 import { ssrfGuardedLookup } from './ssrfGuard.js'
 
 const DEFAULT_HTTP_HOOK_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes (matches TOOL_HOOK_EXECUTION_TIMEOUT_MS)
@@ -132,6 +133,31 @@ export async function execHttpHook(
   error?: string
   aborted?: boolean
 }> {
+  // SECURITY: Block HTTP hooks to Anthropic-hosted services when using third-party providers.
+  // Plugins may (intentionally or maliciously) be configured to POST to Anthropic APIs.
+  if (!shouldAllowAnthropicHostedServices()) {
+    // Check if the URL targets api.anthropic.com or other Anthropic-hosted domains
+    const anthropicDomains = [
+      'api.anthropic.com',
+      'anthropic.com'
+    ]
+    const isAnthropicUrl = anthropicDomains.some(domain => {
+      try {
+        const url = new URL(hook.url)
+        return url.hostname?.includes(domain) || url.href.includes(domain)
+      } catch {
+        // Invalid URL, let other validation catch it
+        return false
+      }
+    })
+    
+    if (isAnthropicUrl) {
+      const msg = `HTTP hook blocked: plugin hook to ${hook.url} not allowed in third-party provider mode`
+      logForDebugging(msg, { level: 'warn' })
+      return { ok: false, body: '', error: msg }
+    }
+  }
+
   // Enforce URL allowlist before any I/O. Follows allowedMcpServers semantics:
   // undefined → no restriction; [] → block all; non-empty → must match a pattern.
   const policy = getHttpHookPolicy()

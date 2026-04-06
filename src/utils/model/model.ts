@@ -27,6 +27,7 @@ import { formatModelPricing, getOpus46CostTier } from '../modelCost.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
 import type { PermissionMode } from '../permissions/PermissionMode.js'
 import { getAPIProvider } from './providers.js'
+import { getDefaultLMStudioModel } from './lmstudioCapabilities.js'
 import { LIGHTNING_BOLT } from '../../constants/figures.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import { type ModelAlias, isModelAlias } from './aliases.js'
@@ -181,12 +182,24 @@ export function getRuntimeMainLoopModel(params: {
 export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
   const apiProvider = getAPIProvider()
 
-  if (apiProvider === 'openai') {
+  if (apiProvider === 'codex') {
     return getModelStrings().gpt53codex
+  }
+
+  if (apiProvider === 'openai') {
+    return getModelStrings().gpt54
+  }
+
+  if (apiProvider === 'openrouter') {
+    return getModelStrings().gpt54
   }
 
   if (apiProvider === 'copilot') {
     return getModelStrings().sonnet45
+  }
+
+  if (apiProvider === 'lmstudio') {
+    return getDefaultLMStudioModel() ?? getModelStrings().sonnet45
   }
 
   if (
@@ -325,6 +338,12 @@ export function getCanonicalName(fullModelName: ModelName): ModelShortName {
 export function getClaudeAiUserDefaultModelDescription(
   fastMode = false,
 ): string {
+  if (getAPIProvider() === 'codex') {
+    return 'GPT-5.3 Codex · ChatGPT Codex default model'
+  }
+  if (getAPIProvider() === 'openai') {
+    return 'GPT-5.4 · Native OpenAI API default model'
+  }
   if (isCodexSubscriber()) {
     return 'GPT-5.3 Codex · Optimized for code generation and understanding'
   }
@@ -398,6 +417,13 @@ export function getPublicModelDisplayName(model: ModelName): string | null {
     if (model === 'gpt-5.1-codex-mini') return 'Codex 5.1 Mini'
     if (model === 'gpt-5.1-codex-max') return 'Codex 5.1 Max'
     if (model === 'gpt-5.4') return 'GPT 5.4'
+    if (model === 'gpt-4o') return 'GPT-4o'
+    if (model === 'gpt-4o-mini') return 'GPT-4o Mini'
+    if (model === 'o1') return 'o1'
+    if (model === 'o1-mini') return 'o1 Mini'
+    if (model === 'o3') return 'o3'
+    if (model === 'o3-mini') return 'o3 Mini'
+    if (model === 'o4-mini') return 'o4 Mini'
     if (model === 'gpt-5.2') return 'GPT 5.2'
     return model
   }
@@ -679,6 +705,27 @@ export function getMarketingNameForModel(modelId: string): string | undefined {
   }
   if (canonical.includes('gpt-5.4')) {
     return 'GPT-5.4'
+  }
+  if (canonical.includes('gpt-4o-mini')) {
+    return 'GPT-4o Mini'
+  }
+  if (canonical.includes('gpt-4o')) {
+    return 'GPT-4o'
+  }
+  if (canonical.includes('o4-mini')) {
+    return 'o4 Mini'
+  }
+  if (canonical.includes('o3-mini')) {
+    return 'o3 Mini'
+  }
+  if (canonical === 'o3') {
+    return 'o3'
+  }
+  if (canonical.includes('o1-mini')) {
+    return 'o1 Mini'
+  }
+  if (canonical === 'o1') {
+    return 'o1'
   }
   if (canonical.includes('gpt-5.3-codex')) {
     return 'GPT-5.3 Codex'

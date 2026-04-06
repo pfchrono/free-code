@@ -24,6 +24,7 @@ import {
 import { registerCleanup } from '../../utils/cleanupRegistry.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { classifyAxiosError, getErrnoCode } from '../../utils/errors.js'
+import { shouldAllowAnthropicHostedServices } from '../../utils/model/providers.js'
 import { settingsChangeDetector } from '../../utils/settings/changeDetector.js'
 import {
   type SettingsJson,
@@ -512,6 +513,10 @@ async function fetchAndLoadRemoteManagedSettings(): Promise<SettingsJson | null>
  * until remote settings have been fetched.
  */
 export async function loadRemoteManagedSettings(): Promise<void> {
+  if (!shouldAllowAnthropicHostedServices()) {
+    return
+  }
+
   // Set up the promise for other systems to wait on
   // Only if the user is eligible for remote settings AND promise not already set up
   // (initializeRemoteManagedSettingsLoadingPromise may have been called earlier)
@@ -560,6 +565,10 @@ export async function loadRemoteManagedSettings(): Promise<void> {
  * Fails open - if fetch fails, continues without remote settings
  */
 export async function refreshRemoteManagedSettings(): Promise<void> {
+  if (!shouldAllowAnthropicHostedServices()) {
+    return
+  }
+
   // Clear caches first
   await clearRemoteManagedSettingsCache()
 

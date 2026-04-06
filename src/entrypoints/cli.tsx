@@ -51,7 +51,7 @@ async function main(): Promise<void> {
   if (args.length === 1 && (args[0] === '--version' || args[0] === '-v' || args[0] === '-V')) {
     // MACRO.VERSION is inlined at build time
     // biome-ignore lint/suspicious/noConsole:: intentional console output
-    console.log(`${MACRO.VERSION} (Claude Code)`);
+    console.log(`${MACRO.VERSION} (free-code)`);
     return;
   }
 
@@ -150,7 +150,10 @@ async function main(): Promise<void> {
     const {
       getClaudeAIOAuthTokens
     } = await import('../utils/auth.js');
-    if (!getClaudeAIOAuthTokens()?.accessToken) {
+    const {
+      shouldAllowAnthropicHostedServices
+    } = await import('../utils/model/providers.js');
+    if (!shouldAllowAnthropicHostedServices() || !getClaudeAIOAuthTokens()?.accessToken) {
       exitWithError(BRIDGE_LOGIN_ERROR);
     }
     const disabledReason = await getBridgeDisabledReason();

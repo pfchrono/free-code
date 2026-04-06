@@ -1,5 +1,6 @@
 import { chmodSync, existsSync, mkdirSync } from 'fs'
 import { dirname } from 'path'
+import { noTelemetryPlugin } from './no-telemetry-plugin'
 
 const pkg = await Bun.file(new URL('../package.json', import.meta.url)).json() as {
   name: string
@@ -9,6 +10,7 @@ const pkg = await Bun.file(new URL('../package.json', import.meta.url)).json() a
 const args = process.argv.slice(2)
 const compile = args.includes('--compile')
 const dev = args.includes('--dev')
+const noTelemetry = args.includes('--no-telemetry')
 
 const fullExperimentalFeatures = [
   'AGENT_MEMORY_SNAPSHOT',
@@ -109,13 +111,8 @@ for (let i = 0; i < args.length; i += 1) {
 }
 const features = [...featureSet]
 
-const outfile = compile
-  ? dev
-    ? './dist/cli-dev'
-    : './dist/cli'
-  : dev
-    ? './cli-dev'
-    : './cli'
+const outputName = dev ? 'cli-dev' : 'cli'
+const outfile = compile ? `./dist/${outputName}` : `./${outputName}`
 const buildTime = new Date().toISOString()
 const version = dev ? getDevVersion(pkg.version) : pkg.version
 
@@ -158,46 +155,29 @@ const defines = {
   ),
 } as const
 
-const cmd = [
-  'bun',
-  'build',
-  './src/entrypoints/cli.tsx',
-  '--compile',
-  '--target',
-  'bun',
-  '--format',
-  'esm',
-  '--outfile',
-  outfile,
-  '--minify',
-  '--bytecode',
-  '--packages',
-  'bundle',
-  '--conditions',
-  'bun',
-]
-
-for (const external of externals) {
-  cmd.push('--external', external)
+const plugins = []
+if (noTelemetry) {
+  plugins.push(noTelemetryPlugin)
 }
 
-for (const feature of features) {
-  cmd.push(`--feature=${feature}`)
-}
-
-for (const [key, value] of Object.entries(defines)) {
-  cmd.push('--define', `${key}=${value}`)
-}
-
-const proc = Bun.spawnSync({
-  cmd,
-  cwd: process.cwd(),
-  stdout: 'inherit',
-  stderr: 'inherit',
+const proc = await Bun.build({
+  entrypoints: ['./src/entrypoints/cli.tsx'],
+  compile,
+  target: 'bun',
+  format: 'esm',
+  outdir: outDir === '.' ? '.' : outDir,
+  naming: outputName,
+  minify: true,
+  ...(compile ? { bytecode: true } : {}),
+  packages: 'bundle',
+  conditions: ['bun'],
+  external: externals,
+  define: defines,
+  plugins,
 })
 
-if (proc.exitCode !== 0) {
-  process.exit(proc.exitCode ?? 1)
+if (!proc.success) {
+  process.exit(1)
 }
 
 if (existsSync(outfile)) {

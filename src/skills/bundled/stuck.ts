@@ -5,7 +5,7 @@ import { registerBundledSkill } from '../bundledSkills.js'
 // eslint-disable-next-line custom-rules/no-direct-ps-commands
 const STUCK_PROMPT = `# /stuck — diagnose frozen/slow Claude Code sessions
 
-The user thinks another Claude Code session on this machine is frozen, stuck, or very slow. Investigate and post a report to #claude-code-feedback.
+The user thinks another Claude Code session on this machine is frozen, stuck, or very slow. Investigate and post a report to the internal feedback Slack channel.
 
 ## What to look for
 
@@ -41,7 +41,7 @@ Signs of a stuck session:
 
 **Only post to Slack if you actually found something stuck.** If every session looks healthy, tell the user that directly — do not post an all-clear to the channel.
 
-If you did find a stuck/slow session, post to **#claude-code-feedback** (channel ID: \`C07VBSHV7EV\`) using the Slack MCP tool. Use ToolSearch to find \`slack_send_message\` if it's not already loaded.
+If you did find a stuck/slow session, post to **the internal feedback Slack channel** (channel ID: \`internal-feedback-channel-id\`) using the Slack MCP tool. Use ToolSearch to find \`slack_send_message\` if it's not already loaded.
 
 **Use a two-message structure** to keep the channel scannable:
 
@@ -51,7 +51,7 @@ If you did find a stuck/slow session, post to **#claude-code-feedback** (channel
    - Your diagnosis of what's likely wrong
    - Relevant debug log tail or \`sample\` output if you captured it
 
-If Slack MCP isn't available, format the report as a message the user can copy-paste into #claude-code-feedback (and let them know to thread the details themselves).
+If Slack MCP isn't available, format the report as a message the user can copy-paste into the internal feedback Slack channel (and let them know to thread the details themselves).
 
 ## Notes
 - Don't kill or signal any processes — this is diagnostic only.
@@ -66,7 +66,7 @@ export function registerStuckSkill(): void {
   registerBundledSkill({
     name: 'stuck',
     description:
-      '[ANT-ONLY] Investigate frozen/stuck/slow Claude Code sessions on this machine and post a diagnostic report to #claude-code-feedback.',
+      '[ANT-ONLY] Investigate frozen/stuck/slow Claude Code sessions on this machine and post a diagnostic report to the internal feedback Slack channel.',
     userInvocable: true,
     async getPromptForCommand(args) {
       let prompt = STUCK_PROMPT

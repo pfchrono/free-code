@@ -11,8 +11,11 @@ export const CLAUDE_3_7_SONNET_CONFIG = {
   bedrock: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
   vertex: 'claude-3-7-sonnet@20250219',
   foundry: 'claude-3-7-sonnet',
+  codex: 'claude-3-7-sonnet-20250219',
   openai: 'claude-3-7-sonnet-20250219',
+  openrouter: 'claude-3-7-sonnet-20250219',
   copilot: 'claude-sonnet-4',
+  lmstudio: 'claude-sonnet-4',
 } as const satisfies ModelConfig
 
 export const CLAUDE_3_5_V2_SONNET_CONFIG = {
@@ -20,8 +23,11 @@ export const CLAUDE_3_5_V2_SONNET_CONFIG = {
   bedrock: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
   vertex: 'claude-3-5-sonnet-v2@20241022',
   foundry: 'claude-3-5-sonnet',
+  codex: 'claude-3-5-sonnet-20241022',
   openai: 'claude-3-5-sonnet-20241022',
+  openrouter: 'claude-3-5-sonnet-20241022',
   copilot: 'claude-sonnet-4',
+  lmstudio: 'claude-sonnet-4',
 } as const satisfies ModelConfig
 
 export const CLAUDE_3_5_HAIKU_CONFIG = {
@@ -29,8 +35,11 @@ export const CLAUDE_3_5_HAIKU_CONFIG = {
   bedrock: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
   vertex: 'claude-3-5-haiku@20241022',
   foundry: 'claude-3-5-haiku',
+  codex: 'claude-3-5-haiku-20241022',
   openai: 'claude-3-5-haiku-20241022',
+  openrouter: 'claude-3-5-haiku-20241022',
   copilot: 'gpt-4o',
+  lmstudio: 'claude-3-5-haiku-20241022',
 } as const satisfies ModelConfig
 
 export const CLAUDE_HAIKU_4_5_CONFIG = {
@@ -38,8 +47,11 @@ export const CLAUDE_HAIKU_4_5_CONFIG = {
   bedrock: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
   vertex: 'claude-haiku-4-5@20251001',
   foundry: 'claude-haiku-4-5',
+  codex: 'claude-haiku-4-5-20251001',
   openai: 'claude-haiku-4-5-20251001',
+  openrouter: 'claude-haiku-4-5-20251001',
   copilot: 'gpt-4o',
+  lmstudio: 'claude-haiku-4-5-20251001',
 } as const satisfies ModelConfig
 
 export const CLAUDE_SONNET_4_CONFIG = {
@@ -47,8 +59,11 @@ export const CLAUDE_SONNET_4_CONFIG = {
   bedrock: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
   vertex: 'claude-sonnet-4@20250514',
   foundry: 'claude-sonnet-4',
+  codex: 'claude-sonnet-4-20250514',
   openai: 'claude-sonnet-4-20250514',
+  openrouter: 'claude-sonnet-4-20250514',
   copilot: 'claude-sonnet-4',
+  lmstudio: 'claude-sonnet-4',
 } as const satisfies ModelConfig
 
 export const CLAUDE_SONNET_4_5_CONFIG = {
@@ -56,8 +71,11 @@ export const CLAUDE_SONNET_4_5_CONFIG = {
   bedrock: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
   vertex: 'claude-sonnet-4-5@20250929',
   foundry: 'claude-sonnet-4-5',
+  codex: 'claude-sonnet-4-5-20250929',
   openai: 'claude-sonnet-4-5-20250929',
+  openrouter: 'claude-sonnet-4-5-20250929',
   copilot: 'claude-sonnet-4',
+  lmstudio: 'claude-sonnet-4',
 } as const satisfies ModelConfig
 
 export const CLAUDE_OPUS_4_CONFIG = {
@@ -65,8 +83,11 @@ export const CLAUDE_OPUS_4_CONFIG = {
   bedrock: 'us.anthropic.claude-opus-4-20250514-v1:0',
   vertex: 'claude-opus-4@20250514',
   foundry: 'claude-opus-4',
+  codex: 'claude-opus-4-20250514',
   openai: 'claude-opus-4-20250514',
+  openrouter: 'claude-opus-4-20250514',
   copilot: 'claude-opus-4-1',
+  lmstudio: 'claude-opus-4-20250514',
 } as const satisfies ModelConfig
 
 export const CLAUDE_OPUS_4_1_CONFIG = {
@@ -74,8 +95,11 @@ export const CLAUDE_OPUS_4_1_CONFIG = {
   bedrock: 'us.anthropic.claude-opus-4-1-20250805-v1:0',
   vertex: 'claude-opus-4-1@20250805',
   foundry: 'claude-opus-4-1',
+  codex: 'claude-opus-4-1-20250805',
   openai: 'claude-opus-4-1-20250805',
+  openrouter: 'claude-opus-4-1-20250805',
   copilot: 'claude-opus-4-1',
+  lmstudio: 'claude-opus-4-1-20250805',
 } as const satisfies ModelConfig
 
 export const CLAUDE_OPUS_4_5_CONFIG = {
@@ -83,8 +107,11 @@ export const CLAUDE_OPUS_4_5_CONFIG = {
   bedrock: 'us.anthropic.claude-opus-4-5-20251101-v1:0',
   vertex: 'claude-opus-4-5@20251101',
   foundry: 'claude-opus-4-5',
+  codex: 'claude-opus-4-5-20251101',
   openai: 'claude-opus-4-5-20251101',
+  openrouter: 'claude-opus-4-5-20251101',
   copilot: 'claude-opus-4-1',
+  lmstudio: 'claude-opus-4-5-20251101',
 } as const satisfies ModelConfig
 
 export const CLAUDE_OPUS_4_6_CONFIG = {
@@ -92,8 +119,11 @@ export const CLAUDE_OPUS_4_6_CONFIG = {
   bedrock: 'us.anthropic.claude-opus-4-6-v1',
   vertex: 'claude-opus-4-6',
   foundry: 'claude-opus-4-6',
+  codex: 'claude-opus-4-6',
   openai: 'claude-opus-4-6',
+  openrouter: 'claude-opus-4-6',
   copilot: 'claude-opus-4-1',
+  lmstudio: 'claude-opus-4-6',
 } as const satisfies ModelConfig
 
 export const CLAUDE_SONNET_4_6_CONFIG = {
@@ -101,8 +131,11 @@ export const CLAUDE_SONNET_4_6_CONFIG = {
   bedrock: 'us.anthropic.claude-sonnet-4-6',
   vertex: 'claude-sonnet-4-6',
   foundry: 'claude-sonnet-4-6',
+  codex: 'claude-sonnet-4-6',
   openai: 'claude-sonnet-4-6',
+  openrouter: 'claude-sonnet-4-6',
   copilot: 'claude-sonnet-4',
+  lmstudio: 'claude-sonnet-4-6',
 } as const satisfies ModelConfig
 
 // OpenAI Codex models
@@ -111,8 +144,11 @@ export const GPT_5_4_CONFIG = {
   bedrock: 'gpt-5.4',
   vertex: 'gpt-5.4',
   foundry: 'gpt-5.4',
+  codex: 'gpt-5.4',
   openai: 'gpt-5.4',
+  openrouter: 'gpt-5.4',
   copilot: 'gpt-5',
+  lmstudio: 'gpt-5.4',
 } as const satisfies ModelConfig
 
 export const GPT_5_3_CODEX_CONFIG = {
@@ -120,8 +156,11 @@ export const GPT_5_3_CODEX_CONFIG = {
   bedrock: 'gpt-5.3-codex',
   vertex: 'gpt-5.3-codex',
   foundry: 'gpt-5.3-codex',
+  codex: 'gpt-5.3-codex',
   openai: 'gpt-5.3-codex',
+  openrouter: 'gpt-5.3-codex',
   copilot: 'gpt-5',
+  lmstudio: 'gpt-5.3-codex',
 } as const satisfies ModelConfig
 
 export const GPT_5_4_MINI_CONFIG = {
@@ -129,8 +168,11 @@ export const GPT_5_4_MINI_CONFIG = {
   bedrock: 'gpt-5.4-mini',
   vertex: 'gpt-5.4-mini',
   foundry: 'gpt-5.4-mini',
+  codex: 'gpt-5.4-mini',
   openai: 'gpt-5.4-mini',
+  openrouter: 'gpt-5.4-mini',
   copilot: 'o4-mini',
+  lmstudio: 'gpt-5.4-mini',
 } as const satisfies ModelConfig
 
 // @[MODEL LAUNCH]: Register the new config here.

@@ -77,8 +77,8 @@ import {
   isChannelPermissionRelayEnabled,
 } from './channelPermissions.js'
 import {
-  clearClaudeAIMcpConfigsCache,
-  fetchClaudeAIMcpConfigsIfEligible,
+  clearProviderManagedMcpConfigsCache,
+  fetchProviderManagedMcpConfigsIfEligible,
 } from './claudeai.js'
 import { registerElicitationHandler } from './elicitationHandler.js'
 import { getMcpPrefix } from './mcpStringUtils.js'
@@ -859,17 +859,18 @@ export function useManageMCPConnections(
     let cancelled = false
 
     async function loadAndConnectMcpConfigs() {
-      // Clear claude.ai MCP cache so we fetch fresh configs with current auth
-      // state. This is important when authVersion changes (e.g., after login/
-      // logout). Kick off the fetch now so it overlaps with loadAllPlugins()
-      // inside getClaudeCodeMcpConfigs; it's awaited only at the dedup step.
-      // Phase 2 below awaits the same promise — no second network call.
-      let claudeaiPromise: Promise<Record<string, ScopedMcpServerConfig>>
+      // Clear provider-managed MCP cache so we fetch fresh configs with current
+      // auth state. This is important when authVersion changes (e.g., after
+      // login/logout). Kick off the fetch now so it overlaps with
+      // loadAllPlugins() inside getClaudeCodeMcpConfigs; it's awaited only at
+      // the dedup step. Phase 2 below awaits the same promise — no second
+      // network call.
+      let managedPromise: Promise<Record<string, ScopedMcpServerConfig>>
       if (isStrictMcpConfig || doesEnterpriseMcpConfigExist()) {
-        claudeaiPromise = Promise.resolve({})
+        managedPromise = Promise.resolve({})
       } else {
-        clearClaudeAIMcpConfigsCache()
-        claudeaiPromise = fetchClaudeAIMcpConfigsIfEligible()
+        clearProviderManagedMcpConfigsCache()
+        managedPromise = fetchProviderManagedMcpConfigsIfEligible()
       }
 
       // Phase 1: Load Claude Code configs. Plugin MCP servers that duplicate a
@@ -878,7 +879,7 @@ export function useManageMCPConnections(
       const { servers: claudeCodeConfigs, errors: mcpErrors } =
         isStrictMcpConfig
           ? { servers: {}, errors: [] }
-          : await getClaudeCodeMcpConfigs(dynamicMcpConfig, claudeaiPromise)
+          : await getClaudeCodeMcpConfigs(dynamicMcpConfig, managedPromise)
       if (cancelled) return
 
       // Add MCP errors to plugin errors for UI visibility (deduplicated)
@@ -901,32 +902,32 @@ export function useManageMCPConnections(
         )
       })
 
-      // Phase 2: Await claude.ai configs (started above; memoized — no second fetch)
-      let claudeaiConfigs: Record<string, ScopedMcpServerConfig> = {}
+      // Phase 2: Await provider-managed configs (started above; memoized — no second fetch)
+      let managedConfigs: Record<string, ScopedMcpServerConfig> = {}
       if (!isStrictMcpConfig) {
-        claudeaiConfigs = filterMcpServersByPolicy(
-          await claudeaiPromise,
+        managedConfigs = filterMcpServersByPolicy(
+          await managedPromise,
         ).allowed
         if (cancelled) return
 
-        // Suppress claude.ai connectors that duplicate an enabled manual server.
-        // Keys never collide (`slack` vs `claude.ai Slack`) so the merge below
+        // Suppress managed connectors that duplicate an enabled manual server.
+        // Keys can differ (`slack` vs `managed Slack`) so the merge below
         // won't catch this — need content-based dedup by URL signature.
-        if (Object.keys(claudeaiConfigs).length > 0) {
-          const { servers: dedupedClaudeAi } = dedupClaudeAiMcpServers(
-            claudeaiConfigs,
+        if (Object.keys(managedConfigs).length > 0) {
+          const { servers: dedupedManaged } = dedupClaudeAiMcpServers(
+            managedConfigs,
             configs,
           )
-          claudeaiConfigs = dedupedClaudeAi
+          managedConfigs = dedupedManaged
         }
 
-        if (Object.keys(claudeaiConfigs).length > 0) {
-          // Add claude.ai servers as pending immediately so they show up in UI
+        if (Object.keys(managedConfigs).length > 0) {
+          // Add managed servers as pending immediately so they show up in UI
           setAppState(prevState => {
             const existingServerNames = new Set(
               prevState.mcp.clients.map(c => c.name),
             )
-            const newClients = Object.entries(claudeaiConfigs)
+            const newClients = Object.entries(managedConfigs)
               .filter(([name]) => !existingServerNames.has(name))
               .map(([name, config]) => ({
                 name,
@@ -946,25 +947,25 @@ export function useManageMCPConnections(
           })
 
           // Now start connecting (only enabled servers)
-          const enabledClaudeaiConfigs = Object.fromEntries(
-            Object.entries(claudeaiConfigs).filter(
+          const enabledManagedConfigs = Object.fromEntries(
+            Object.entries(managedConfigs).filter(
               ([name]) => !isMcpServerDisabled(name),
             ),
           )
           getMcpToolsCommandsAndResources(
             onConnectionAttempt,
-            enabledClaudeaiConfigs,
+            enabledManagedConfigs,
           ).catch(error => {
             logMCPError(
               'useManageMcpConnections',
-              `Failed to get claude.ai MCP resources: ${errorMessage(error)}`,
+              `Failed to get managed MCP resources: ${errorMessage(error)}`,
             )
           })
         }
       }
 
       // Log server counts after both phases complete
-      const allConfigs = { ...configs, ...claudeaiConfigs }
+      const allConfigs = { ...configs, ...managedConfigs }
       const counts = {
         enterprise: 0,
         global: 0,
@@ -972,6 +973,7 @@ export function useManageMCPConnections(
         user: 0,
         plugin: 0,
         claudeai: 0,
+        managed: 0,
       }
       // Ant-only: collect stdio command basenames to correlate with RSS/FPS
       // metrics. Stdio servers like rust-analyzer can be heavy and we want to
@@ -984,6 +986,7 @@ export function useManageMCPConnections(
         else if (serverConfig.scope === 'local') counts.user++
         else if (serverConfig.scope === 'dynamic') counts.plugin++
         else if (serverConfig.scope === 'claudeai') counts.claudeai++
+        else if (serverConfig.scope === 'managed') counts.managed++
 
         if (
           process.env.USER_TYPE === 'ant' &&

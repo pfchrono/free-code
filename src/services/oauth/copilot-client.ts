@@ -15,12 +15,23 @@ const COPILOT_EDITOR_VERSION = 'vscode/1.80.1'
 const COPILOT_PLUGIN_VERSION = 'copilot-chat/0.26.7'
 const COPILOT_USER_AGENT = 'GitHubCopilotChat/0.26.7'
 
+function normalizeDomain(url: string): string {
+  return url.replace(/^https?:\/\//, '').replace(/\/$/, '')
+}
+
+function getCopilotApiBaseUrl(enterpriseUrl?: string): string {
+  return enterpriseUrl
+    ? `https://copilot-api.${normalizeDomain(enterpriseUrl)}`
+    : COPILOT_API_BASE_URL
+}
+
 export type CopilotTokens = {
   githubToken: string
   copilotToken: string
   expiresAt: number
   login: string
   scopes?: string[]
+  enterpriseUrl?: string
 }
 
 type DeviceCodeResponse = {
@@ -164,10 +175,16 @@ function parseCopilotExpiry(json: CopilotTokenResponse): number {
 
 export async function exchangeCopilotToken(
   githubToken: string,
+  enterpriseUrl?: string,
 ): Promise<{ copilotToken: string; expiresAt: number }> {
-  const response = await fetch(COPILOT_TOKEN_URL, {
-    headers: getCopilotHeaders(githubToken),
-  })
+  const response = await fetch(
+    enterpriseUrl
+      ? `${getCopilotApiBaseUrl(enterpriseUrl)}/copilot_internal/v2/token`
+      : COPILOT_TOKEN_URL,
+    {
+      headers: getCopilotHeaders(githubToken),
+    },
+  )
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')

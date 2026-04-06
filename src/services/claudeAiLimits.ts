@@ -7,6 +7,7 @@ import { getModelBetas } from '../utils/betas.js'
 import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js'
 import { logError } from '../utils/log.js'
 import { getSmallFastModel } from '../utils/model/model.js'
+import { getAPIProvider } from '../utils/model/providers.js'
 import { isEssentialTrafficOnly } from '../utils/privacyLevel.js'
 import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from './analytics/index.js'
 import { logEvent } from './analytics/index.js'
@@ -218,6 +219,10 @@ async function makeTestQuery() {
 }
 
 export async function checkQuotaStatus(): Promise<void> {
+  if (getAPIProvider() !== 'firstParty') {
+    return
+  }
+
   // Skip network requests if nonessential traffic is disabled
   if (isEssentialTrafficOnly()) {
     return
@@ -454,6 +459,11 @@ function cacheExtraUsageDisabledReason(headers: globalThis.Headers): void {
 export function extractQuotaStatusFromHeaders(
   headers: globalThis.Headers,
 ): void {
+  if (getAPIProvider() !== 'firstParty') {
+    rawUtilization = {}
+    return
+  }
+
   // Check if we need to process rate limits
   const isSubscriber = isClaudeAISubscriber()
 
@@ -486,6 +496,7 @@ export function extractQuotaStatusFromHeaders(
 
 export function extractQuotaStatusFromError(error: APIError): void {
   if (
+    getAPIProvider() !== 'firstParty' ||
     !shouldProcessRateLimits(isClaudeAISubscriber()) ||
     error.status !== 429
   ) {

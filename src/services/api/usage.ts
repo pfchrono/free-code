@@ -6,6 +6,7 @@ import {
   isClaudeAISubscriber,
 } from '../../utils/auth.js'
 import { getAuthHeaders } from '../../utils/http.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
 import { getClaudeCodeUserAgent } from '../../utils/userAgent.js'
 import { isOAuthTokenExpired } from '../oauth/client.js'
 
@@ -31,8 +32,11 @@ export type Utilization = {
 }
 
 export async function fetchUtilization(): Promise<Utilization | null> {
+  if (getAPIProvider() !== 'firstParty') {
+    return null
+  }
   if (!isClaudeAISubscriber() || !hasProfileScope()) {
-    return {}
+    return null
   }
 
   // Skip API call if OAuth token is expired to avoid 401 errors

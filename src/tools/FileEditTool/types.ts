@@ -2,7 +2,7 @@ import { z } from 'zod/v4'
 import { lazySchema } from '../../utils/lazySchema.js'
 import { semanticBoolean } from '../../utils/semanticBoolean.js'
 
-// The input schema with optional replace_all
+// The input schema with optional replace_all and hash anchoring
 const inputSchema = lazySchema(() =>
   z.strictObject({
     file_path: z.string().describe('The absolute path to the file to modify'),
@@ -15,6 +15,10 @@ const inputSchema = lazySchema(() =>
     replace_all: semanticBoolean(
       z.boolean().default(false).optional(),
     ).describe('Replace all occurrences of old_string (default false)'),
+    line_anchor: z
+      .string()
+      .optional()
+      .describe('LINE#ID hash anchor for content validation (format: "123#abc123")'),
   }),
 )
 type InputSchema = ReturnType<typeof inputSchema>

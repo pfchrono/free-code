@@ -55,6 +55,7 @@ import { getInitialEffortSetting, parseEffortValue } from './utils/effort.js';
 import { getInitialFastModeSetting, isFastModeEnabled, prefetchFastModeStatus, resolveFastModeStatusFromCache } from './utils/fastMode.js';
 import { applyConfigEnvironmentVariables } from './utils/managedEnv.js';
 import { createSystemMessage, createUserMessage } from './utils/messages.js';
+import { getAPIProvider, shouldAllowAnthropicHostedServices } from './utils/model/providers.js';
 import { getPlatform } from './utils/platform.js';
 import { getBaseRenderOptions } from './utils/renderOptions.js';
 import { getSessionIngressAuthToken } from './utils/sessionIngressAuth.js';
@@ -142,7 +143,7 @@ import { validateUuid } from './utils/uuid.js';
 import { registerMcpAddCommand } from 'src/commands/mcp/addCommand.js';
 import { registerMcpXaaIdpCommand } from 'src/commands/mcp/xaaIdpCommand.js';
 import { logPermissionContextForAnts } from 'src/services/internalLogging.js';
-import { fetchClaudeAIMcpConfigsIfEligible } from 'src/services/mcp/claudeai.js';
+import { fetchProviderManagedMcpConfigsIfEligible } from 'src/services/mcp/claudeai.js';
 import { clearServerCache } from 'src/services/mcp/client.js';
 import { areMcpConfigsAllowedWithEnterpriseMcpConfig, dedupClaudeAiMcpServers, doesEnterpriseMcpConfigExist, filterMcpServersByPolicy, getClaudeCodeMcpConfigs, getMcpServerSignature, parseMcpConfig, parseMcpConfigFromFilePath } from 'src/services/mcp/config.js';
 import { excludeCommandsByServer, excludeResourcesByServer } from 'src/services/mcp/utils.js';
@@ -160,7 +161,7 @@ import { errorMessage, getErrnoCode, isENOENT, TeleportOperationError, toError }
 import { getFsImplementation, safeResolvePath } from 'src/utils/fsOperations.js';
 import { gracefulShutdown, gracefulShutdownSync } from 'src/utils/gracefulShutdown.js';
 import { setAllHookEventsEnabled } from 'src/utils/hooks/hookEvents.js';
-import { refreshModelCapabilities } from 'src/utils/model/modelCapabilities.js';
+import { refreshAllModelCapabilities } from 'src/utils/model/modelCapabilities.js';
 import { peekForStdinData, writeToStderr } from 'src/utils/process.js';
 import { setCwd } from 'src/utils/Shell.js';
 import { type ProcessedResume, processResumedConversation } from 'src/utils/sessionRestore.js';
@@ -432,7 +433,7 @@ function buildInitialNotifications(params: {
   if (isCodexSubscriberAtStartup) {
     initialNotifications.push({
       key: 'codex-backend-active',
-      text: `Using OpenAI ChatGPT/Codex backend · ${resolvedInitialModel}`,
+      text: `Using ChatGPT Codex backend · ${resolvedInitialModel}`,
       priority: 'high',
     });
   }
@@ -508,8 +509,10 @@ export function startDeferredPrefetches(): void {
 
   // Analytics and feature flag initialization
   void initializeAnalyticsGates();
-  void prefetchOfficialMcpUrls();
-  void refreshModelCapabilities();
+  if (shouldAllowAnthropicHostedServices()) {
+    void prefetchOfficialMcpUrls();
+  }
+  void refreshAllModelCapabilities();
 
   // File change detectors deferred from init() to unblock first render
   void settingsChangeDetector.initialize();
@@ -521,6 +524,66 @@ export function startDeferredPrefetches(): void {
   if ("external" === 'ant') {
     void import('./utils/eventLoopStallDetector.js').then(m => m.startEventLoopStallDetector());
   }
+}
+
+async function prefetchStartupDataForActiveProvider(
+  allowFastModeNetworkPrefetch: boolean,
+): Promise<void> {
+  const provider = getAPIProvider();
+
+  if (provider === 'firstParty') {
+    checkQuotaStatus().catch(error => logError(error));
+
+    // Fetch bootstrap data from the server and update all cache values.
+    void fetchBootstrapData();
+
+    // TODO: Consolidate other prefetches into a single bootstrap request.
+    void prefetchPassesEligibility();
+    if (allowFastModeNetworkPrefetch) {
+      void prefetchFastModeStatus();
+    }
+    return;
+  }
+
+  if (provider === 'copilot') {
+    try {
+      const { getCopilotModels } = await import('./services/api/copilot-client.js');
+      // Warm the Copilot model cache so /model and provider status stay responsive.
+      void getCopilotModels({
+        filterEnterprise: true,
+      });
+    } catch (error) {
+      logError(error);
+    }
+    resolveFastModeStatusFromCache();
+    return;
+  }
+
+  if (provider === 'openai') {
+    try {
+      const { refreshOpenAIModelCapabilities } = await import('./utils/model/openaiCapabilities.js');
+      // Warm OpenAI model capabilities to preserve model-picker behavior in OpenAI mode.
+      void refreshOpenAIModelCapabilities();
+    } catch (error) {
+      logError(error);
+    }
+    resolveFastModeStatusFromCache();
+    return;
+  }
+
+  if (provider === 'lmstudio') {
+    try {
+      const { refreshLMStudioModelCapabilities } = await import('./utils/model/lmstudioCapabilities.js');
+      void refreshLMStudioModelCapabilities();
+    } catch (error) {
+      logError(error);
+    }
+    resolveFastModeStatusFromCache();
+    return;
+  }
+
+  // Codex and other non-first-party providers do not currently have quota/bootstrap/pass prefetch endpoints.
+  resolveFastModeStatusFromCache();
 }
 function loadSettingsFromFlag(settingsFile: string): void {
   try {
@@ -1013,6 +1076,31 @@ async function run(): Promise<CommanderCommand> {
     await init();
     profileCheckpoint('preAction_after_init');
 
+    // Initialize enhanced memory systems
+    try {
+      const { initializeMemorySystem } = await import('./services/memory/persistentMemorySystem.js');
+      const { initializeSessionManager } = await import('./services/memory/sessionContinuityManager.js');
+
+      await Promise.all([
+        initializeMemorySystem(),
+        initializeSessionManager()
+      ]);
+      const { getProjectRoot } = await import('./bootstrap/state.js');
+      const { getSessionManager } = await import('./services/memory/sessionContinuityManager.js');
+      const sessionManager = getSessionManager();
+      if (!sessionManager.getCurrentSession()) {
+        await sessionManager.startSession(getProjectRoot(), {
+          entrypoint: 'cli',
+          sessionId: getSessionId()
+        });
+      }
+      profileCheckpoint('preAction_after_memory_init');
+    } catch (error) {
+      // Memory system initialization is non-critical - log and continue
+      const { logError } = await import('./utils/log.js');
+      logError('Failed to initialize memory systems:', error);
+    }
+
     // process.title on Windows sets the console title directly; on POSIX,
     // terminal shell integration may mirror the process name to the tab.
     // After init() so settings.json env can also gate this (gh-4765).
@@ -1064,7 +1152,7 @@ async function run(): Promise<CommanderCommand> {
     }
     profileCheckpoint('preAction_after_settings_sync');
   });
-  program.name('claude').description(`Claude Code - starts an interactive session by default, use -p/--print for non-interactive output`).argument('[prompt]', 'Your prompt', String)
+  program.name('claude').description(`free-code - starts an interactive session by default, use -p/--print for non-interactive output`).argument('[prompt]', 'Your prompt', String)
   // Subcommands inherit helpOption via commander's copyInheritedSettings —
   // setting it once here covers mcp, plugin, auth, and all other subcommands.
   .helpOption('-h, --help', 'Display help for command').option('-d, --debug [filter]', 'Enable debug mode with optional category filtering (e.g., "api,hooks" or "!1p,!file")', (_value: string | true) => {
@@ -1119,7 +1207,7 @@ async function run(): Promise<CommanderCommand> {
     if (prompt === 'code') {
       logEvent('tengu_code_prompt_ignored', {});
       // biome-ignore lint/suspicious/noConsole:: intentional console output
-      console.warn(chalk.yellow('Tip: You can launch Claude Code with just `claude`'));
+      console.warn(chalk.yellow('Tip: You can launch free-code with just `claude`'));
       prompt = undefined;
     }
 
@@ -1417,6 +1505,10 @@ async function run(): Promise<CommanderCommand> {
       const fileSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID || getSessionId();
       const files = parseFileSpecs(fileSpecs);
       if (files.length > 0) {
+        if (!shouldAllowAnthropicHostedServices()) {
+          process.stderr.write(chalk.red(`Error: --file downloads are unavailable when apiProvider=${getAPIProvider()} because they require Anthropic-hosted Files API.\n`));
+          process.exit(1);
+        }
         // Use ANTHROPIC_BASE_URL if set (by EnvManager), otherwise use OAuth config
         // This ensures consistency with session ingress API in all environments
         const config: FilesApiConfig = {
@@ -1877,21 +1969,20 @@ async function run(): Promise<CommanderCommand> {
     });
     void assertMinVersion();
 
-    // claude.ai config fetch: -p mode only (interactive uses useManageMCPConnections
-    // two-phase loading). Kicked off here to overlap with setup(); awaited
-    // before runHeadless so single-turn -p sees connectors. Skipped under
-    // enterprise/strict MCP to preserve policy boundaries.
-    const claudeaiConfigPromise: Promise<Record<string, ScopedMcpServerConfig>> = isNonInteractiveSession && !strictMcpConfig && !doesEnterpriseMcpConfigExist() &&
-    // --bare / SIMPLE: skip claude.ai proxy servers (datadog, Gmail,
-    // Slack, BigQuery, PubMed — 6-14s each to connect). Scripted calls
-    // that need MCP pass --mcp-config explicitly.
-    !isBareMode() ? fetchClaudeAIMcpConfigsIfEligible().then(configs => {
+    // Provider-managed MCP config fetch: -p mode only (interactive uses
+    // useManageMCPConnections two-phase loading). Kicked off here to overlap
+    // with setup(); awaited before runHeadless so single-turn -p sees managed
+    // connectors. Skipped under enterprise/strict MCP to preserve policy boundaries.
+    const managedConfigPromise: Promise<Record<string, ScopedMcpServerConfig>> = isNonInteractiveSession && !strictMcpConfig && !doesEnterpriseMcpConfigExist() &&
+    // --bare / SIMPLE: skip managed proxy servers. Scripted calls that need MCP
+    // pass --mcp-config explicitly.
+    !isBareMode() ? fetchProviderManagedMcpConfigsIfEligible().then(configs => {
       const {
         allowed,
         blocked
       } = filterMcpServersByPolicy(configs);
       if (blocked.length > 0) {
-        process.stderr.write(`Warning: claude.ai MCP ${plural(blocked.length, 'server')} blocked by enterprise policy: ${blocked.join(', ')}\n`);
+        process.stderr.write(`Warning: managed MCP ${plural(blocked.length, 'server')} blocked by enterprise policy: ${blocked.join(', ')}\n`);
       }
       return allowed;
     }) : Promise.resolve({});
@@ -2421,21 +2512,7 @@ async function run(): Promise<CommanderCommand> {
     if (!skipStartupPrefetches) {
       const lastPrefetchedInfo = lastPrefetched > 0 ? ` last ran ${Math.round((Date.now() - lastPrefetched) / 1000)}s ago` : '';
       logForDebugging(`Starting background startup prefetches${lastPrefetchedInfo}`);
-      checkQuotaStatus().catch(error => logError(error));
-
-      // Fetch bootstrap data from the server and update all cache values.
-      void fetchBootstrapData();
-
-      // TODO: Consolidate other prefetches into a single bootstrap request.
-      void prefetchPassesEligibility();
-      if (!getFeatureValue_CACHED_MAY_BE_STALE('tengu_miraculo_the_bard', false)) {
-        void prefetchFastModeStatus();
-      } else {
-        // Kill switch skips the network call, not org-policy enforcement.
-        // Resolve from cache so orgStatus doesn't stay 'pending' (which
-        // getFastModeUnavailableReason treats as permissive).
-        resolveFastModeStatusFromCache();
-      }
+      void prefetchStartupDataForActiveProvider(!getFeatureValue_CACHED_MAY_BE_STALE('tengu_miraculo_the_bard', false)).catch(error => logError(error));
       if (bgRefreshThrottleMs > 0) {
         saveGlobalConfig(current => ({
           ...current,
@@ -2488,7 +2565,7 @@ async function run(): Promise<CommanderCommand> {
       clients: [],
       tools: [],
       commands: []
-    }) : claudeaiConfigPromise.then(configs => Object.keys(configs).length > 0 ? prefetchAllMcpResources(configs) : {
+    }) : managedConfigPromise.then(configs => Object.keys(configs).length > 0 ? prefetchAllMcpResources(configs) : {
       clients: [],
       tools: [],
       commands: []
@@ -2833,7 +2910,7 @@ async function run(): Promise<CommanderCommand> {
       // the promise keeps running and updates headlessStore in the
       // background so turn 2+ still sees connectors.
       const CLAUDE_AI_MCP_TIMEOUT_MS = 5_000;
-      const claudeaiConnect = claudeaiConfigPromise.then(claudeaiConfigs => {
+      const claudeaiConnect = managedConfigPromise.then(claudeaiConfigs => {
         if (Object.keys(claudeaiConfigs).length > 0) {
           const claudeaiSigs = new Set<string>();
           for (const config of Object.values(claudeaiConfigs)) {
@@ -3003,7 +3080,7 @@ async function run(): Promise<CommanderCommand> {
     if (isCodexSubscriberAtStartup) {
       initialNotifications.push({
         key: 'codex-backend-active',
-        text: `Using OpenAI ChatGPT/Codex backend · ${resolvedInitialModel}`,
+        text: `Using ChatGPT Codex backend · ${resolvedInitialModel}`,
         priority: 'high'
       });
     }
@@ -3215,11 +3292,38 @@ async function run(): Promise<CommanderCommand> {
       appendSystemPrompt,
       taskListId,
       thinkingConfig,
-      ...(uploaderReady && {
-        onTurnComplete: (messages: MessageType[]) => {
+      onTurnComplete: (messages: MessageType[]) => {
+        if (uploaderReady) {
           void uploaderReady.then(uploader => uploader?.(messages));
         }
-      })
+        void import('./services/memory/sessionContinuityManager.js').then(async ({ getSessionManager }) => {
+          const sessionManager = getSessionManager();
+          const currentSession = sessionManager.getCurrentSession();
+          if (!currentSession) {
+            return;
+          }
+          const recentUserMessage = [...messages].reverse().find(message => message.type === 'user' && !message.isMeta);
+          const recentAssistantMessage = [...messages].reverse().find(message => message.type === 'assistant');
+          const summaryParts: string[] = [];
+          if (recentUserMessage && 'message' in recentUserMessage) {
+            const content = typeof recentUserMessage.message.content === 'string' ? recentUserMessage.message.content : JSON.stringify(recentUserMessage.message.content);
+            if (content.trim()) {
+              summaryParts.push(`User: ${content.slice(0, 500)}`);
+            }
+          }
+          if (recentAssistantMessage && 'message' in recentAssistantMessage) {
+            const content = Array.isArray(recentAssistantMessage.message.content) ? recentAssistantMessage.message.content.map(block => 'text' in block ? block.text : JSON.stringify(block)).join('\n') : String(recentAssistantMessage.message.content ?? '');
+            if (content.trim()) {
+              summaryParts.push(`Assistant: ${content.slice(0, 500)}`);
+            }
+          }
+          if (summaryParts.length > 0) {
+            await sessionManager.updateSession({
+              conversationSummary: summaryParts.join('\n\n')
+            });
+          }
+        }).catch(() => {});
+      }
     };
     logForDebugging('[STARTUP] Session config prepared');
 
@@ -3533,7 +3637,7 @@ async function run(): Promise<CommanderCommand> {
         }
       }
 
-      // --remote and --teleport both create/resume Claude Code Web (CCR) sessions.
+      // --remote and --teleport both create/resume free-code Web (CCR) sessions.
       // Remote Control (--rc) is a separate feature gated in initReplBridge.ts.
       if (remote !== null || teleport) {
         await waitForPolicyLimitsToLoad();
@@ -3941,7 +4045,7 @@ async function run(): Promise<CommanderCommand> {
         pendingHookMessages
       }, process.platform === 'win32' ? directRenderAndRun : renderAndRun);
     }
-  }).version(`${MACRO.VERSION} (Claude Code)`, '-v, --version', 'Output the version number');
+  }).version(`${MACRO.VERSION} (free-code)`, '-v, --version', 'Output the version number');
 
   // Worktree flags
   program.option('-w, --worktree [name]', 'Create a new git worktree for this session (optionally specify a name)');
@@ -4028,7 +4132,7 @@ async function run(): Promise<CommanderCommand> {
   // claude mcp
 
   const mcp = program.command('mcp').description('Configure and manage MCP servers').configureHelp(createSortedHelpConfig()).enablePositionalOptions();
-  mcp.command('serve').description(`Start the Claude Code MCP server`).option('-d, --debug', 'Enable debug mode', () => true).option('--verbose', 'Override verbose mode setting from config', () => true).action(async ({
+  mcp.command('serve').description(`Start the free-code MCP server`).option('-d, --debug', 'Enable debug mode', () => true).option('--verbose', 'Override verbose mode setting from config', () => true).action(async ({
     debug,
     verbose
   }: {
@@ -4095,7 +4199,7 @@ async function run(): Promise<CommanderCommand> {
 
   // claude server
   if (feature('DIRECT_CONNECT')) {
-    program.command('server').description('Start a Claude Code session server').option('--port <number>', 'HTTP port', '0').option('--host <string>', 'Bind address', '0.0.0.0').option('--auth-token <token>', 'Bearer token for auth').option('--unix <path>', 'Listen on a unix domain socket').option('--workspace <dir>', 'Default working directory for sessions that do not specify cwd').option('--idle-timeout <ms>', 'Idle timeout for detached sessions in ms (0 = never expire)', '600000').option('--max-sessions <n>', 'Maximum concurrent sessions (0 = unlimited)', '32').action(async (opts: {
+    program.command('server').description('Start a free-code session server').option('--port <number>', 'HTTP port', '0').option('--host <string>', 'Bind address', '0.0.0.0').option('--auth-token <token>', 'Bearer token for auth').option('--unix <path>', 'Listen on a unix domain socket').option('--workspace <dir>', 'Default working directory for sessions that do not specify cwd').option('--idle-timeout <ms>', 'Idle timeout for detached sessions in ms (0 = never expire)', '600000').option('--max-sessions <n>', 'Maximum concurrent sessions (0 = unlimited)', '32').action(async (opts: {
       port: string;
       host: string;
       authToken?: string;
@@ -4179,11 +4283,11 @@ async function run(): Promise<CommanderCommand> {
   // this action it means the argv rewrite didn't fire (e.g. user ran
   // `claude ssh` with no host) — just print usage.
   if (feature('SSH_REMOTE')) {
-    program.command('ssh <host> [dir]').description('Run Claude Code on a remote host over SSH. Deploys the binary and ' + 'tunnels API auth back through your local machine — no remote setup needed.').option('--permission-mode <mode>', 'Permission mode for the remote session').option('--dangerously-skip-permissions', 'Skip all permission prompts on the remote (dangerous)').option('--local', 'e2e test mode — spawn the child CLI locally (skip ssh/deploy). ' + 'Exercises the auth proxy and unix-socket plumbing without a remote host.').action(async () => {
+    program.command('ssh <host> [dir]').description('Run free-code on a remote host over SSH. Deploys the binary and ' + 'tunnels API auth back through your local machine — no remote setup needed.').option('--permission-mode <mode>', 'Permission mode for the remote session').option('--dangerously-skip-permissions', 'Skip all permission prompts on the remote (dangerous)').option('--local', 'e2e test mode — spawn the child CLI locally (skip ssh/deploy). ' + 'Exercises the auth proxy and unix-socket plumbing without a remote host.').action(async () => {
       // Argv rewriting in main() should have consumed `ssh <host>` before
       // commander runs. Reaching here means host was missing or the
       // rewrite predicate didn't match.
-      process.stderr.write('Usage: claude ssh <user@host | ssh-config-alias> [dir]\n\n' + "Runs Claude Code on a remote Linux host. You don't need to install\n" + 'anything on the remote or run `claude auth login` there — the binary is\n' + 'deployed over SSH and API auth tunnels back through your local machine.\n');
+      process.stderr.write('Usage: claude ssh <user@host | ssh-config-alias> [dir]\n\n' + "Runs free-code on a remote Linux host. You don't need to install\n" + 'anything on the remote or run `claude auth login` there — the binary is\n' + 'deployed over SSH and API auth tunnels back through your local machine.\n');
       process.exit(1);
     });
   }
@@ -4192,7 +4296,7 @@ async function run(): Promise<CommanderCommand> {
   // Interactive mode (without -p) is handled by early argv rewriting in main()
   // which redirects to the main command with full TUI support.
   if (feature('DIRECT_CONNECT')) {
-    program.command('open <cc-url>').description('Connect to a Claude Code server (internal — use cc:// URLs)').option('-p, --print [prompt]', 'Print mode (headless)').option('--output-format <format>', 'Output format: text, json, stream-json', 'text').action(async (ccUrl: string, opts: {
+    program.command('open <cc-url>').description('Connect to a free-code server (internal — use cc:// URLs)').option('-p, --print [prompt]', 'Print mode (headless)').option('--output-format <format>', 'Output format: text, json, stream-json', 'text').action(async (ccUrl: string, opts: {
       print?: string | boolean;
       outputFormat: string;
     }) => {
@@ -4281,7 +4385,7 @@ async function run(): Promise<CommanderCommand> {
   const coworkOption = () => new Option('--cowork', 'Use cowork_plugins directory').hideHelp();
 
   // Plugin validate command
-  const pluginCmd = program.command('plugin').alias('plugins').description('Manage Claude Code plugins').configureHelp(createSortedHelpConfig());
+  const pluginCmd = program.command('plugin').alias('plugins').description('Manage free-code plugins').configureHelp(createSortedHelpConfig());
   pluginCmd.command('validate <path>').description('Validate a plugin or marketplace manifest').addOption(coworkOption()).action(async (manifestPath: string, options: {
     cowork?: boolean;
   }) => {
@@ -4304,7 +4408,7 @@ async function run(): Promise<CommanderCommand> {
   });
 
   // Marketplace subcommands
-  const marketplaceCmd = pluginCmd.command('marketplace').description('Manage Claude Code marketplaces').configureHelp(createSortedHelpConfig());
+  const marketplaceCmd = pluginCmd.command('marketplace').description('Manage free-code marketplaces').configureHelp(createSortedHelpConfig());
   marketplaceCmd.command('add <source>').description('Add a marketplace from a URL, path, or GitHub repo').addOption(coworkOption()).option('--sparse <paths...>', 'Limit checkout to specific directories via git sparse-checkout (for monorepos). Example: --sparse .claude-plugin plugins').option('--scope <scope>', 'Where to declare the marketplace: user (default), project, or local').action(async (source: string, options: {
     cowork?: boolean;
     sparse?: string[];
@@ -4479,7 +4583,7 @@ async function run(): Promise<CommanderCommand> {
   }
 
   // Doctor command - check installation health
-  program.command('doctor').description('Check the health of your Claude Code auto-updater. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
+  program.command('doctor').description('Check the health of your free-code auto-updater. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
     const [{
       doctorHandler
     }, {
@@ -4528,7 +4632,7 @@ async function run(): Promise<CommanderCommand> {
   }
 
   // claude install
-  program.command('install [target]').description('Install Claude Code native build. Use [target] to specify version (stable, latest, or specific version)').option('--force', 'Force installation even if already installed').action(async (target: string | undefined, options: {
+  program.command('install [target]').description('Install free-code native build. Use [target] to specify version (stable, latest, or specific version)').option('--force', 'Force installation even if already installed').action(async (target: string | undefined, options: {
     force?: boolean;
   }) => {
     const {

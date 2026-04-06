@@ -14,6 +14,16 @@ import { lazySchema } from '../lazySchema.js'
 import { isEssentialTrafficOnly } from '../privacyLevel.js'
 import { jsonStringify } from '../slowOperations.js'
 import { getAPIProvider, isFirstPartyAnthropicBaseUrl } from './providers.js'
+import {
+  getOpenAIModelCapability,
+  refreshOpenAIModelCapabilities,
+  type OpenAIModelCapability,
+} from './openaiCapabilities.js'
+import {
+  getLMStudioModelCapability,
+  refreshLMStudioModelCapabilities,
+  type LMStudioModelCapability,
+} from './lmstudioCapabilities.js'
 
 // .strip() — don't persist internal-only fields (mycro_deployments etc.) to disk
 const ModelCapabilitySchema = lazySchema(() =>
@@ -82,6 +92,42 @@ export function getModelCapability(model: string): ModelCapability | undefined {
   return cached.find(c => m.includes(c.id.toLowerCase()))
 }
 
+/**
+ * Unified model capability lookup supporting both Anthropic and OpenAI models
+ */
+export function getAnyModelCapability(
+  model: string,
+): ModelCapability | OpenAIModelCapability | LMStudioModelCapability | undefined {
+  const apiProvider = getAPIProvider()
+
+  // Try OpenAI-compatible capabilities first if using OpenAI, OpenRouter, or LM Studio
+  if (apiProvider === 'openai' || apiProvider === 'openrouter') {
+    const openaiCapability = getOpenAIModelCapability(model)
+    if (openaiCapability) return openaiCapability
+  }
+
+  if (apiProvider === 'lmstudio') {
+    const lmstudioCapability = getLMStudioModelCapability(model)
+    if (lmstudioCapability) return lmstudioCapability
+  }
+
+  // Fall back to Anthropic capabilities
+  const anthropicCapability = getModelCapability(model)
+  if (anthropicCapability) return anthropicCapability
+
+  // If we're not using an OpenAI-compatible provider but no Anthropic match, try OpenAI as fallback
+  if (apiProvider !== 'openai' && apiProvider !== 'openrouter') {
+    const openaiCapability = getOpenAIModelCapability(model)
+    if (openaiCapability) return openaiCapability
+  }
+
+  if (apiProvider !== 'lmstudio') {
+    return getLMStudioModelCapability(model)
+  }
+
+  return undefined
+}
+
 export async function refreshModelCapabilities(): Promise<void> {
   if (!isModelCapabilitiesEligible()) return
   if (isEssentialTrafficOnly()) return
@@ -114,5 +160,30 @@ export async function refreshModelCapabilities(): Promise<void> {
     logForDebugging(
       `[modelCapabilities] fetch failed: ${error instanceof Error ? error.message : 'unknown'}`,
     )
+  }
+}
+
+/**
+ * Unified model capabilities refresh for all providers
+ */
+export async function refreshAllModelCapabilities(): Promise<void> {
+  const apiProvider = getAPIProvider()
+
+  // Refresh capabilities based on current provider
+  if (apiProvider === 'openai' || apiProvider === 'openrouter') {
+    await refreshOpenAIModelCapabilities()
+  } else if (apiProvider === 'lmstudio') {
+    await refreshLMStudioModelCapabilities()
+  } else if (isModelCapabilitiesEligible()) {
+    await refreshModelCapabilities()
+  }
+
+  // Also refresh the non-primary provider capabilities as fallback
+  if ((apiProvider === 'openai' || apiProvider === 'openrouter') && isModelCapabilitiesEligible()) {
+    await refreshModelCapabilities()
+  } else if (apiProvider === 'lmstudio') {
+    await refreshOpenAIModelCapabilities()
+  } else if (apiProvider !== 'openai' && apiProvider !== 'openrouter') {
+    await refreshOpenAIModelCapabilities()
   }
 }

@@ -8,13 +8,14 @@
     "allowJs": true,
     "types": ["bun"],
     "baseUrl": ".",
-    "paths": {
+        "paths": {
       "src/*": ["src/*"]
     },
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
+    "ignoreDeprecations": "6.0",
     "strict": false,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true

@@ -30,6 +30,7 @@ import { logError } from '../../utils/log.js'
 import { sleep } from '../../utils/sleep.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { getClaudeCodeUserAgent } from '../../utils/userAgent.js'
+import { shouldAllowAnthropicHostedServices } from '../../utils/model/providers.js'
 import { isOAuthTokenExpired } from '../oauth/client.js'
 import { stripProtoFields } from './index.js'
 import { type EventMetadata, to1PEventFormat } from './metadata.js'
@@ -109,6 +110,25 @@ export class FirstPartyEventLoggingExporter implements LogRecordExporter {
       schedule?: (fn: () => Promise<void>, delayMs: number) => () => void
     } = {},
   ) {
+    // SECURITY: Skip 1P event logging when using third-party providers
+    // (Codex, Copilot, OpenAI). Event export will no-op if this is false.
+    if (!shouldAllowAnthropicHostedServices()) {
+      logForDebugging(
+        '[FirstPartyEventLogging] Skipped initialization in third-party provider mode',
+      )
+      this.endpoint = ''
+      this.timeout = 0
+      this.maxBatchSize = 0
+      this.skipAuth = false
+      this.batchDelayMs = 0
+      this.baseBackoffDelayMs = 0
+      this.maxBackoffDelayMs = 0
+      this.maxAttempts = 0
+      this.isKilled = () => false
+      this.schedule = () => () => {}
+      return
+    }
+
     // Default: prod, except when ANTHROPIC_BASE_URL is explicitly staging.
     // Overridable via tengu_1p_event_batch_config.baseUrl.
     const baseUrl =

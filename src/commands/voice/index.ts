@@ -3,15 +3,17 @@ import {
   isVoiceGrowthBookEnabled,
   isVoiceModeEnabled,
 } from '../../voice/voiceModeEnabled.js'
+import { shouldAllowAnthropicHostedServices } from '../../utils/model/providers.js'
 
 const voice = {
   type: 'local',
   name: 'voice',
   description: 'Toggle voice mode',
   availability: ['claude-ai'],
-  isEnabled: () => isVoiceGrowthBookEnabled(),
+  isEnabled: () =>
+    shouldAllowAnthropicHostedServices() && isVoiceGrowthBookEnabled(),
   get isHidden() {
-    return !isVoiceModeEnabled()
+    return !shouldAllowAnthropicHostedServices() || !isVoiceModeEnabled()
   },
   supportsNonInteractive: false,
   load: () => import('./voice.js'),

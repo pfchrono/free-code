@@ -249,6 +249,32 @@ export type GlobalConfig = {
     expiresAt: number
     login: string
     scopes?: string[]
+    enterpriseUrl?: string
+  }
+  copilotModelsCache?: {
+    fetchedAt: number
+    models: Array<{
+      id: string
+      name: string
+      version: string
+      modelPickerEnabled: boolean
+      supportedEndpoints: string[]
+      maxContextWindowTokens?: number
+      maxOutputTokens?: number
+      supportsToolCalls: boolean
+      supportsVision: boolean
+      preferredTokenParameter?: 'max_tokens' | 'max_completion_tokens'
+    }>
+  }
+  // Cache for per-model capability probing results
+  copilotCapabilityCache?: {
+    fetchedAt: number
+    capabilities: Record<string, {
+      supported: boolean
+      lastProbed: number
+      error?: { code: string; message: string }
+      preferredTokenParameter?: 'max_tokens' | 'max_completion_tokens'
+    }>
   }
   iterm2KeyBindingInstalled?: boolean // Legacy - keeping for backward compatibility
   editorMode?: EditorMode

@@ -4,9 +4,9 @@ const openai = {
   type: 'local-jsx',
   name: 'openai',
   description:
-    'Store a repo-local OpenAI provider preference for future free-code launches',
+    'Store a repo-local native OpenAI API provider preference for future free-code launches',
   immediate: true,
-  argumentHint: '[status|off]',
+  argumentHint: '[status|models|capabilities <model>|off]',
   load: () => import('./openai.js'),
 } satisfies Command
 
