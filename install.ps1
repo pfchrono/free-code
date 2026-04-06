@@ -178,37 +178,16 @@ function Install-Deps {
 function Resolve-BuiltBinary {
   $candidates = if ($Dev) {
     @(
-      (Join-Path $InstallDir 'cli-dev.exe'),
-      (Join-Path $InstallDir 'cli-dev'),
       (Join-Path $InstallDir 'dist\cli-dev.exe'),
       (Join-Path $InstallDir 'dist\cli-dev')
     )
   }
   else {
     @(
-      (Join-Path $InstallDir 'cli.exe'),
-      (Join-Path $InstallDir 'cli'),
       (Join-Path $InstallDir 'dist\cli.exe'),
       (Join-Path $InstallDir 'dist\cli')
     )
   }
-
-  foreach ($candidate in $candidates) {
-    if (Test-Path $candidate) {
-      return $candidate
-    }
-  }
-
-  $candidates = @(
-    (Join-Path $InstallDir 'cli.exe'),
-    (Join-Path $InstallDir 'cli'),
-    (Join-Path $InstallDir 'cli-dev.exe'),
-    (Join-Path $InstallDir 'cli-dev'),
-    (Join-Path $InstallDir 'dist\cli.exe'),
-    (Join-Path $InstallDir 'dist\cli'),
-    (Join-Path $InstallDir 'dist\cli-dev.exe'),
-    (Join-Path $InstallDir 'dist\cli-dev')
-  )
 
   foreach ($candidate in $candidates) {
     if (Test-Path $candidate) {
@@ -221,27 +200,32 @@ function Resolve-BuiltBinary {
 
 function Build-Binary {
   $buildLabel = if ($Dev) {
-    'Building free-code dev bundle (all experimental features enabled)...'
+    'Building free-code dev executable (all experimental features enabled, no telemetry)...'
   }
   else {
-    'Building free-code standard bundle...'
+    'Building free-code standard executable (no telemetry)...'
   }
-  $buildCommand = if ($Dev) { 'build:dev:full' } else { 'build' }
+  $buildScript = if ($Dev) { 'compile:dev:full:no-telemetry' } else { 'compile:no-telemetry' }
+  $buildArgs = @('run', $buildScript)
+  $expectedBinary = if ($Dev) { 'cli-dev' } else { 'cli' }
 
   Info $buildLabel
   Push-Location $InstallDir
   try {
-    bun run $buildCommand | Out-Host
-    Assert-LastExitCode "bun run $buildCommand failed."
+    & bun @buildArgs | Out-Host
+    Assert-LastExitCode "bun $($buildArgs -join ' ') failed."
+
+    $binaryPath = Resolve-BuiltBinary
+    if (-not $binaryPath) {
+      Fail "Build completed but $expectedBinary was not found."
+    }
+
+    Info "Verifying $binaryPath for phone-home patterns..."
+    & bun run verify:no-phone-home -- $binaryPath | Out-Host
+    Assert-LastExitCode "bun run verify:no-phone-home -- $binaryPath failed."
   }
   finally {
     Pop-Location
-  }
-
-  $binaryPath = Resolve-BuiltBinary
-  if (-not $binaryPath) {
-    $expectedBinary = if ($Dev) { 'cli-dev' } else { 'cli' }
-    Fail "Build completed but $expectedBinary was not found."
   }
 
   Ok "Binary built: $binaryPath"
@@ -287,8 +271,13 @@ function Link-Binary([string]$BinaryPath) {
   # Prefer a native .exe launcher on Windows so PowerShell and VS Code
   # terminals invoke the console binary directly instead of routing through
   # cmd.exe via a .cmd shim, which can interfere with fullscreen TUIs.
-  Copy-Item -Path $BinaryPath -Destination $exeLauncherPath -Force
-  Ok "Native launcher created: $exeLauncherPath"
+  try {
+    Copy-Item -Path $BinaryPath -Destination $exeLauncherPath -Force
+    Ok "Native launcher created: $exeLauncherPath"
+  }
+  catch {
+    Warn "Could not replace $exeLauncherPath because it is in use. Keeping the existing .exe launcher and updating the .cmd launcher instead."
+  }
 
   Set-Content -Path $launcherPath -Value $launcher -Encoding ASCII
   Ok "Launcher created: $launcherPath"
@@ -321,25 +310,40 @@ if ($Dev) {
   Write-Host '    free-code                         # interactive REPL (dev/experimental build)' -ForegroundColor Cyan
 }
 else {
-  Write-Host '    free-code                         # interactive REPL (standard build)' -ForegroundColor Cyan
+Write-Host '    free-code                         # interactive REPL (standard build)' -ForegroundColor Cyan
 }
 Write-Host '    free-code -p "your prompt"        # one-shot mode' -ForegroundColor Cyan
 Write-Host ''
-Write-Host '  Log in with Claude.ai (recommended):'
+Write-Host '  Recommended first-party setup (Anthropic / Claude.ai):'
 Write-Host '    free-code /login' -ForegroundColor Cyan
 Write-Host ''
-Write-Host '  OpenAI ChatGPT/Codex integration (repo-local):'
-Write-Host '    free-code /openai on             # store OpenAI provider preference for this repo' -ForegroundColor Cyan
+Write-Host '  Native OpenAI API setup:'
+Write-Host '    $env:OPENAI_API_KEY="sk-..."' -ForegroundColor Cyan
+Write-Host '    setx OPENAI_API_KEY "sk-..."     # persist across sessions' -ForegroundColor Cyan
+Write-Host '    free-code /openai on             # store native OpenAI provider preference for this repo' -ForegroundColor Cyan
 Write-Host '    free-code /openai status         # show stored preference and current provider' -ForegroundColor Cyan
+Write-Host '    free-code /openai models         # list discovered OpenAI models' -ForegroundColor Cyan
+Write-Host '    free-code /openai capabilities gpt-5.4' -ForegroundColor Cyan
 Write-Host ''
-Write-Host '  GitHub Copilot integration (repo-local):'
+Write-Host '  ChatGPT Codex setup:'
+Write-Host '    free-code /login                 # choose the ChatGPT Codex account option in the login flow' -ForegroundColor Cyan
+Write-Host '    free-code /codex on              # store ChatGPT Codex provider preference for this repo' -ForegroundColor Cyan
+Write-Host '    free-code /codex status          # show stored preference and current provider' -ForegroundColor Cyan
+Write-Host '    free-code /codex models          # list curated Codex models' -ForegroundColor Cyan
+Write-Host ''
+Write-Host '  GitHub Copilot setup:'
+Write-Host '    free-code /login                 # choose the GitHub Copilot account option in the login flow' -ForegroundColor Cyan
 Write-Host '    free-code /copilot on            # store Copilot provider preference for this repo' -ForegroundColor Cyan
 Write-Host '    free-code /copilot status        # show stored preference and current provider' -ForegroundColor Cyan
-Write-Host '    free-code /copilot models        # probe model support on /chat/completions' -ForegroundColor Cyan
+Write-Host '    free-code /copilot models        # list discovered models, usable models, and compatibility reasons' -ForegroundColor Cyan
 Write-Host ''
-Write-Host '  Note: /openai and /copilot changes are stored in .claude/settings.json and apply after restart.' -ForegroundColor DarkGray
+Write-Host '  Provider notes:' -ForegroundColor DarkGray
+Write-Host '    /openai uses the native OpenAI API and requires OPENAI_API_KEY.' -ForegroundColor DarkGray
+Write-Host '    /codex uses ChatGPT Codex OAuth, not the native OpenAI API.' -ForegroundColor DarkGray
+Write-Host '    /copilot uses GitHub Copilot OAuth and probes model compatibility on /chat/completions.' -ForegroundColor DarkGray
+Write-Host '    /openai, /codex, and /copilot store repo-local preferences in .claude/settings.json and apply after restart.' -ForegroundColor DarkGray
 Write-Host ''
-Write-Host '  Or set an API key:'
+Write-Host '  Anthropic API key setup (optional alternative to /login):'
 Write-Host '    $env:ANTHROPIC_API_KEY="sk-ant-..."' -ForegroundColor Cyan
 Write-Host '    setx ANTHROPIC_API_KEY "sk-ant-..."   # persist across sessions' -ForegroundColor Cyan
 Write-Host ''

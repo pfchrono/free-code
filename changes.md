@@ -1,10 +1,10 @@
-# Uncommitted Change Audit (2026-04-03)
+# Uncommitted Change Audit (2026-04-06)
 
 ## Scope Overview
 
-- 32 tracked files modified (`1173 insertions`, `256 deletions`) across startup flow, provider routing, model selection, auth, status line/UI, and command plumbing.
-- New provider implementation files were added for GitHub Copilot and repo-local provider switching.
-- A focused startup regression fix was applied in `src/main.tsx` after telemetry helpers were accidentally replaced by invalid headless code.
+- The working tree currently contains broad, in-progress edits across startup flow, provider routing, model selection, auth, status line/UI, command plumbing, installer behavior, and documentation.
+- Recent focused fixes in this session updated `/openrouter models` to refresh and read stable OpenAI-compatible model metadata before listing suggestions.
+- `install.ps1` dev installs were corrected so `-Dev` resolves the binary from the `dist` artifact only instead of falling back to root-level `cli-dev` files.
 
 ## Major Functional Changes
 
@@ -13,6 +13,7 @@
 - Added repo-local provider command families:
 	- `src/commands/copilot/*`
 	- `src/commands/openai/*`
+	- `src/commands/openrouter/*`
 - Added bootstrap-time provider override support in:
 	- `src/utils/model/bootstrapProviderOverride.ts`
 - Updated command registry and startup entry points:

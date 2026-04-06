@@ -93,16 +93,19 @@ Claude Code ships with 88 feature flags gated behind `bun:bundle` compile-time s
 
 ## Latest Changes
 
-Recent updates added full provider workflow improvements across startup, auth, commands, and status UX:
+Recent updates added full provider workflow improvements across startup, auth, commands, installer behavior, and status UX:
 
 - Added GitHub Copilot provider integration (OAuth/token exchange + API adapter)
 - Added repo-local provider toggles:
   - `/openai` to set OpenAI/ChatGPT-Codex mode for this repo
   - `/copilot` to set GitHub Copilot mode for this repo
-- Added `/copilot models` to probe model support on Copilot `/chat/completions`
+  - `/openrouter` to manage repo-local OpenRouter mode and model discovery
+- Added `/copilot models` and `/openrouter models` to probe model support from cached capability data
 - Added provider-aware usage/status updates in terminal statusline and usage views
 - Added startup provider override handling from `.claude/settings.json`
 - Added Windows install guidance and launcher flow in `install.ps1`
+- Fixed `install.ps1 -Dev` to resolve the dev binary from `dist/` only
+- Added ignore coverage for `.claude/settings.local.json` and `.claude/worktrees/`
 
 Provider preference changes are repo-local and apply on the next launch.
 
