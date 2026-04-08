@@ -2,7 +2,22 @@
 
 All notable changes to free-code are documented here.
 
-## [Unreleased] - 2026-04-07
+## [Unreleased] - 2026-04-08
+
+### Token Reduction Optimizations
+
+- **RedQueen cache keying fix** -- use actual tool args instead of empty object for improved cache hits
+- **RedQueen pipeline reordering** -- move dedup/filter before large-output persistence (early compression)
+- **Deterministic tool reducers** -- pure string transforms (no LLM cost) for Playwright, GitHub, Context7 tools
+- **Summarizer improvements** -- tighten system/user prompts, add per-tool maxInputChars caps (800-4k range)
+- **TUI compression footer** -- display compression ratio and tokens saved to user
+- **Token savings** -- 91% reduction validated on realistic tool outputs (Playwright console, GitHub search, Context7 docs)
+
+### Attribution & Branding
+
+- **Remove Anthropic email** -- strip `noreply@anthropic.com` from all past commit trailers via history rewrite
+- **Attribution format** -- new commit trailer: `Co-Authored-By: free-code <model> via <adapter>` (no Anthropic branding)
+- **Code branding** -- ensure code/CLI always references free-code, never Claude/Anthropic/noreply addresses
 
 ### New Commands
 

@@ -76,8 +76,9 @@ export function getAttributionTexts(): AttributionTexts {
     isInternalModelRepoCached() || isKnownPublicModel
       ? getPublicModelName(model)
       : 'free-code'
+  const apiAdapter = process.env.CLAUDE_CODE_API_PROVIDER ?? 'unknown-adapter'
   const defaultAttribution = `🤖 Generated with [free-code](${PRODUCT_URL})`
-  const defaultCommit = `Co-Authored-By: free-code`
+  const defaultCommit = `Co-Authored-By: free-code ${modelName} via ${apiAdapter}`
 
   const settings = getInitialSettings()
 
