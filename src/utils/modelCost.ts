@@ -3,6 +3,7 @@ import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from 
 import { logEvent } from 'src/services/analytics/index.js'
 import { setHasUnknownModelCost } from '../bootstrap/state.js'
 import { isFastModeEnabled } from './fastMode.js'
+import { getOpenAIModelCost } from './model/openaiCapabilities.js'
 import {
   CLAUDE_3_5_HAIKU_CONFIG,
   CLAUDE_3_5_V2_SONNET_CONFIG,
@@ -153,14 +154,25 @@ export function getModelCosts(model: string, usage: Usage): ModelCosts {
   }
 
   const costs = MODEL_COSTS[shortName]
-  if (!costs) {
-    trackUnknownModelCost(model, shortName)
-    return (
-      MODEL_COSTS[getCanonicalName(getDefaultMainLoopModelSetting())] ??
-      DEFAULT_UNKNOWN_MODEL_COST
-    )
+  if (costs) return costs
+
+  // Try OpenAI/OpenRouter model cost data (per 1K tokens -> convert to per 1M)
+  const openaiCost = getOpenAIModelCost(model)
+  if (openaiCost && (openaiCost.input !== undefined || openaiCost.output !== undefined)) {
+    return {
+      inputTokens: (openaiCost.input ?? 0) * 1000,
+      outputTokens: (openaiCost.output ?? 0) * 1000,
+      promptCacheWriteTokens: 0,
+      promptCacheReadTokens: 0,
+      webSearchRequests: 0,
+    }
   }
-  return costs
+
+  trackUnknownModelCost(model, shortName)
+  return (
+    MODEL_COSTS[getCanonicalName(getDefaultMainLoopModelSetting())] ??
+    DEFAULT_UNKNOWN_MODEL_COST
+  )
 }
 
 function trackUnknownModelCost(model: string, shortName: ModelShortName): void {

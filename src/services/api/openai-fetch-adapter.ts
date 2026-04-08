@@ -310,11 +310,11 @@ async function translateOpenAIStreamToAnthropic(
               continue
             }
 
-            const usage = event.usage as Record<string, number> | undefined
-            if (usage) {
-              inputTokens = usage.prompt_tokens || inputTokens
-              outputTokens = usage.completion_tokens || outputTokens
-            }
+             const usage = event.usage as Record<string, number> | undefined
+             if (usage) {
+               inputTokens = (usage.prompt_tokens ?? usage.input_tokens ?? 0) + inputTokens
+               outputTokens = (usage.completion_tokens ?? usage.output_tokens ?? 0) + outputTokens
+             }
 
             const choices = (event.choices as Array<Record<string, unknown>>) || []
             for (const choice of choices) {

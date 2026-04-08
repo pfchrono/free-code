@@ -1,0 +1,63 @@
+import { logEvent } from 'src/services/analytics/index.js'
+import type { LocalCommandCall } from '../../types/command.js'
+import { settingsChangeDetector } from '../../utils/settings/changeDetector.js'
+import {
+  getInitialSettings,
+  updateSettingsForSource,
+} from '../../utils/settings/settings.js'
+
+const DISABLE_ARGS = new Set(['off', 'disable', 'disabled'])
+const ENABLE_ARGS = new Set(['on', 'enable', 'enabled'])
+
+function isCavemanModeEnabled(): boolean {
+  return getInitialSettings().cavemanModeEnabled === true
+}
+
+export const call: LocalCommandCall = async (_onDone, _context, args?: string) => {
+  const normalizedArg = args?.trim().toLowerCase() || ''
+  const wasEnabled = isCavemanModeEnabled()
+
+  let newState: boolean
+
+  if (DISABLE_ARGS.has(normalizedArg)) {
+    newState = false
+  } else if (ENABLE_ARGS.has(normalizedArg)) {
+    newState = true
+  } else {
+    // Toggle current state
+    newState = !wasEnabled
+  }
+
+  // Persist to user settings
+  const result = updateSettingsForSource('userSettings', {
+    cavemanModeEnabled: newState ? true : undefined,
+  })
+
+  if (result.error) {
+    return {
+      type: 'text' as const,
+      value: 'Failed to update settings. Check your settings file for syntax errors.',
+    }
+  }
+
+  settingsChangeDetector.notifyChange('userSettings')
+
+  // Log analytics
+  logEvent('tengu_caveman_mode_toggled', {
+    enabled: newState,
+    wasEnabled,
+  })
+
+  if (newState) {
+    return {
+      type: 'text' as const,
+      value:
+        'Caveman mode ON. Responses now ultra-compressed. ~75% fewer tokens. Technical accuracy preserved.',
+    }
+  } else {
+    return {
+      type: 'text' as const,
+      value: 'Caveman mode OFF. Responses back to normal.',
+    }
+  }
+}

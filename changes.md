@@ -1,105 +1,103 @@
-# Uncommitted Change Audit (2026-04-06)
+# Changelog
 
-## Scope Overview
+All notable changes to free-code are documented here.
 
-- The working tree currently contains broad, in-progress edits across startup flow, provider routing, model selection, auth, status line/UI, command plumbing, installer behavior, and documentation.
-- Recent focused fixes in this session updated `/openrouter models` to refresh and read stable OpenAI-compatible model metadata before listing suggestions.
-- `install.ps1` dev installs were corrected so `-Dev` resolves the binary from the `dist` artifact only instead of falling back to root-level `cli-dev` files.
+## [Unreleased] - 2026-04-07
 
-## Major Functional Changes
+### New Commands
 
-### 1) Multi-provider orchestration and repo-local provider control
+| Command | Description |
+|---------|-------------|
+| `/buddy` | Buddy/observer mode for agentic pair programming |
+| `/caveman-mode` | Ultra-compressed AI output (~75% fewer tokens) |
+| `/dream` | Dream mode -- extended reasoning with depth control |
+| `/onboard-github` | GitHub OAuth onboarding flow |
+| `/provider` | Unified provider management dashboard |
+| `/torch` | Attention/memory intensity control for context management |
+| `/zen` | Zen mode -- minimal UI, focus on output |
 
-- Added repo-local provider command families:
-	- `src/commands/copilot/*`
-	- `src/commands/openai/*`
-	- `src/commands/openrouter/*`
-- Added bootstrap-time provider override support in:
-	- `src/utils/model/bootstrapProviderOverride.ts`
-- Updated command registry and startup entry points:
-	- `src/commands.ts`
-	- `src/entrypoints/cli.tsx`
-	- `src/entrypoints/init.ts`
-	- `src/replLauncher.tsx`
+### New Infrastructure
 
-### 2) GitHub Copilot OAuth and API backend integration
+- **Headless server** (`src/server/`) -- full server stack with backends, lockfile, session manager, connect URL parser, server banner/logging
+- **Provider config system** (`src/services/api/providerConfig.ts`) -- unified provider configuration with env var and CLI override support
+- **MCP skills** (`src/skills/mcpSkills.ts`) -- MCP-driven skill loading
+- **Web Browser Tool** (`src/tools/WebBrowserTool/`) -- browser automation panel and state
+- **Theme discovery** (`src/components/theme/`) -- embedded themes, opencode theme provider, dynamic theme discovery
+- **Attribution hooks** (`src/utils/attributionHooks.ts`) -- attribution tracking
+- **GitHub model credentials** (`src/utils/githubModelsCredentials.ts`) -- GitHub Models API credential handling
+- **System theme watcher** (`src/utils/systemThemeWatcher.ts`) -- OS theme sync
 
-- Added Copilot OAuth constants and token exchange flow:
-	- `src/constants/copilot-oauth.ts`
-	- `src/services/oauth/copilot-client.ts`
-- Added Copilot API client and model capability probe logic:
-	- `src/services/api/copilot-client.ts`
-- Added Anthropic-to-Copilot transport adapter and stream translation:
-	- `src/services/api/copilot-fetch-adapter.ts`
-	- `src/services/api/copilot-fetch-adapter.test.ts`
-- Wired auth/session persistence and provider checks through:
-	- `src/utils/auth.ts`
-	- `src/services/api/client.ts`
-	- `src/hooks/useApiKeyVerification.ts`
-	- `src/commands/login/index.ts`
-	- `src/components/ConsoleOAuthFlow.tsx`
+### API & Provider Layer
 
-### 3) Codex usage and telemetry propagation
+- **OpenAI Capabilities probe** (`src/utils/model/openaiCapabilities.ts`) -- 311-line capability detection for OpenAI-compatible endpoints
+- **Provider discovery** (`src/utils/providerDiscovery.ts`) -- automatic provider detection from env/creds
+- **OpenAI fetch adapter test** (`src/services/api/openai-fetch-adapter.test.ts`) -- adapter test suite
+- **Error test suite** (`src/services/api/errors.test.ts`) -- error type coverage
+- **withRetry utility tests** (`src/services/api/withRetry.test.ts`) -- retry logic coverage
+- **Provider config tests** (`src/services/api/providerConfig.test.ts`) -- config coverage
+- **Device flow OAuth** (`src/services/github/deviceFlow.ts`) -- GitHub device flow auth
+- **BashTool mode validation** (`src/tools/BashTool/modeValidation.test.ts`) -- mode validation tests
+- **Prompt submit handler test** (`src/utils/handlePromptSubmit.test.ts`) -- submit handler tests
+- **Model providers tests** (`src/utils/model/providers.test.ts`) -- provider coverage
+- **Plugin loader test** (`src/utils/plugins/pluginLoader.test.ts`) -- plugin system tests
 
-- Added shared usage store and update hooks:
-	- `src/services/api/codexUsage.ts`
-- Updated UI surfaces to render provider-aware usage/context:
-	- `src/components/StatusLine.tsx`
-	- `src/components/Settings/Usage.tsx`
-	- `src/tools/AgentTool/built-in/statuslineSetup.ts`
-	- `src/utils/logoV2Utils.ts`
+### Model & Snip System
 
-### 4) Model catalog and validation changes
+- **Snip compaction overhaul** (`src/services/compact/snipCompact.ts`) -- 492-line expansion with budget management, deduplication, chunking, budget windowing, and token-aware strategy selection
+- **Cached microcompact** (`src/services/compact/cachedMicrocompact.ts`) -- microcompact state caching
+- **Cached MC config** (`src/services/compact/cachedMCConfig.ts`) -- microcompact config caching
+- **Model cost updates** (`src/utils/modelCost.ts`) -- model cost normalization
+- **Model validation** (`src/utils/model/validateModel.ts`) -- updated validation logic
+- **Model dev overrides** (`src/utils/model/modelsDev.ts`) -- dev-time model overrides
+- **Providers utility** (`src/utils/model/providers.ts`) -- provider utility functions
 
-- Expanded/updated provider model options and model strings:
-	- `src/utils/model/modelOptions.ts`
-	- `src/utils/model/model.ts`
-	- `src/utils/model/modelStrings.ts`
-	- `src/utils/model/configs.ts`
-	- `src/utils/model/providers.ts`
-	- `src/utils/model/validateModel.ts`
-- Updated Copilot model list and default mapping in:
-	- `src/services/api/copilot-fetch-adapter.ts`
+### UI & UX
 
-### 5) Startup and interactive-path reliability updates
+- **Theme picker refactor** (`src/components/ThemePicker.tsx`) -- massive simplification, dropped from 900+ lines to ~530
+- **Theme utilities** (`src/utils/theme.ts`) -- streamlined theme system
+- **REPL input suppression** (`src/screens/replInputSuppression.ts`) -- input handling tests and logic
+- **API client** (`src/services/api/client.ts`) -- unified API client with telemetry stub
+- **Session continuity manager** (`src/services/memory/sessionContinuityManager.ts`) -- session persistence
 
-- `src/main.tsx` has substantial startup-path edits, including:
-	- startup sequencing around setup/hooks/model bootstrapping
-	- restored telemetry helper functions (`logSessionTelemetry`, `logStartupTelemetry`)
-	- removal of invalid top-level headless snippet that caused interactive blocker symptoms
-- Related supporting changes in:
-	- `src/interactiveHelpers.tsx`
-	- `src/hooks/useDeferredHookMessages.ts`
-	- `src/utils/processUserInput/processUserInput.ts`
-	- `src/services/tools/toolHooks.ts`
-	- `src/services/mcp/client.ts`
-	- `src/utils/hooks.ts`
+### Build System
 
-## Documentation and Configuration Changes
+- **Build script updates** (`scripts/build.ts`) -- 23-line build script improvements
+- **Gitignore hardening** (`.gitignore`) -- added `*.txt`, `*.html`, `*.js` exclusions to prevent temp file commits
+- **Windows installer fix** (`install.ps1`) -- corrected `-Dev` flag to resolve from `dist/` only
+- **Package metadata** (`package.json`) -- renamed to `free-code-source`, bin entries updated, preinstall hook added
 
-- Updated instructions in `CLAUDE.md`.
-- Updated command type definitions in `src/types/command.ts`.
-- Updated settings type surface in `src/utils/settings/types.ts` and `src/utils/config.ts`.
-- Updated `/copilot` command hint to include model probing: `src/commands/copilot/index.ts`.
+### Utilities Refactored
 
-## Artifact Cleanup and Ignore Policy
+- **Anthropic leak detection** (`src/utils/anthropicLeakDetection.ts`) -- 16-line addition
+- **Betas utility** (`src/utils/betas.ts`) -- 25-line refactor
+- **Effort utility** (`src/utils/effort.ts`) -- 7-line refactor
+- **Fast mode** (`src/utils/fastMode.ts`) -- 8-line refactor
+- **Bootstrap provider override** (`src/utils/model/bootstrapProviderOverride.ts`) -- 11-line refactor
+- **Model utility** (`src/utils/model/model.ts`) -- 4-line addition
+- **Settings types** (`src/utils/settings/types.ts`) -- 10-line refactor
+- **Side query** (`src/utils/sideQuery.ts`) -- 16-line refactor
+- **Commands registry** (`src/commands.ts`) -- 12-line update
+- **Prompts constants** (`src/constants/prompts.ts`) -- 31-line update
+- **Entry point** (`src/entrypoints/cli.tsx`) -- 11-line addition
+- **API client** (`src/services/api/claude.ts`) -- 3-line update
+- **SkillTool** (`src/tools/SkillTool/SkillTool.ts`) -- 6-line refactor
+- **TaskOutputTool** (`src/tools/TaskOutputTool/TaskOutputTool.tsx`) -- 3-line update
+- **VerifyPlanExecutionTool** (`src/tools/VerifyPlanExecutionTool/VerifyPlanExecutionTool.ts`) -- 70-line refactor
+- **WorkflowTool constants** (`src/tools/WorkflowTool/constants.ts`) -- 3-line update
 
-### Cleanup target classes
+### Cleanup
 
-- Runtime/debug logs (`*.log`)
-- Local Windows build binaries (`*.exe`)
-- Bun temporary build artifacts (`*.bun-build`)
-- Local trace artifacts (example: `headless-run.trace`)
+- Removed obsolete planning docs: `COPILOT_API_OPTIMIZATION.md`, `COPILOT_API_OPTIMIZATION_IMPLEMENTATION.md`, `HOW-TO-TEST-LIVE-DEPENDENCY-GRAPH.md`, `PHASE-1-COMPLETE.md`, `Phase 2 Plan.md`
+- Removed temp artifacts from root directory
 
-### Ignore rules updated
+---
 
-- `.gitignore` now includes:
-	- `*.log`
-	- `*.exe`
-	- `*.bun-build`
+## [0.3.0] - 2026-04-06
 
-This prevents local diagnostics/build byproducts from entering future commits.
+Initial multi-provider workflow expansion:
 
-## Notes
-
-- The uncommitted set also includes newly added local/project files (for example `.claude/`, workspace metadata, and install helpers). These are not automatically treated as artifacts and should be included/excluded intentionally during final staging.
+- GitHub Copilot provider integration (OAuth + API adapter)
+- Repo-local provider toggles: `/openai`, `/copilot`, `/openrouter`
+- Provider-aware usage and status updates
+- Startup provider override from `.claude/settings.json`
+- Windows install guidance and launcher flow

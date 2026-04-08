@@ -1,0 +1,22 @@
+wing: free_code
+rooms:
+- name: design
+  description: Files from assets/
+- name: benchmark_results
+  description: Files from benchmark-results/
+- name: documentation
+  description: Files from docs/
+- name: scripts
+  description: Files from scripts/
+- name: src
+  description: Files from src/
+- name: temp_uncommitted
+  description: Files from temp-uncommitted/
+- name: research
+  description: Files from research/
+- name: frontend
+  description: Files from components/
+- name: backend
+  description: Files from server/
+- name: general
+  description: Files that don't fit other rooms

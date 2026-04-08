@@ -397,10 +397,10 @@ export const SettingsSchema = lazySchema(() =>
             'enterprise administrators.',
         ),
       apiProvider: z
-        .enum(['firstParty', 'codex', 'openai', 'openrouter', 'copilot', 'lmstudio'])
+        .enum(['firstParty', 'codex', 'openai', 'openrouter', 'copilot', 'lmstudio', 'zen'])
         .optional()
         .describe(
-          'Repo-local API provider preference. "codex" enables ChatGPT Codex mode, "openai" enables native OpenAI API mode, "openrouter" enables OpenRouter mode, "copilot" enables GitHub Copilot mode, "lmstudio" enables local LM Studio mode, and "firstParty" forces default Anthropic mode for this project on the next launch.',
+          'Repo-local API provider preference. "codex" enables ChatGPT Codex mode, "openai" enables native OpenAI API mode, "openrouter" enables OpenRouter mode, "copilot" enables GitHub Copilot mode, "lmstudio" enables local LM Studio mode, "zen" enables OpenCode Zen mode, and "firstParty" forces default Anthropic mode for this project on the next launch.',
         ),
       openrouterApiKey: z
         .string()
@@ -970,6 +970,12 @@ export const SettingsSchema = lazySchema(() =>
         .optional()
         .describe(
           'Show thinking summaries in the transcript view (ctrl+o). Default: false.',
+        ),
+      cavemanModeEnabled: z
+        .boolean()
+        .optional()
+        .describe(
+          'Enable caveman mode - ultra-compressed communication. Drop articles, filler, pleasantries. Keep technical accuracy. ~75% fewer tokens.',
         ),
       skipDangerousModePermissionPrompt: z
         .boolean()

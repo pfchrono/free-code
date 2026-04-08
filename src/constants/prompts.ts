@@ -526,6 +526,8 @@ ${CYBER_RISK_INSTRUCTION}`,
       'summarize_tool_results',
       () => SUMMARIZE_TOOL_RESULTS_SECTION,
     ),
+    // Caveman mode - ultra-compressed communication
+    systemPromptSection('caveman_mode', () => getCavemanModeSection()),
     // Numeric length anchors — research shows ~1.2% output token reduction vs
     // qualitative "be concise". Ant-only to measure quality impact first.
     ...(process.env.USER_TYPE === 'ant'
@@ -825,7 +827,9 @@ function getFunctionResultClearingSection(model: string): string | null {
     return null
   }
   const config = getCachedMCConfigForFRC()
-  const isModelSupported = config.supportedModels?.some(pattern =>
+  // Empty array means all models are supported
+  const supportedModels = config.supportedModels || []
+  const isModelSupported = supportedModels.length === 0 || supportedModels.some(pattern =>
     model.includes(pattern),
   )
   if (
@@ -841,6 +845,31 @@ Old tool results will be automatically cleared from context to free up space. Th
 }
 
 const SUMMARIZE_TOOL_RESULTS_SECTION = `When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`
+
+function getCavemanModeSection(): string | null {
+  const settings = getInitialSettings()
+  if (!settings.cavemanModeEnabled) return null
+
+  return `# Communication Style: Caveman Mode
+
+Respond in ultra-compressed caveman style. Cut ~75% of tokens while keeping full technical accuracy.
+
+Rules:
+- Drop articles (a, an, the), filler (just, really, basically), pleasantries (sure, happy to help)
+- Use short synonyms (big not extensive, fix not "implement a solution for")
+- No hedging. Fragments OK. No need full sentences
+- Technical terms stay exact. "Polymorphism" stays "polymorphism"
+- Code blocks, git commits, PR descriptions: write normal
+- Error messages: quote exact, caveman only for explanation
+
+Pattern: [thing] [action] [reason]. [next step].
+
+Example:
+  NOT: "Sure! I'd be happy to help. The issue is likely caused by..."
+  YES: "Bug in auth middleware. Token expiry check use \`<\` not \`<=\`. Fix:"
+
+Apply to all replies, reports, summaries, and snip summaries.`
+}
 
 function getBriefSection(): string | null {
   if (!(feature('KAIROS') || feature('KAIROS_BRIEF'))) return null

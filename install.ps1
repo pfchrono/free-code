@@ -179,7 +179,9 @@ function Resolve-BuiltBinary {
   $candidates = if ($Dev) {
     @(
       (Join-Path $InstallDir 'dist\cli-dev.exe'),
-      (Join-Path $InstallDir 'dist\cli-dev')
+      (Join-Path $InstallDir 'dist\cli-dev'),
+      (Join-Path $InstallDir 'dist\cli.exe'),
+      (Join-Path $InstallDir 'dist\cli')
     )
   }
   else {
@@ -188,13 +190,11 @@ function Resolve-BuiltBinary {
       (Join-Path $InstallDir 'dist\cli')
     )
   }
-
   foreach ($candidate in $candidates) {
     if (Test-Path $candidate) {
       return $candidate
     }
   }
-
   return $null
 }
 

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 
-type RepoLocalApiProvider = 'firstParty' | 'codex' | 'openai' | 'openrouter' | 'copilot' | 'lmstudio'
+type RepoLocalApiProvider = 'firstParty' | 'codex' | 'openai' | 'openrouter' | 'copilot' | 'lmstudio' | 'zen'
 
 type RepoLocalProviderSettings = {
   apiProvider?: RepoLocalApiProvider
@@ -28,7 +28,8 @@ function readRepoLocalApiProvider(): RepoLocalApiProvider | null {
       parsed.apiProvider === 'openai' ||
       parsed.apiProvider === 'openrouter' ||
       parsed.apiProvider === 'copilot' ||
-      parsed.apiProvider === 'lmstudio'
+      parsed.apiProvider === 'lmstudio' ||
+      parsed.apiProvider === 'zen'
       ? parsed.apiProvider
       : null
   } catch {
@@ -45,6 +46,7 @@ function clearProviderFlags(): void {
   delete process.env.CLAUDE_CODE_USE_OPENROUTER
   delete process.env.CLAUDE_CODE_USE_COPILOT
   delete process.env.CLAUDE_CODE_USE_LMSTUDIO
+  delete process.env.CLAUDE_CODE_USE_ZEN
 }
 
 export function applyRepoLocalApiProviderOverride(): void {
@@ -78,5 +80,10 @@ export function applyRepoLocalApiProviderOverride(): void {
 
   if (apiProvider === 'lmstudio') {
     process.env.CLAUDE_CODE_USE_LMSTUDIO = '1'
+    return
+  }
+
+  if (apiProvider === 'zen') {
+    process.env.CLAUDE_CODE_USE_ZEN = '1'
   }
 }

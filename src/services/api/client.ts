@@ -38,6 +38,7 @@ import {
 import { createCodexFetch } from './codex-fetch-adapter.js'
 import { createCopilotAnthropicClient } from './copilot-client.js'
 import { createOpenAIFetch } from './openai-fetch-adapter.js'
+import { getZenBaseUrl } from './providerConfig.js'
 import { getOpenAIModelCapability } from '../../utils/model/openaiCapabilities.js'
 import { getLMStudioModelCapability } from '../../utils/model/lmstudioCapabilities.js'
 
@@ -230,6 +231,23 @@ export async function getAnthropicClient({
       apiKey: 'openrouter-placeholder',
       ...baseArgs,
       fetch: openrouterFetch as unknown as typeof globalThis.fetch,
+      ...(isDebugToStdErr() && { logger: createStderrLogger() }),
+    }
+    return new Anthropic(clientConfig)
+  }
+
+  if (apiProvider === 'zen') {
+    logForDebugging('[API:request] Using OpenCode Zen fetch adapter')
+    const zenApiKey = process.env.OPENCODE_API_KEY || 'public'
+    const zenFetch = createOpenAIFetch({
+      apiKey: zenApiKey,
+      baseUrl: getZenBaseUrl(),
+      getModelCapability: getOpenAIModelCapability,
+    })
+    const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
+      apiKey: 'public',
+      ...baseArgs,
+      fetch: zenFetch as unknown as typeof globalThis.fetch,
       ...(isDebugToStdErr() && { logger: createStderrLogger() }),
     }
     return new Anthropic(clientConfig)

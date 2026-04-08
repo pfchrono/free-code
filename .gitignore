@@ -6,6 +6,11 @@ openclaw/
 *.log
 *.exe
 *.bun-build
+*.txt
+*.html
+*.js
+!.mcp.json
+!.bunfig.toml
 
 benchmark-results/*
 .claude/settings.local.json

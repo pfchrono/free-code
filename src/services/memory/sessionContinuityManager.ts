@@ -418,7 +418,11 @@ class SessionContinuityManager {
       if ((error as any).code !== 'ENOENT') {
         logForDebugging(`[Session] Failed to load history: ${error}`)
       }
-      // Initialize empty history if file doesn't exist
+      // Initialize empty history if file doesn't exist or is corrupt
+      this.sessionHistory = {
+        version: '1.0.0',
+        sessions: [],
+      }
     }
   }
 

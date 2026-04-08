@@ -6,6 +6,7 @@ import { getSettingsForSource } from '../settings/settings.js'
 
 export type APIProvider =
   | 'firstParty'
+  | 'zen'
   | 'bedrock'
   | 'vertex'
   | 'foundry'
@@ -17,9 +18,10 @@ export type APIProvider =
 
 function isSupportedProvider(
   provider: unknown,
-): provider is 'firstParty' | 'codex' | 'openai' | 'openrouter' | 'copilot' | 'lmstudio' {
+): provider is 'firstParty' | 'zen' | 'codex' | 'openai' | 'openrouter' | 'copilot' | 'lmstudio' {
   return (
     provider === 'firstParty' ||
+    provider === 'zen' ||
     provider === 'codex' ||
     provider === 'openai' ||
     provider === 'openrouter' ||
@@ -61,6 +63,7 @@ function getProviderFromSettings(): APIProvider | null {
 export function getAPIProvider(): APIProvider {
   // Highest precedence: explicit runtime env switches.
   // These can come from CLI bootstrap or test drivers.
+  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_ZEN)) return 'zen'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)) return 'bedrock'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX)) return 'vertex'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)) return 'foundry'

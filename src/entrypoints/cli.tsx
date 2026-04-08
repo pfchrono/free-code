@@ -61,6 +61,17 @@ async function main(): Promise<void> {
   } = await import('../utils/startupProfiler.js');
   profileCheckpoint('cli_entry');
 
+  // Initialize memory systems early to avoid startup errors
+  const {
+    initializeMemorySystem
+  } = await import('../services/memory/persistentMemorySystem.js');
+  const {
+    initializeSessionManager
+  } = await import('../services/memory/sessionContinuityManager.js');
+
+  await initializeMemorySystem();
+  await initializeSessionManager();
+
   // Fast-path for --dump-system-prompt: output the rendered system prompt and exit.
   // Used by prompt sensitivity evals to extract the system prompt at a specific commit.
   // Ant-only: eliminated from external builds via feature flag.

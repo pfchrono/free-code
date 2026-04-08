@@ -198,6 +198,10 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
     return getModelStrings().sonnet45
   }
 
+  if (apiProvider === 'zen') {
+    return 'big-pickle'
+  }
+
   if (apiProvider === 'lmstudio') {
     return getDefaultLMStudioModel() ?? getModelStrings().sonnet45
   }

@@ -162,6 +162,22 @@ function enforceAnthropicHostedRequestPolicy(
   const warning = buildWarningMessage(provider, params, url, diagnostics)
   reportAnthropicHostedRequest(params)
 
+  // Allow known safe proxy operations
+  if (
+    params.context === 'openai-adapter-intercept' &&
+    params.operation === 'anthropic-messages->openai-responses'
+  ) {
+    return
+  }
+
+  // Allow agent configuration operations
+  if (
+    params.context === 'configureGlobalAgents' &&
+    params.operation === 'GET'
+  ) {
+    return
+  }
+
   if (!shouldBlockAnthropicHostedRequest()) {
     return
   }

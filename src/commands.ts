@@ -179,6 +179,8 @@ import codex from './commands/codex/index.js'
 import openai from './commands/openai/index.js'
 import openrouter from './commands/openrouter/index.ts'
 import lmstudio from './commands/lmstudio/index.ts'
+import zen from './commands/zen/index.ts'
+import cavemanMode from './commands/caveman-mode/index.ts'
 import dependencyGraph from './commands/dependency-graph/index.ts'
 import tag from './commands/tag/index.js'
 import outputStyle from './commands/output-style/index.js'
@@ -296,10 +298,12 @@ const COMMANDS = memoize((): Command[] => [
   mcp,
   enhancedMemoryCommand,
   mobile,
-  model,
-  openai,
-  openrouter,
-  lmstudio,
+   model,
+   openai,
+   openrouter,
+   zen,
+   lmstudio,
+   cavemanMode,
   outputStyle,
   remoteEnv,
   plugin,

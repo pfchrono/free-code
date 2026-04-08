@@ -57,10 +57,20 @@ export async function validateModel(
     return { valid: true }
   }
 
-  if (getAPIProvider() === 'lmstudio' && getLMStudioModelCapability(normalizedModel)) {
-    validModelCache.set(normalizedModel, true)
-    return { valid: true }
-  }
+   if (getAPIProvider() === 'lmstudio' && getLMStudioModelCapability(normalizedModel)) {
+     validModelCache.set(normalizedModel, true)
+     return { valid: true }
+   }
+
+   if (getAPIProvider() === 'zen' && getOpenAIModelCapability(normalizedModel)) {
+     validModelCache.set(normalizedModel, true)
+     return { valid: true }
+   }
+
+   if (getAPIProvider() === 'zen' && getOpenAIModelCapability(normalizedModel)) {
+     validModelCache.set(normalizedModel, true)
+     return { valid: true }
+   }
 
   if (isCopilotSubscriber() && (await isCopilotModel(normalizedModel))) {
     validModelCache.set(normalizedModel, true)

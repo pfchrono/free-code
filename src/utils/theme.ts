@@ -89,19 +89,8 @@ export type Theme = {
   rainbow_violet_shimmer: string
 }
 
-export const THEME_NAMES = [
-  'dark',
-  'light',
-  'light-daltonized',
-  'dark-daltonized',
-  'light-ansi',
-  'dark-ansi',
-] as const
-
 /** A renderable theme. Always resolvable to a concrete color palette. */
 export type ThemeName = (typeof THEME_NAMES)[number]
-
-export const THEME_SETTINGS = ['auto', ...THEME_NAMES] as const
 
 /**
  * A theme preference as stored in user config. `'auto'` follows the system
@@ -602,6 +591,21 @@ const darkDaltonizedTheme: Theme = {
   rainbow_violet_shimmer: 'rgb(230,180,210)',
 }
 
+import { opencodeThemes, opencodeThemeNames } from '../components/theme/opencodeThemeProvider.js'
+
+export const BUILTIN_THEME_NAMES = [
+  'dark',
+  'light',
+  'light-daltonized',
+  'dark-daltonized',
+  'light-ansi',
+  'dark-ansi',
+] as const
+
+export const THEME_NAMES = [...BUILTIN_THEME_NAMES, ...opencodeThemeNames] as const
+
+export const THEME_SETTINGS = ['auto', ...THEME_NAMES] as const
+
 export function getTheme(themeName: ThemeName): Theme {
   switch (themeName) {
     case 'light':
@@ -615,6 +619,9 @@ export function getTheme(themeName: ThemeName): Theme {
     case 'dark-daltonized':
       return darkDaltonizedTheme
     default:
+      if (themeName in opencodeThemes) {
+        return opencodeThemes[themeName as keyof typeof opencodeThemes]
+      }
       return darkTheme
   }
 }

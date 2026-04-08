@@ -158,6 +158,294 @@ const STATIC_OPENAI_MODELS: OpenAIModelCapability[] = [
     cost_per_1k_tokens: { input: 0.0005, output: 0.0015 },
     performance_tier: 'fast',
   },
+  // OpenCode Zen free models
+  {
+    id: 'big-pickle',
+    max_input_tokens: 200000,
+    max_tokens: 128000,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0, output: 0 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'minimax-m2.5-free',
+    max_input_tokens: 200000,
+    max_tokens: 128000,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0, output: 0 },
+    performance_tier: 'balanced',
+  },
+  // Popular OpenRouter models with pricing (per 1K tokens)
+  // Prices from https://openrouter.ai/models
+  {
+    id: 'anthropic/claude-3.5-sonnet',
+    max_input_tokens: 200000,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: true,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.003, output: 0.015 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'anthropic/claude-3.7-sonnet',
+    max_input_tokens: 200000,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: true,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.003, output: 0.015 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'anthropic/claude-sonnet-4',
+    max_input_tokens: 200000,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: true,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.003, output: 0.015 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'anthropic/claude-opus-4.1',
+    max_input_tokens: 200000,
+    max_tokens: 32000,
+    capabilities: {
+      reasoning: true,
+      vision: true,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.015, output: 0.075 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'anthropic/claude-3.5-haiku',
+    max_input_tokens: 200000,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: true,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.0008, output: 0.004 },
+    performance_tier: 'fast',
+  },
+  {
+    id: 'google/gemini-2.5-flash-preview',
+    max_input_tokens: 1000000,
+    max_tokens: 65536,
+    capabilities: {
+      reasoning: true,
+      vision: true,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.00015, output: 0.0006 },
+    performance_tier: 'fast',
+  },
+  {
+    id: 'google/gemini-2.5-pro',
+    max_input_tokens: 1000000,
+    max_tokens: 65536,
+    capabilities: {
+      reasoning: true,
+      vision: true,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.00125, output: 0.01 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'meta-llama/llama-3.3-70b-instruct',
+    max_input_tokens: 131072,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.00012, output: 0.0003 },
+    performance_tier: 'balanced',
+  },
+  {
+    id: 'meta-llama/llama-3.1-405b-instruct',
+    max_input_tokens: 131072,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.0008, output: 0.0008 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'mistralai/mistral-large-2',
+    max_input_tokens: 131072,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.002, output: 0.006 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'nvidia/llama-3.1-nemotron-70b-instruct',
+    max_input_tokens: 131072,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.00012, output: 0.0003 },
+    performance_tier: 'balanced',
+  },
+  {
+    id: 'nvidia/llama-3.3-nemotron-super-49b-v1',
+    max_input_tokens: 131072,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0, output: 0 },
+    performance_tier: 'balanced',
+  },
+  {
+    id: 'nvidia/llama-3.1-nemotron-51b-instruct',
+    max_input_tokens: 131072,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0, output: 0 },
+    performance_tier: 'balanced',
+  },
+  {
+    id: 'qwen/qwen3-235b-a22b',
+    max_input_tokens: 131072,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.0004, output: 0.0012 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'qwen/qwen3-coder-plus',
+    max_input_tokens: 131072,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.0004, output: 0.0012 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'deepseek/deepseek-chat-v3-0324',
+    max_input_tokens: 131072,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: true,
+      json_mode: true,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.00027, output: 0.0011 },
+    performance_tier: 'quality',
+  },
+  {
+    id: 'deepseek/deepseek-r1',
+    max_input_tokens: 131072,
+    max_tokens: 8192,
+    capabilities: {
+      reasoning: true,
+      vision: false,
+      function_calling: false,
+      json_mode: false,
+      streaming: true,
+      code_generation: true,
+    },
+    cost_per_1k_tokens: { input: 0.00055, output: 0.0022 },
+    performance_tier: 'quality',
+  },
 ]
 
 function getOpenAICacheDir(): string {
@@ -173,7 +461,11 @@ function getOpenAIApiKey(): string | null {
 }
 
 function isOpenAICapabilitiesEligible(): boolean {
-  return getAPIProvider() === 'openai' || getOpenAIApiKey() !== null
+  return (
+    getAPIProvider() === 'openai' ||
+    getAPIProvider() === 'zen' ||
+    getOpenAIApiKey() !== null
+  )
 }
 
 function inferStaticCapability(modelId: string): OpenAIModelCapability {
@@ -403,8 +695,23 @@ export function selectOpenAIModelForTask(
 export function getOpenAIModelCost(
   modelId: string,
 ): { input?: number; output?: number } | null {
+  // Try exact match first
   const capability = getOpenAIModelCapability(modelId)
-  return capability?.cost_per_1k_tokens || null
+  if (capability?.cost_per_1k_tokens) return capability.cost_per_1k_tokens
+
+  // Try partial match on model id
+  const lowerModel = modelId.toLowerCase()
+  const allModels = [
+    ...(loadOpenAICache(getOpenAICachePath()) || []),
+    ...STATIC_OPENAI_MODELS,
+  ]
+  for (const model of allModels) {
+    if (lowerModel.includes(model.id.toLowerCase()) || model.id.toLowerCase().includes(lowerModel)) {
+      if (model.cost_per_1k_tokens) return model.cost_per_1k_tokens
+    }
+  }
+
+  return null
 }
 
 /**
