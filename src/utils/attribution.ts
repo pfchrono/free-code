@@ -77,7 +77,7 @@ export function getAttributionTexts(): AttributionTexts {
       ? getPublicModelName(model)
       : 'free-code'
   const defaultAttribution = `🤖 Generated with [free-code](${PRODUCT_URL})`
-  const defaultCommit = `Co-Authored-By: ${modelName} <noreply@anthropic.com>`
+  const defaultCommit = `Co-Authored-By: free-code`
 
   const settings = getInitialSettings()
 
