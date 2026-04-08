@@ -87,6 +87,11 @@ import {
   mcpContentNeedsTruncation,
   truncateMcpContentIfNeeded,
 } from '../../utils/mcpValidation.js'
+import {
+  redQueenCompress,
+  isRedQueenEnabled,
+  getRedQueenMaxTokens,
+} from '../compact/redQueen.js'
 import { WebSocketTransport } from '../../utils/mcpWebSocketTransport.js'
 import { memoizeWithLRU } from '../../utils/memoize.js'
 import { getWebSocketTLSOptions } from '../../utils/mtls.js'
@@ -2812,18 +2817,31 @@ export async function processMCPResult(
   result: unknown,
   tool: string, // Tool name for validation (e.g., "search")
   name: string, // Server name for IDE check and transformation (e.g., "slack")
-): Promise<MCPToolResult> {
-  const { content, type, schema } = await transformMCPResult(result, tool, name)
+  args?: unknown,
+  signal?: AbortSignal,
+): Promise<{ content: MCPToolResult; redQueenStats?: unknown }> {
+  let { content, type, schema } = await transformMCPResult(result, tool, name)
+  let redQueenStats: unknown
 
   // IDE tools are not going to the model directly, so we don't need to
   // handle large output.
   if (name === 'ide') {
-    return content
+    return { content, redQueenStats }
+  }
+
+  if (isRedQueenEnabled()) {
+    const compressed = await redQueenCompress(content, name, tool, args, {
+      maxTokens: getRedQueenMaxTokens(),
+      enableSummarization: false,
+      signal,
+    })
+    content = compressed.content
+    redQueenStats = compressed.stats
   }
 
   // Check if content needs truncation (i.e., is too large)
   if (!(await mcpContentNeedsTruncation(content))) {
-    return content
+    return { content, redQueenStats }
   }
 
   const sizeEstimateTokens = getContentSizeEstimate(content)
@@ -2835,7 +2853,7 @@ export async function processMCPResult(
       reason: 'env_disabled',
       sizeEstimateTokens,
     } as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS)
-    return await truncateMcpContentIfNeeded(content)
+    return { content: await truncateMcpContentIfNeeded(content), redQueenStats }
   }
 
   // Save large output to file and return instructions for reading it
@@ -2852,7 +2870,7 @@ export async function processMCPResult(
       reason: 'contains_images',
       sizeEstimateTokens,
     } as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS)
-    return await truncateMcpContentIfNeeded(content)
+    return { content: await truncateMcpContentIfNeeded(content), redQueenStats }
   }
 
   // Generate a unique ID for the persisted file (server__tool-timestamp)
@@ -2882,11 +2900,33 @@ export async function processMCPResult(
   } as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS)
 
   const formatDescription = getFormatDescription(type, schema)
-  return getLargeOutputInstructions(
+  let largeOutputInstructions = getLargeOutputInstructions(
     persistResult.filepath,
     persistResult.originalSize,
     formatDescription,
   )
+
+  if (
+    isRedQueenEnabled() &&
+    process.env.ENABLE_REDQUEEN_SUMMARIZE === 'true'
+  ) {
+    const compressed = await redQueenCompress(
+      largeOutputInstructions,
+      name,
+      tool,
+      args,
+      {
+        maxTokens: getRedQueenMaxTokens(),
+        enableDedup: false,
+        enableFiltering: false,
+        enableSummarization: true,
+        signal,
+      },
+    )
+    largeOutputInstructions = compressed.content
+  }
+
+  return largeOutputInstructions
 }
 
 /**
@@ -3268,10 +3308,20 @@ async function callMCPTool({
       })
     }
 
-    const content = await processMCPResult(result, tool, name)
+    const processedResult = await processMCPResult(result, tool, name, args, signal)
+    const content = typeof processedResult === 'object' && processedResult !== null && 'content' in processedResult
+      ? processedResult.content
+      : processedResult
+    const redQueenStats = typeof processedResult === 'object' && processedResult !== null && 'redQueenStats' in processedResult
+      ? (processedResult as { content: unknown; redQueenStats?: unknown }).redQueenStats
+      : undefined
+
     return {
       content,
-      _meta: result._meta as Record<string, unknown> | undefined,
+      _meta: {
+        ...(result._meta as Record<string, unknown>),
+        ...(redQueenStats ? { redQueenStats } : {}),
+      },
       structuredContent: result.structuredContent as
         | Record<string, unknown>
         | undefined,

@@ -10,6 +10,7 @@ import { deleteClassifierApproval, getClassifierApproval, getYoloClassifierAppro
 import type { buildMessageLookups } from '../../../utils/messages.js';
 import { MessageResponse } from '../../MessageResponse.js';
 import { HookProgressMessage } from '../HookProgressMessage.js';
+import { ToolCompressionFooter } from './ToolCompressionFooter.js';
 type Props = {
   message: NormalizedUserMessage;
   lookups: ReturnType<typeof buildMessageLookups>;
@@ -82,9 +83,14 @@ export function UserToolSuccessMessage({
   // so MarkdownTable's SAFETY_MARGIN=4 (tuned for the assistant-text 2-col
   // dot gutter) holds — otherwise tables wrap their box-drawing chars.
   const rendersAsAssistantText = tool.userFacingName(undefined) === '';
+  const redQueenStats = message.toolUseResult && typeof message.toolUseResult === 'object' && '_redQueenStats' in message.toolUseResult
+    ? (message.toolUseResult as Record<string, unknown>)._redQueenStats
+    : undefined
+
   return <Box flexDirection="column">
       <Box flexDirection="column" width={rendersAsAssistantText ? undefined : width}>
         {renderedMessage}
+        {redQueenStats && <ToolCompressionFooter redQueenStats={redQueenStats as any} duration="tool" />}
         {feature('BASH_CLASSIFIER') ? classifierRule && <MessageResponse height={1}>
                 <Text dimColor>
                   <Text color="success">{figures.tick}</Text>
