@@ -1783,6 +1783,18 @@ async function* queryModel(
   let isFastModeRequest = isFastMode // Keep separate state as it may change if falling back
   let isAdvisorInProgress = false
 
+  // Create AbortController for stream so watchdog can abort hung requests
+  // Abort when either (1) watchdog timeout fires or (2) caller aborts signal
+  const streamAbortController = new AbortController()
+  // Listen to caller's signal and abort stream controller if they cancel
+  const onCallerAbort = () => {
+    streamAbortController.abort()
+  }
+  if (signal.aborted) {
+    streamAbortController.abort()
+  }
+  signal.addEventListener('abort', onCallerAbort)
+
   try {
     queryCheckpoint('query_client_creation_start')
     const generator = withRetry(
@@ -1833,7 +1845,7 @@ async function* queryModel(
           .create(
             { ...params, stream: true },
             {
-              signal,
+              signal: streamAbortController.signal,
               ...(clientRequestId && {
                 headers: { [CLIENT_REQUEST_ID_HEADER]: clientRequestId },
               }),
@@ -1921,6 +1933,8 @@ async function* queryModel(
       streamIdleTimer = setTimeout(() => {
         streamIdleAborted = true
         streamWatchdogFiredAt = performance.now()
+        // Abort the stream fetch immediately to kill hung HTTP request
+        streamAbortController.abort()
         logForDebugging(
           `Streaming idle timeout: no chunks received for ${STREAM_IDLE_TIMEOUT_MS / 1000}s, aborting stream`,
           { level: 'error' },
@@ -2604,6 +2618,8 @@ async function* queryModel(
       yield m
     } finally {
       clearStreamIdleTimers()
+      // Clean up caller abort listener to prevent memory leaks
+      signal.removeEventListener('abort', onCallerAbort)
     }
   } catch (errorFromRetry) {
     // FallbackTriggeredError must propagate to query.ts, which performs the
