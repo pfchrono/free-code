@@ -16,11 +16,13 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growt
 import { logEvent } from '../services/analytics/index.js'
 import { sanitizeToolNameForAnalytics } from '../services/analytics/metadata.js'
 import type { Message } from '../types/message.js'
+import { compactCavemanText } from './cavemanText.js'
 import { logForDebugging } from './debug.js'
 import { getErrnoCode, toError } from './errors.js'
 import { formatFileSize } from './format.js'
 import { logError } from './log.js'
 import { getProjectDir } from './sessionStorage.js'
+import { getInitialSettings } from './settings/settings.js'
 import { jsonStringify } from './slowOperations.js'
 
 // Subdirectory name for tool results within a session
@@ -189,13 +191,18 @@ export async function persistToolResult(
 export function buildLargeToolResultMessage(
   result: PersistedToolResult,
 ): string {
+  const caveman = getInitialSettings().cavemanModeEnabled === true
   let message = `${PERSISTED_OUTPUT_TAG}\n`
-  message += `Output too large (${formatFileSize(result.originalSize)}). Full output saved to: ${result.filepath}\n\n`
-  message += `Preview (first ${formatFileSize(PREVIEW_SIZE_BYTES)}):\n`
+  message += caveman
+    ? `Big output (${formatFileSize(result.originalSize)}). Full output: ${result.filepath}\n\n`
+    : `Output too large (${formatFileSize(result.originalSize)}). Full output saved to: ${result.filepath}\n\n`
+  message += caveman
+    ? `Preview (${formatFileSize(PREVIEW_SIZE_BYTES)}):\n`
+    : `Preview (first ${formatFileSize(PREVIEW_SIZE_BYTES)}):\n`
   message += result.preview
   message += result.hasMore ? '\n...\n' : '\n'
   message += PERSISTED_OUTPUT_CLOSING_TAG
-  return message
+  return caveman ? compactCavemanText(message) : message
 }
 
 /**
@@ -290,7 +297,10 @@ async function maybePersistLargeToolResult(
     })
     return {
       ...toolResultBlock,
-      content: `(${toolName} completed with no output)`,
+      content:
+        getInitialSettings().cavemanModeEnabled === true
+          ? `(${toolName} done, no output)`
+          : `(${toolName} completed with no output)`,
     }
   }
   // Narrow after the emptiness guard — content is non-nullish past this point.

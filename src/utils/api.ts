@@ -17,6 +17,8 @@ import {
 } from 'src/services/analytics/index.js'
 import { prefetchAllMcpResources } from 'src/services/mcp/client.js'
 import type { ScopedMcpServerConfig } from 'src/services/mcp/types.js'
+import { getInitialSettings } from './settings/settings.js'
+import { compactCavemanText } from './cavemanText.js'
 import { BashTool } from 'src/tools/BashTool/BashTool.js'
 import { FileEditTool } from 'src/tools/FileEditTool/FileEditTool.js'
 import {
@@ -446,6 +448,27 @@ export function appendSystemContext(
   ].filter(Boolean)
 }
 
+function formatUserContextReminder(context: { [k: string]: string }): string {
+  const body = Object.entries(context)
+    .map(([key, value]) => {
+      const nextValue = getInitialSettings().cavemanModeEnabled
+        ? compactCavemanText(value)
+        : value
+      return `# ${key}\n${nextValue}`
+    })
+    .join('\n')
+
+  const intro = getInitialSettings().cavemanModeEnabled
+    ? "Use context below if relevant."
+    : "As you answer the user's questions, you can use the following context:"
+
+  const outro = getInitialSettings().cavemanModeEnabled
+    ? 'IMPORTANT: Context may be irrelevant. Only use if highly relevant.'
+    : 'IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.'
+
+  return `<system-reminder>\n${intro}\n${body}\n\n${outro}\n</system-reminder>\n`
+}
+
 export function prependUserContext(
   messages: Message[],
   context: { [k: string]: string },
@@ -460,13 +483,7 @@ export function prependUserContext(
 
   return [
     createUserMessage({
-      content: `<system-reminder>\nAs you answer the user's questions, you can use the following context:\n${Object.entries(
-        context,
-      )
-        .map(([key, value]) => `# ${key}\n${value}`)
-        .join('\n')}
-
-      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>\n`,
+      content: formatUserContextReminder(context),
       isMeta: true,
     }),
     ...messages,

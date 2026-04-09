@@ -27,6 +27,7 @@ import { ImageSizeError } from './utils/imageValidation.js'
 import { ImageResizeError } from './utils/imageResizer.js'
 import { findToolByName, type ToolUseContext } from './Tool.js'
 import { asSystemPrompt, type SystemPrompt } from './utils/systemPromptType.js'
+import { getInitialSettings } from './utils/settings/settings.js'
 import type {
   AssistantMessage,
   AttachmentMessage,
@@ -56,6 +57,10 @@ import {
 } from './utils/messages.js'
 import { generateToolUseSummary } from './services/toolUseSummary/toolUseSummaryGenerator.js'
 import { prependUserContext, appendSystemContext } from './utils/api.js'
+import {
+  compactCavemanText,
+  shouldCompactCavemanText,
+} from './utils/cavemanText.js'
 import {
   createAttachmentMessage,
   filterDuplicateMemoryAttachments,
@@ -649,6 +654,53 @@ async function* queryLoop(
 
     let attemptWithFallback = true
 
+    const modelMessages = getInitialSettings().cavemanModeEnabled
+      ? messagesForQuery.map(message => {
+          if (message.type !== 'user' && message.type !== 'assistant') {
+            return message
+          }
+
+          const content = message.message.content
+          if (typeof content === 'string') {
+            return shouldCompactCavemanText(content)
+              ? {
+                  ...message,
+                  message: {
+                    ...message.message,
+                    content: compactCavemanText(content),
+                  },
+                }
+              : message
+          }
+
+          if (!Array.isArray(content)) {
+            return message
+          }
+
+          let changed = false
+          const nextContent = content.map(block => {
+            if (block.type !== 'text' || !shouldCompactCavemanText(block.text)) {
+              return block
+            }
+            changed = true
+            return {
+              ...block,
+              text: compactCavemanText(block.text),
+            }
+          })
+
+          return changed
+            ? {
+                ...message,
+                message: {
+                  ...message.message,
+                  content: nextContent,
+                },
+              }
+            : message
+        })
+      : messagesForQuery
+
     queryCheckpoint('query_api_loop_start')
     try {
       while (attemptWithFallback) {
@@ -657,7 +709,7 @@ async function* queryLoop(
           let streamingFallbackOccured = false
           queryCheckpoint('query_api_streaming_start')
           for await (const message of deps.callModel({
-            messages: prependUserContext(messagesForQuery, userContext),
+            messages: prependUserContext(modelMessages, userContext),
             systemPrompt: fullSystemPrompt,
             thinkingConfig: toolUseContext.options.thinkingConfig,
             tools: toolUseContext.options.tools,

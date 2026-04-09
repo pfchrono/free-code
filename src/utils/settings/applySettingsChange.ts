@@ -1,5 +1,6 @@
 import type { AppState } from '../../state/AppState.js'
 import { logForDebugging } from '../debug.js'
+import { getAPIProvider } from '../model/providers.js'
 import { updateHooksConfigSnapshot } from '../hooks/hooksConfigSnapshot.js'
 import {
   createDisabledBypassPermissionsContext,
@@ -78,6 +79,7 @@ export function applySettingsChange(
     return {
       ...prev,
       settings: newSettings,
+      provider: getAPIProvider(),
       toolPermissionContext: newContext,
       // Only propagate a defined new value — when the disk key is absent
       // (e.g. /effort max for non-ants writes undefined; --effort CLI flag),

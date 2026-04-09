@@ -65,43 +65,38 @@ Run the built binary with `./cli` or `./cli-dev`. Set `ANTHROPIC_API_KEY` in the
 
 - scripts/build.ts is the build script and feature-flag bundler. Feature flags are set via build arguments (e.g., `--feature=ULTRAPLAN`) or presets like `--feature-set=dev-full` (see README for details).
 
-## Context-mode tool usage (MANDATORY)
+## Tool usage & consolidation
 
-Use the cheapest tool that fits the task. Direct tools are preferred for small scoped lookups; context-mode remains mandatory whenever output is expected to exceed ~20 lines.
+Use cheapest tool for task. Direct tools (Read, Grep, Glob) for small scoped lookups. Batch multiple operations into single tool calls when possible.
 
-### Tool selection order
-
-1. **Direct file tools for scoped inspection**: prefer `Read`, `Grep`, and `Glob` when you already know the file, symbol, or search pattern, or when the task can be answered with a small number of targeted lookups.
-2. **`ctx_batch_execute` for aggregation**: use `mcp__plugin_context-mode_context-mode__ctx_batch_execute` when you need to combine multiple commands/searches whose raw output would otherwise flood context.
-3. **`ctx_search` for follow-ups**: use `mcp__plugin_context-mode_context-mode__ctx_search` after indexing when you need additional questions answered from the same gathered data.
-4. **Subagents for broad exploration only**: use Explore or other research subagents only for open-ended, multi-step exploration where a few direct searches are unlikely to find the answer.
+### Tool selection
 
 | Task | Preferred tool |
 |------|----------------|
 | Known file or small targeted read | `Read` |
 | Known text/symbol/pattern search | `Grep` |
 | Known file/path pattern search | `Glob` |
-| Research / multi-command investigation with larger output | `mcp__plugin_context-mode_context-mode__ctx_batch_execute` |
-| Follow-up queries on already-indexed data | `mcp__plugin_context-mode_context-mode__ctx_search` |
-| API calls, log analysis, data processing | `mcp__plugin_context-mode_context-mode__ctx_execute` or `ctx_execute_file` |
-| Fetching external URLs | `mcp__plugin_context-mode_context-mode__ctx_fetch_and_index` |
+| Multiple commands in one call | `Bash` (chained with `&&`) or parallel tool calls |
+| Agent/subagent work | Use for broad exploration, architecture decisions |
 
-**Bash is reserved for:** `git`, `mkdir`, `rm`, `mv`, directory navigation, and other short-output commands only.
-
-Do NOT use Bash for: build output, test output, file listings, grep/find results, curl responses, or any command whose output exceeds ~20 lines.
+**Bash is reserved for:** `git`, `mkdir`, `rm`, `mv`, directory navigation, and short-output commands.
 
 ### Cost guardrails
 
-- Do not use a repo-mapping subagent for a scoped documentation or code audit.
-- Do not use `ctx_batch_execute` when 1-3 direct `Read`/`Grep`/`Glob` calls will answer the question.
-- Escalate from direct tools -> context-mode -> subagents only when the simpler tier is clearly insufficient.
+- Batch parallel operations (e.g., `Read` multiple files in sequence if independent)
+- Combine related Grep/Glob searches before executing
+- Use Agent tool for research-heavy tasks to reduce tool call overhead
+- Avoid unnecessary sequential tool calls when one batch call would suffice
 
-## Deferred tool handling (MANDATORY)
+## CodeSight + memory
 
-If a slash command, skill, or injected instruction references a deferred MCP tool that is not yet callable, you MUST load the tool schema first with `ToolSearch` and then execute it.
-
-- Treat **skill loaded** and **tool loaded** as separate states.
-- Do not stop at “the tool is not loaded” when the user asked to run the slash command.
-- If the skill names a specific tool, load that exact tool with `ToolSearch` and continue.
-- After loading the missing schema, follow the skill instructions verbatim.
-- For commands like `/context-mode:ctx-stats`, `/context-mode:ctx-doctor`, and `/context-mode:ctx-upgrade`, prefer end-to-end execution in the same flow after loading any missing deferred tools.
+- Use `.codesight/` first for codebase map. Read targeted file, not all.
+- Start with `.codesight/CODESIGHT.md`. If wiki exists, read `.codesight/wiki/index.md`, then one article.
+- Read `.codesight/KNOWLEDGE.md` for decisions, specs, notes, retros.
+- Use CodeSight for code facts: routes, schema, deps, blast radius, hot files, env.
+- If CodeSight MCP exists, use targeted MCP tool over broad scans.
+- Use project memory + mempalace for prior decisions, user prefs, non-code context.
+- Use current source as truth. Memory explains why. CodeSight shows where.
+- Search order: CodeSight → repo source (`Read`/`Grep`/`Glob`) → memory/MEMORY.md → mempalace if needed.
+- If local `.codesight/` stale or missing, refresh with `npx codesight` / `npx codesight --wiki` / `npx codesight --mode knowledge`.
+- Keep reads small. Prefer one CodeSight article or slice over broad file sweeps.

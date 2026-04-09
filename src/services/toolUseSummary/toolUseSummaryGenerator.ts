@@ -6,8 +6,10 @@
  */
 
 import { E_TOOL_USE_SUMMARY_GENERATION_FAILED } from '../../constants/errorIds.js'
+import { compactCavemanText } from '../../utils/cavemanText.js'
 import { toError } from '../../utils/errors.js'
 import { logError } from '../../utils/log.js'
+import { getInitialSettings } from '../../utils/settings/settings.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { asSystemPrompt } from '../../utils/systemPromptType.js'
 import { queryHaiku } from '../api/claude.js'
@@ -86,7 +88,13 @@ export async function generateToolUseSummary({
       .join('')
       .trim()
 
-    return summary || null
+    if (!summary) {
+      return null
+    }
+
+    return getInitialSettings().cavemanModeEnabled
+      ? compactCavemanText(summary)
+      : summary
   } catch (error) {
     // Log but don't fail - summaries are non-critical
     const err = toError(error)

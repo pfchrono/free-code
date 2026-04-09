@@ -31,6 +31,10 @@ import type { FileHistoryState } from '../utils/fileHistory.js'
 import type { REPLHookContext } from '../utils/hooks/postSamplingHooks.js'
 import type { SessionHooksState } from '../utils/hooks/sessionHooks.js'
 import type { ModelSetting } from '../utils/model/model.js'
+import {
+  getAPIProvider,
+  type APIProvider,
+} from '../utils/model/providers.js'
 import type { DenialTrackingState } from '../utils/permissions/denialTracking.js'
 import type { PermissionMode } from '../utils/permissions/PermissionMode.js'
 import { getInitialSettings } from '../utils/settings/settings.js'
@@ -91,6 +95,7 @@ export type AppState = DeepImmutable<{
   verbose: boolean
   mainLoopModel: ModelSetting
   mainLoopModelForSession: ModelSetting
+  provider: APIProvider
   statusLineText: string | undefined
   expandedView: 'none' | 'tasks' | 'teammates'
   isBriefOnly: boolean
@@ -472,6 +477,7 @@ export function getDefaultAppState(): AppState {
     verbose: false,
     mainLoopModel: null, // alias, full name (as with --model or env var), or null (default)
     mainLoopModelForSession: null,
+    provider: getAPIProvider(),
     statusLineText: undefined,
     expandedView: 'none',
     isBriefOnly: false,

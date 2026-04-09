@@ -295,6 +295,66 @@ describe('createCopilotFetch', () => {
     expect(upstreamHeaders.get('Copilot-Vision-Request')).toBe('false')
   })
 
+  it('keeps vision payloads and headers for models with vision support', async () => {
+    const fetchCalls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = []
+
+    globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ input, init })
+      return createStreamResponse()
+    }) as typeof fetch
+
+    const copilotFetch = createCopilotFetch(
+      { copilotToken: 'test-copilot-token' },
+      {
+        getModelById: async () => ({
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          version: 'gpt-4o',
+          modelPickerEnabled: true,
+          supportedEndpoints: ['/chat/completions'],
+          supportsToolCalls: true,
+          supportsVision: true,
+        }),
+      },
+    )
+
+    await copilotFetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'text stays' },
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/png',
+                  data: 'ZmFrZQ==',
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const upstreamInit = fetchCalls[0]?.init
+    const upstreamBody = JSON.parse(String(upstreamInit?.body)) as {
+      messages: Array<{ content: Array<Record<string, unknown>> }>
+    }
+    const upstreamHeaders = new Headers(upstreamInit?.headers)
+
+    expect(upstreamBody.messages[0]?.content).toEqual([
+      { type: 'text', text: 'text stays' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,ZmFrZQ==' } },
+    ])
+    expect(upstreamHeaders.get('Copilot-Vision-Request')).toBe('true')
+  })
+
   it('drops empty message content after vision filtering', async () => {
     const fetchCalls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = []
 
@@ -346,6 +406,136 @@ describe('createCopilotFetch', () => {
     }
 
     expect(upstreamBody.messages).toHaveLength(0)
+  })
+
+  it('keeps system and tool-result messages when vision-only user content is filtered', async () => {
+    const fetchCalls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = []
+
+    globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ input, init })
+      return createStreamResponse()
+    }) as typeof fetch
+
+    const copilotFetch = createCopilotFetch(
+      { copilotToken: 'test-copilot-token' },
+      {
+        getModelById: async () => ({
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          version: 'gpt-4o',
+          modelPickerEnabled: true,
+          supportedEndpoints: ['/chat/completions'],
+          supportsToolCalls: true,
+          supportsVision: false,
+        }),
+      },
+    )
+
+    await copilotFetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        system: 'system stays',
+        messages: [
+          {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'tool_vision',
+                name: 'inspect_image',
+                input: { path: 'image.png' },
+              },
+            ],
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'tool_vision',
+                content: 'done',
+              },
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: 'image/png',
+                  data: 'ZmFrZQ==',
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const upstreamBody = JSON.parse(String(fetchCalls[0]?.init?.body)) as {
+      messages: Array<Record<string, unknown>>
+    }
+
+    expect(upstreamBody.messages).toEqual([
+      { role: 'system', content: 'system stays' },
+      {
+        role: 'assistant',
+        tool_calls: [
+          {
+            id: 'tool_vision',
+            type: 'function',
+            function: {
+              name: 'inspect_image',
+              arguments: '{"path":"image.png"}',
+            },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        tool_call_id: 'tool_vision',
+        content: 'done',
+      },
+    ])
+  })
+
+  it('uses model-preferred max token parameter when provided by model lookup', async () => {
+    const fetchCalls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = []
+
+    globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ input, init })
+      return createStreamResponse()
+    }) as typeof fetch
+
+    const copilotFetch = createCopilotFetch(
+      { copilotToken: 'test-copilot-token' },
+      {
+        getModelById: async () => ({
+          id: 'gpt-5.4',
+          name: 'GPT-5.4',
+          version: 'gpt-5.4',
+          modelPickerEnabled: true,
+          supportedEndpoints: ['/chat/completions'],
+          supportsToolCalls: true,
+          supportsVision: true,
+          preferredTokenParameter: 'max_completion_tokens',
+        }),
+      },
+    )
+
+    await copilotFetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        model: 'gpt-5.4',
+        max_tokens: 321,
+        messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const upstreamBody = JSON.parse(String(fetchCalls[0]?.init?.body)) as Record<string, unknown>
+
+    expect(upstreamBody.max_completion_tokens).toBe(321)
+    expect(upstreamBody.max_tokens).toBeUndefined()
   })
 
   it('compacts oversized message histories while keeping recent context', async () => {

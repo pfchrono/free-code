@@ -17,13 +17,33 @@ import { getContentSizeEstimate, type MCPToolResult } from '../../utils/mcpValid
 import { logEvent } from '../analytics/index.js'
 import { summarizeToolResult, shouldSummarize } from './mcpToolResultSummarizer.js'
 import { applyToolReducer } from './toolReducers.js'
-import {
-  getCachedResult,
-  cacheResult,
-  recordCompressionStats,
-  computeCacheKey,
-  isCacheAvailable,
-} from './redQueenCache.js'
+type CachedResult = { content: string }
+
+function computeCacheKey(tool: string, args: unknown): string {
+  return createHash('sha256').update(`${tool}:${JSON.stringify(args ?? {})}`).digest('hex')
+}
+
+function getCachedResult(_tool: string, _argsHash: string): CachedResult | null {
+  return null
+}
+
+function cacheResult(
+  _tool: string,
+  _argsHash: string,
+  _content: MCPToolResult,
+  _ttlSeconds: number,
+): void {}
+
+function recordCompressionStats(
+  _tool: string,
+  _reason: string,
+  _tokensSaved: number,
+  _sessionId: string,
+): void {}
+
+function isCacheAvailable(): boolean {
+  return false
+}
 
 const REDQUEEN_DEBUG = process.env.REDQUEEN_DEBUG === 'true'
 

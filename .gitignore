@@ -9,6 +9,8 @@ openclaw/
 *.txt
 *.html
 *.js
+*.original.md
+.codesight/
 !.mcp.json
 !.bunfig.toml
 

@@ -14,6 +14,7 @@ import { refreshPolicyLimits } from '../../services/policyLimits/index.js';
 import { refreshRemoteManagedSettings } from '../../services/remoteManagedSettings/index.js';
 import type { LocalJSXCommandOnDone } from '../../types/command.js';
 import { stripSignatureBlocks } from '../../utils/messages.js';
+import { getAPIProvider } from '../../utils/model/providers.js';
 import { checkAndDisableAutoModeIfNeeded, checkAndDisableBypassPermissionsIfNeeded, resetAutoModeGateCheck, resetBypassPermissionsCheck } from '../../utils/permissions/bypassPermissionsKillswitch.js';
 import { resetUserCache } from '../../utils/user.js';
 export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXCommandContext): Promise<React.ReactNode> {
@@ -51,7 +52,8 @@ export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXComma
       // Increment authVersion to trigger re-fetching of auth-dependent data in hooks (e.g., MCP servers)
       context.setAppState(prev => ({
         ...prev,
-        authVersion: prev.authVersion + 1
+        authVersion: prev.authVersion + 1,
+        provider: getAPIProvider(),
       }));
     }
     onDone(success ? 'Login successful' : 'Login interrupted');

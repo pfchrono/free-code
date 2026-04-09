@@ -12,6 +12,10 @@ All notable changes to free-code are documented here.
 - **Summarizer improvements** -- tighten system/user prompts, add per-tool maxInputChars caps (800-4k range)
 - **TUI compression footer** -- display compression ratio and tokens saved to user
 - **Token savings** -- 91% reduction validated on realistic tool outputs (Playwright console, GitHub search, Context7 docs)
+- **Caveman prompt compaction** -- compact plain model-bound natural language while preserving code, JSON, commands, paths, stack traces, and other structured content
+- **Compaction helpers + tests** -- add `src/utils/cavemanText.ts`, `src/utils/cavemanText.test.ts`, and prompt snapshot measurement coverage
+- **Tool/result wrapper compaction** -- compact user-context reminders, tool-use summaries, and persisted large-output notices when caveman mode is enabled
+- **RedQueen cache stopgap** -- inline no-op cache helpers in `src/services/compact/redQueen.ts` keep build working while cache module is absent
 
 ### Attribution & Branding
 
@@ -55,6 +59,8 @@ All notable changes to free-code are documented here.
 - **Prompt submit handler test** (`src/utils/handlePromptSubmit.test.ts`) -- submit handler tests
 - **Model providers tests** (`src/utils/model/providers.test.ts`) -- provider coverage
 - **Plugin loader test** (`src/utils/plugins/pluginLoader.test.ts`) -- plugin system tests
+- **Reactive provider refresh** -- login/provider flows now refresh visible provider state without restart messaging
+- **Copilot vision passthrough test** -- verify vision payload + headers stay intact for models that support vision
 
 ### Model & Snip System
 
@@ -70,6 +76,7 @@ All notable changes to free-code are documented here.
 
 - **Theme picker refactor** (`src/components/ThemePicker.tsx`) -- massive simplification, dropped from 900+ lines to ~530
 - **Theme utilities** (`src/utils/theme.ts`) -- streamlined theme system
+- **Embedded themes refresh** (`src/components/theme/embeddedThemes.ts`) -- regenerated built-in theme bundle used by theme discovery/picker flow
 - **REPL input suppression** (`src/screens/replInputSuppression.ts`) -- input handling tests and logic
 - **API client** (`src/services/api/client.ts`) -- unified API client with telemetry stub
 - **Session continuity manager** (`src/services/memory/sessionContinuityManager.ts`) -- session persistence

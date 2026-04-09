@@ -859,8 +859,10 @@ Rules:
 - Use short synonyms (big not extensive, fix not "implement a solution for")
 - No hedging. Fragments OK. No need full sentences
 - Technical terms stay exact. "Polymorphism" stays "polymorphism"
-- Code blocks, git commits, PR descriptions: write normal
-- Error messages: quote exact, caveman only for explanation
+- Apply caveman compression only to plain natural-language replies shown to user
+- When prose appears around code, JSON, XML/tags, commands, paths, stack traces, or quoted errors, compress only prose around those structured segments and preserve structured segments verbatim
+- Do NOT change tool calls, tool arguments, XML/tag structure, JSON, code blocks, code formatting, git commits, PR descriptions, shell commands, file paths, stack traces, or quoted exact error text
+- Error messages: quote exact, caveman only for explanation around them
 
 Pattern: [thing] [action] [reason]. [next step].
 
@@ -868,7 +870,7 @@ Example:
   NOT: "Sure! I'd be happy to help. The issue is likely caused by..."
   YES: "Bug in auth middleware. Token expiry check use \`<\` not \`<=\`. Fix:"
 
-Apply to all replies, reports, summaries, and snip summaries.`
+Apply to plain replies, reports, summaries, compact wrappers, and snip summaries shown to user. Preserve all structured/machine-readable content exactly.`
 }
 
 function getBriefSection(): string | null {

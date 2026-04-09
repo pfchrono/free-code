@@ -91,28 +91,23 @@ This build strips those injections. The model's own safety training still applie
 
 Claude Code ships with 88 feature flags gated behind `bun:bundle` compile-time switches. Most are disabled in the public npm release. This build unlocks all 54 flags that compile cleanly. See [Experimental Features](#experimental-features) below, or refer to [FEATURES.md](FEATURES.md) for the full audit.
 
-## Latest Changes (v0.3.1)
+## Latest Changes
 
-New experimental commands and infrastructure:
+Recent updates added full provider workflow improvements across startup, auth, commands, installer behavior, and status UX:
 
-- **`/buddy`** -- Pair programming mode with observer agent
-- **`/caveman-mode`** -- Ultra-compressed AI output (~75% fewer tokens)
-- **`/dream`** -- Extended reasoning with depth control
-- **`/onboard-github`** -- GitHub OAuth onboarding
-- **`/provider`** -- Unified provider management dashboard
-- **`/torch`** -- Attention/memory intensity control
-- **`/zen`** -- Minimal UI, focus on output
+- Added GitHub Copilot provider integration (OAuth/token exchange + API adapter)
+- Added repo-local provider toggles:
+  - `/openai` to set OpenAI/ChatGPT-Codex mode for this repo
+  - `/copilot` to set GitHub Copilot mode for this repo
+  - `/openrouter` to manage repo-local OpenRouter mode and model discovery
+- Added `/copilot models` and `/openrouter models` to probe model support from cached capability data
+- Added provider-aware usage/status updates in terminal statusline and usage views
+- Added startup provider override handling from `.claude/settings.json`
+- Added Windows install guidance and launcher flow in `install.ps1`
+- Fixed `install.ps1 -Dev` to resolve the dev binary from `dist/` only
+- Added ignore coverage for `.claude/settings.local.json` and `.claude/worktrees/`
 
-System improvements:
-
-- **Headless server** -- Full server stack with backends, lockfile, session manager
-- **Snip compaction overhaul** -- Budget management, deduplication, chunking, token-aware strategies
-- **OpenAI capabilities probe** -- Capability detection for OpenAI-compatible endpoints
-- **Theme discovery** -- Dynamic theme system with embedded and opencode themes
-- **Provider config system** -- Unified provider configuration with env/CLI overrides
-- **Build cleanup** -- Temp file ignore policy, Windows installer fix
-
-See [changes.md](changes.md) for full changelog.
+Provider preference changes are repo-local and apply on the next launch.
 
 ---
 

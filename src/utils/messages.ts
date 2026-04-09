@@ -161,6 +161,8 @@ import {
 } from './planModeV2.js'
 import { escapeRegExp } from './stringUtils.js'
 import { isTodoV2Enabled } from './tasks.js'
+import { compactCavemanText } from './cavemanText.js'
+import { getInitialSettings } from './settings/settings.js'
 
 // Lazy import to avoid circular dependency (teammateMailbox -> teammate -> ... -> messages)
 function getTeammateMailbox(): typeof import('./teammateMailbox.js') {
@@ -4310,13 +4312,20 @@ function createToolResultMessage<Output>(
       typeof result.content === 'string'
         ? result.content
         : jsonStringify(result.content)
+    const prefix =
+      getInitialSettings().cavemanModeEnabled === true
+        ? `${tool.name} result:`
+        : `Result of calling the ${tool.name} tool:`
     return createUserMessage({
-      content: `Result of calling the ${tool.name} tool:\n${contentStr}`,
+      content: `${prefix}\n${contentStr}`,
       isMeta: true,
     })
   } catch {
     return createUserMessage({
-      content: `Result of calling the ${tool.name} tool: Error`,
+      content:
+        getInitialSettings().cavemanModeEnabled === true
+          ? `${tool.name} result: Error`
+          : `Result of calling the ${tool.name} tool: Error`,
       isMeta: true,
     })
   }
@@ -4326,8 +4335,12 @@ function createToolUseMessage(
   toolName: string,
   input: { [key: string]: string | number },
 ): UserMessage {
+  const prefix =
+    getInitialSettings().cavemanModeEnabled === true
+      ? `Called ${toolName} with:`
+      : `Called the ${toolName} tool with:`
   return createUserMessage({
-    content: `Called the ${toolName} tool with the following input: ${jsonStringify(input)}`,
+    content: compactCavemanText(`${prefix} ${jsonStringify(input)}`),
     isMeta: true,
   })
 }

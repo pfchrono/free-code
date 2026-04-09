@@ -93,9 +93,8 @@ export const call: LocalJSXCommandCall = async (
     return null
   }
 
-  onDone(
-    `Set local provider override to ${provider}. Restart free-code if this session does not pick it up automatically.`,
-    { display: 'system' },
-  )
+  onDone(`Set local provider override to ${provider}.`, {
+    display: 'system',
+  })
   return null
 }
