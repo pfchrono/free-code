@@ -82,6 +82,7 @@ import {
   stripCallerFieldFromAssistantMessage,
   stripToolReferenceBlocksFromUserMessage,
 } from '../../utils/messages.js'
+import { pruneMessagesForTokens } from '../../utils/messagePruning.js'
 import {
   getDefaultOpusModel,
   getDefaultSonnetModel,
@@ -92,7 +93,7 @@ import {
   asSystemPrompt,
   type SystemPrompt,
 } from '../../utils/systemPromptType.js'
-import { tokenCountFromLastAPIResponse } from '../../utils/tokens.js'
+import { tokenCountFromLastAPIResponse, tokenCountWithEstimation } from '../../utils/tokens.js'
 import { getDynamicConfig_BLOCKS_ON_INIT } from '../analytics/growthbook.js'
 import {
   currentLimits,
@@ -1256,14 +1257,26 @@ async function* queryModel(
 
   queryCheckpoint('query_tool_schema_build_end')
 
+  // Aggressive message pruning: strip old messages and stale tool results
+  // to combat token bloat (e.g., 87k+ tokens from 103+ message history)
+  const tokenCountBefore = tokenCountWithEstimation(messages)
+  let prunedMessages = pruneMessagesForTokens(messages)
+  const tokenCountAfter = tokenCountWithEstimation(prunedMessages)
+  const tokensSaved = tokenCountBefore - tokenCountAfter
+  if (tokensSaved > 0) {
+    logForDebugging(
+      `messagePruning: saved ${tokensSaved} tokens (${tokenCountBefore} → ${tokenCountAfter})`
+    )
+  }
+
   // Normalize messages before building system prompt (needed for fingerprinting)
   // Instrumentation: Track message count before normalization
   logEvent('tengu_api_before_normalize', {
-    preNormalizedMessageCount: messages.length,
+    preNormalizedMessageCount: prunedMessages.length,
   })
 
   queryCheckpoint('query_message_normalization_start')
-  let messagesForAPI = normalizeMessagesForAPI(messages, filteredTools)
+  let messagesForAPI = normalizeMessagesForAPI(prunedMessages, filteredTools)
   queryCheckpoint('query_message_normalization_end')
 
   // Model-specific post-processing: strip tool-search-specific fields if the
