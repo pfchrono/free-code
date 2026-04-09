@@ -105,10 +105,16 @@ export function getBestModel(): ModelName {
   return getDefaultOpusModel()
 }
 
+// MiniMax only supports its own model IDs — all Claude model slots remap to M2.7
+const MINIMAX_DEFAULT_MODEL = 'MiniMax-M2.7'
+
 // @[MODEL LAUNCH]: Update the default Opus model (3P providers may lag so keep defaults unchanged).
 export function getDefaultOpusModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_OPUS_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
+  }
+  if (getAPIProvider() === 'minimax') {
+    return MINIMAX_DEFAULT_MODEL
   }
   // 3P providers (Bedrock, Vertex, Foundry) — kept as a separate branch
   // even when values match, since 3P availability lags firstParty and
@@ -124,6 +130,9 @@ export function getDefaultSonnetModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_SONNET_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
   }
+  if (getAPIProvider() === 'minimax') {
+    return MINIMAX_DEFAULT_MODEL
+  }
   // Default to Sonnet 4.5 for 3P since they may not have 4.6 yet
   if (getAPIProvider() !== 'firstParty') {
     return getModelStrings().sonnet45
@@ -135,6 +144,9 @@ export function getDefaultSonnetModel(): ModelName {
 export function getDefaultHaikuModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+  }
+  if (getAPIProvider() === 'minimax') {
+    return MINIMAX_DEFAULT_MODEL
   }
 
   // Haiku 4.5 is available on all platforms (first-party, Foundry, Bedrock, Vertex)
@@ -204,6 +216,10 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
 
   if (apiProvider === 'lmstudio') {
     return getDefaultLMStudioModel() ?? getModelStrings().sonnet45
+  }
+
+  if (apiProvider === 'minimax') {
+    return MINIMAX_DEFAULT_MODEL
   }
 
   if (

@@ -12,9 +12,9 @@
 
 <p align="center">
   <a href="#quick-install"><img src="https://img.shields.io/badge/install-one--liner-blue?style=flat-square" alt="Install" /></a>
-  <a href="https://github.com/paoloanzn/free-code/stargazers"><img src="https://img.shields.io/github/stars/paoloanzn/free-code?style=flat-square" alt="Stars" /></a>
-  <a href="https://github.com/paoloanzn/free-code/issues"><img src="https://img.shields.io/github/issues/paoloanzn/free-code?style=flat-square" alt="Issues" /></a>
-  <a href="https://github.com/paoloanzn/free-code/blob/main/FEATURES.md"><img src="https://img.shields.io/badge/features-88%20flags-orange?style=flat-square" alt="Feature Flags" /></a>
+  <a href="https://github.com/pfchrono/free-code/stargazers"><img src="https://img.shields.io/github/stars/pfchrono/free-code?style=flat-square" alt="Stars" /></a>
+  <a href="https://github.com/pfchrono/free-code/issues"><img src="https://img.shields.io/github/issues/pfchrono/free-code?style=flat-square" alt="Issues" /></a>
+  <a href="https://github.com/pfchrono/free-code/blob/main/FEATURES.md"><img src="https://img.shields.io/badge/features-88%20flags-orange?style=flat-square" alt="Feature Flags" /></a>
   <a href="#ipfs-mirror"><img src="https://img.shields.io/badge/IPFS-mirrored-teal?style=flat-square" alt="IPFS" /></a>
 </p>
 
@@ -23,7 +23,7 @@
 ## Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/paoloanzn/free-code/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/pfchrono/free-code/main/install.sh | bash
 ```
 
 Checks your system, installs Bun if needed, clones the repo, builds with all experimental features enabled, and symlinks `free-code` on your PATH.
@@ -31,7 +31,7 @@ Checks your system, installs Bun if needed, clones the repo, builds with all exp
 ### Windows (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/paoloanzn/free-code/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/pfchrono/free-code/main/install.ps1 | iex
 ```
 
 The Windows installer will:
@@ -116,7 +116,7 @@ Provider preference changes are repo-local and apply on the next launch.
 ### Install from GitHub
 
 ```powershell
-irm https://raw.githubusercontent.com/paoloanzn/free-code/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/pfchrono/free-code/main/install.ps1 | iex
 ```
 
 ### Build from local checkout
@@ -251,7 +251,7 @@ curl -fsSL https://bun.sh/install | bash
 ## Build
 
 ```bash
-git clone https://github.com/paoloanzn/free-code.git
+git clone https://github.com/pfchrono/free-code.git
 cd free-code
 bun build
 ./cli
@@ -325,14 +325,14 @@ This is the recommended setup flow for teams that switch providers by repository
 Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/paoloanzn/free-code/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/pfchrono/free-code/main/install.ps1 | iex
 free-code -p "health check"
 ```
 
 macOS/Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/paoloanzn/free-code/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/pfchrono/free-code/main/install.sh | bash
 free-code -p "health check"
 ```
 

@@ -63,7 +63,26 @@ Run the built binary with `./cli` or `./cli-dev`. Set `ANTHROPIC_API_KEY` in the
 
 ## Build system
 
-- scripts/build.ts is the build script and feature-flag bundler. Feature flags are set via build arguments (e.g., `--feature=ULTRAPLAN`) or presets like `--feature-set=dev-full` (see README for details).
+scripts/build.ts is the build script and feature-flag bundler. Feature flags are set via build arguments (e.g., `--feature=ULTRAPLAN`) or presets like `--feature-set=dev-full` (see README for details).
+
+### Build commands (matching install.ps1 flow)
+
+```bash
+# Install dependencies
+bun install
+
+# Standard compiled build (./dist/cli, no telemetry)
+bun run compile:no-telemetry
+
+# Dev build with all experimental features (./dist/cli-dev, no telemetry)
+bun run compile:dev:full:no-telemetry
+
+# Verify built binary for phone-home patterns
+bun run verify:no-phone-home -- ./dist/cli
+
+# Run from source without compiling
+bun run dev
+```
 
 ## Tool usage & consolidation
 
@@ -100,3 +119,17 @@ Use cheapest tool for task. Direct tools (Read, Grep, Glob) for small scoped loo
 - Search order: CodeSight → repo source (`Read`/`Grep`/`Glob`) → memory/MEMORY.md → mempalace if needed.
 - If local `.codesight/` stale or missing, refresh with `npx codesight` / `npx codesight --wiki` / `npx codesight --mode knowledge`.
 - Keep reads small. Prefer one CodeSight article or slice over broad file sweeps.
+
+## Observability & MCP Integration
+
+- **Token Monitor MCP** (`mcp-servers/token-monitor`): Real-time token usage tracking, anomaly detection, cache analytics
+  - Record events: `observability.logApiCall({inputTokens, outputTokens, model, duration})`
+  - Get metrics: `await observability.tokens.getMetrics()` → `{avgTokensPerRequest, peakTokensPerSecond, cacheHitRate, spikesDetected}`
+  - Check anomalies: `await observability.tokens.checkForAnomalies()` (returns true if spikes/high rates detected)
+  
+- **Code Summarizer MCP** (`mcp-servers/code-summarizer`): File compression for context efficiency
+  - Summarize file: `await observability.code.summarizeFile(filePath)` → structure with exports, functions, compression ratio
+  - Prepare for API: `await observability.prepareFileContent(filePath)` → compressed summary if >20% reduction, else null
+  - Estimate savings: `observability.code.estimateTokenSavings(summary)` → tokens saved
+
+- **Usage**: Import from `src/services/observability`, call after API interactions. See `src/services/observability/USAGE.md` for patterns.

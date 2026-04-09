@@ -2,7 +2,21 @@
 
 All notable changes to free-code are documented here.
 
-## [Unreleased] - 2026-04-08
+## [Unreleased] - 2026-04-09
+
+### Added
+- **RedQueen Compression** — MCP tool result compression pipeline with deduplication, relevance filtering, and LLM summarization (Phase 2)
+- **Deterministic Tool Reducers** — Pure string transforms for noisy tools (Playwright console/network/snapshot, GitHub search_code/list_issues, Context7 query) — extract high-signal fields without LLM cost
+- **Aggressive Message Pruning** — Automatic pruning of user/assistant messages to reduce token bloat before API calls
+- **Observability Layer** — Structured logging via `src/services/observability/`, telemetry events for compression stats
+- **MiniMax MCP Server** — New `src/commands/minimax/` for MiniMax-specific commands
+
+### Changed
+- **Caveman Mode** — Refined text compaction, removes articles/fillers for ultra-compressed LLM responses (~75% token reduction)
+- **Provider Config** — Enhanced provider configuration system with model-specific token limits
+- **API Client** — Improved streaming, abort handling, and provider routing
+
+## [0.1.12] - 2026-04-08
 
 ### Token Reduction Optimizations
 

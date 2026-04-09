@@ -655,50 +655,96 @@ async function* queryLoop(
     let attemptWithFallback = true
 
     const modelMessages = getInitialSettings().cavemanModeEnabled
-      ? messagesForQuery.map(message => {
-          if (message.type !== 'user' && message.type !== 'assistant') {
-            return message
+      ? (() => {
+          let cavemanCompressionStats = {
+            messagesCompressed: 0,
+            blockCountBefore: 0,
+            blockCountAfter: 0,
+            bytesBeforeCompression: 0,
+            bytesAfterCompression: 0,
           }
 
-          const content = message.message.content
-          if (typeof content === 'string') {
-            return shouldCompactCavemanText(content)
+          const compressed = messagesForQuery.map(message => {
+            if (message.type !== 'user' && message.type !== 'assistant') {
+              return message
+            }
+
+            const content = message.message.content
+            if (typeof content === 'string') {
+              if (shouldCompactCavemanText(content)) {
+                const before = content.length
+                const compacted = compactCavemanText(content)
+                const after = compacted.length
+                cavemanCompressionStats.messagesCompressed++
+                cavemanCompressionStats.bytesBeforeCompression += before
+                cavemanCompressionStats.bytesAfterCompression += after
+                return {
+                  ...message,
+                  message: {
+                    ...message.message,
+                    content: compacted,
+                  },
+                }
+              }
+              return message
+            }
+
+            if (!Array.isArray(content)) {
+              return message
+            }
+
+            let changed = false
+            const nextContent = content.map(block => {
+              if (block.type !== 'text' || !shouldCompactCavemanText(block.text)) {
+                cavemanCompressionStats.blockCountBefore++
+                return block
+              }
+              const before = block.text.length
+              const compacted = compactCavemanText(block.text)
+              const after = compacted.length
+              changed = true
+              cavemanCompressionStats.messagesCompressed++
+              cavemanCompressionStats.blockCountBefore++
+              cavemanCompressionStats.blockCountAfter++
+              cavemanCompressionStats.bytesBeforeCompression += before
+              cavemanCompressionStats.bytesAfterCompression += after
+              return {
+                ...block,
+                text: compacted,
+              }
+            })
+
+            if (changed) {
+              cavemanCompressionStats.blockCountBefore += content.length - nextContent.length
+            }
+
+            return changed
               ? {
                   ...message,
                   message: {
                     ...message.message,
-                    content: compactCavemanText(content),
+                    content: nextContent,
                   },
                 }
               : message
-          }
-
-          if (!Array.isArray(content)) {
-            return message
-          }
-
-          let changed = false
-          const nextContent = content.map(block => {
-            if (block.type !== 'text' || !shouldCompactCavemanText(block.text)) {
-              return block
-            }
-            changed = true
-            return {
-              ...block,
-              text: compactCavemanText(block.text),
-            }
           })
 
-          return changed
-            ? {
-                ...message,
-                message: {
-                  ...message.message,
-                  content: nextContent,
-                },
-              }
-            : message
-        })
+          if (cavemanCompressionStats.messagesCompressed > 0) {
+            logEvent('tengu_caveman_compression_applied', {
+              messagesCompressed: cavemanCompressionStats.messagesCompressed,
+              bytesBeforeCompression: cavemanCompressionStats.bytesBeforeCompression,
+              bytesAfterCompression: cavemanCompressionStats.bytesAfterCompression,
+              compressionRatio: cavemanCompressionStats.bytesAfterCompression / cavemanCompressionStats.bytesBeforeCompression,
+              estimatedTokensSaved: Math.floor(
+                (cavemanCompressionStats.bytesBeforeCompression - cavemanCompressionStats.bytesAfterCompression) / 4
+              ),
+              queryChainId: queryChainIdForAnalytics,
+              queryDepth: queryTracking.depth,
+            })
+          }
+
+          return compressed
+        })()
       : messagesForQuery
 
     queryCheckpoint('query_api_loop_start')

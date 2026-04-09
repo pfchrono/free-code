@@ -1,6 +1,8 @@
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_CODEX_BASE_URL = 'https://chatgpt.com/backend-api/codex';
 const DEFAULT_ZEN_BASE_URL = 'https://opencode.ai/zen/v1';
+const DEFAULT_MINIMAX_BASE_URL = 'https://api.minimax.io/anthropic';
+const DEFAULT_MINIMAX_CHINA_BASE_URL = 'https://api.minimaxi.com/anthropic';
 
 const CODEX_ALIAS_MODELS = new Set([
   'codexplan',
@@ -87,4 +89,12 @@ export function getZenBaseUrl(): string {
   return DEFAULT_ZEN_BASE_URL;
 }
 
-export { DEFAULT_CODEX_BASE_URL, DEFAULT_OPENAI_BASE_URL, DEFAULT_ZEN_BASE_URL };
+export function getMinimaxBaseUrl(): string {
+  // Set MINIMAX_API_REGION=china to use the China endpoint (api.minimaxi.com)
+  if (process.env.MINIMAX_API_REGION?.toLowerCase() === 'china') {
+    return DEFAULT_MINIMAX_CHINA_BASE_URL;
+  }
+  return DEFAULT_MINIMAX_BASE_URL;
+}
+
+export { DEFAULT_CODEX_BASE_URL, DEFAULT_MINIMAX_BASE_URL, DEFAULT_MINIMAX_CHINA_BASE_URL, DEFAULT_OPENAI_BASE_URL, DEFAULT_ZEN_BASE_URL };

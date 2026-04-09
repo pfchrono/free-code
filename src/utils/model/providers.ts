@@ -15,10 +15,11 @@ export type APIProvider =
   | 'openrouter'
   | 'copilot'
   | 'lmstudio'
+  | 'minimax'
 
 function isSupportedProvider(
   provider: unknown,
-): provider is 'firstParty' | 'zen' | 'codex' | 'openai' | 'openrouter' | 'copilot' | 'lmstudio' {
+): provider is 'firstParty' | 'zen' | 'codex' | 'openai' | 'openrouter' | 'copilot' | 'lmstudio' | 'minimax' {
   return (
     provider === 'firstParty' ||
     provider === 'zen' ||
@@ -26,7 +27,8 @@ function isSupportedProvider(
     provider === 'openai' ||
     provider === 'openrouter' ||
     provider === 'copilot' ||
-    provider === 'lmstudio'
+    provider === 'lmstudio' ||
+    provider === 'minimax'
   )
 }
 
@@ -72,6 +74,7 @@ export function getAPIProvider(): APIProvider {
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENROUTER)) return 'openrouter'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_COPILOT)) return 'copilot'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_LMSTUDIO)) return 'lmstudio'
+  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_MINIMAX)) return 'minimax'
 
   // Fallback: persisted settings-based provider selection for headless and
   // early-start callsites where bootstrap env overrides may not have run yet.

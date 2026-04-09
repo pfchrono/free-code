@@ -38,7 +38,7 @@ import {
 import { createCodexFetch } from './codex-fetch-adapter.js'
 import { createCopilotAnthropicClient } from './copilot-client.js'
 import { createOpenAIFetch } from './openai-fetch-adapter.js'
-import { getZenBaseUrl } from './providerConfig.js'
+import { getMinimaxBaseUrl, getZenBaseUrl } from './providerConfig.js'
 import { getOpenAIModelCapability } from '../../utils/model/openaiCapabilities.js'
 import { getLMStudioModelCapability } from '../../utils/model/lmstudioCapabilities.js'
 
@@ -269,6 +269,57 @@ export async function getAnthropicClient({
       ...(isDebugToStdErr() && { logger: createStderrLogger() }),
     }
     return new Anthropic(clientConfig)
+  }
+
+  if (apiProvider === 'minimax') {
+    logForDebugging('[API:request] Using MiniMax Anthropic-compatible client')
+    const minimaxApiKey =
+      process.env.MINIMAX_API_KEY ??
+      getSettingsForSource('localSettings')?.minimaxApiKey
+    if (!minimaxApiKey) {
+      throw new Error(
+        'MiniMax backend selected but MINIMAX_API_KEY is not set',
+      )
+    }
+
+    // MiniMax docs require clearing conflicting Anthropic env vars.
+    // ANTHROPIC_AUTH_TOKEN (OAuth) and ANTHROPIC_BASE_URL conflict with the
+    // Minimax endpoint and auth scheme — save and clear for client construction.
+    const savedAuthToken = process.env.ANTHROPIC_AUTH_TOKEN
+    const savedBaseUrl = process.env.ANTHROPIC_BASE_URL
+    delete process.env.ANTHROPIC_AUTH_TOKEN
+    delete process.env.ANTHROPIC_BASE_URL
+
+    // MiniMax recommends disabling nonessential traffic (analytics pings etc.)
+    process.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1'
+
+    // MiniMax requires a much longer timeout (docs recommend 3,000,000ms = 50min)
+    const minimaxTimeout = parseInt(
+      process.env.MINIMAX_API_TIMEOUT_MS || '3000000',
+      10,
+    )
+
+    let minimaxClient: Anthropic
+    try {
+      const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
+        apiKey: minimaxApiKey,
+        baseURL: getMinimaxBaseUrl(),
+        ...baseArgs,
+        timeout: minimaxTimeout,
+        ...(isDebugToStdErr() && { logger: createStderrLogger() }),
+      }
+      minimaxClient = new Anthropic(clientConfig)
+    } finally {
+      // Restore env vars so the rest of the process is unaffected
+      if (savedAuthToken !== undefined) {
+        process.env.ANTHROPIC_AUTH_TOKEN = savedAuthToken
+      }
+      if (savedBaseUrl !== undefined) {
+        process.env.ANTHROPIC_BASE_URL = savedBaseUrl
+      }
+    }
+
+    return minimaxClient
   }
 
   if (apiProvider === 'copilot') {

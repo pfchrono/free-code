@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$Repo = 'https://github.com/paoloanzn/free-code.git'
+$Repo = 'https://github.com/pfchrono/free-code.git'
 $DefaultInstallDir = Join-Path $HOME 'free-code'
 $BunMinVersion = [version]'1.3.11'
 $LinkDir = Join-Path $HOME '.local\bin'

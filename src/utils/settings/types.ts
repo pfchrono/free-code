@@ -397,16 +397,22 @@ export const SettingsSchema = lazySchema(() =>
             'enterprise administrators.',
         ),
       apiProvider: z
-        .enum(['firstParty', 'codex', 'openai', 'openrouter', 'copilot', 'lmstudio', 'zen'])
+        .enum(['firstParty', 'codex', 'openai', 'openrouter', 'copilot', 'lmstudio', 'zen', 'minimax'])
         .optional()
         .describe(
-          'Repo-local API provider preference. "codex" enables ChatGPT Codex mode, "openai" enables native OpenAI API mode, "openrouter" enables OpenRouter mode, "copilot" enables GitHub Copilot mode, "lmstudio" enables local LM Studio mode, "zen" enables OpenCode Zen mode, and "firstParty" forces default Anthropic mode for this project on the next launch.',
+          'Repo-local API provider preference. "codex" enables ChatGPT Codex mode, "openai" enables native OpenAI API mode, "openrouter" enables OpenRouter mode, "copilot" enables GitHub Copilot mode, "lmstudio" enables local LM Studio mode, "zen" enables OpenCode Zen mode, "minimax" enables MiniMax Anthropic-compatible mode, and "firstParty" forces default Anthropic mode for this project on the next launch.',
         ),
       openrouterApiKey: z
         .string()
         .optional()
         .describe(
           'Repo-local OpenRouter API key stored in local settings only. Prefer environment variables when possible.',
+        ),
+      minimaxApiKey: z
+        .string()
+        .optional()
+        .describe(
+          'Repo-local MiniMax API key stored in local settings only. Prefer environment variables when possible.',
         ),
       // Whether to automatically approve all MCP servers in the project
       enableAllProjectMcpServers: z

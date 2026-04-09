@@ -180,6 +180,7 @@ import openai from './commands/openai/index.js'
 import openrouter from './commands/openrouter/index.ts'
 import lmstudio from './commands/lmstudio/index.ts'
 import zen from './commands/zen/index.ts'
+import minimax from './commands/minimax/index.ts'
 import cavemanMode from './commands/caveman-mode/index.ts'
 import dependencyGraph from './commands/dependency-graph/index.ts'
 import tag from './commands/tag/index.js'
@@ -303,6 +304,7 @@ const COMMANDS = memoize((): Command[] => [
    openrouter,
    zen,
    lmstudio,
+   minimax,
    cavemanMode,
   outputStyle,
   remoteEnv,

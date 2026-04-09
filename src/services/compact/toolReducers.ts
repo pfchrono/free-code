@@ -191,6 +191,50 @@ function reduceContext7Query(text: string): string {
 }
 
 /**
+ * Reduce Playwright browser snapshots (accessibility tree with embedded base64 images)
+ *
+ * Detects and replaces embedded base64 image data with compact metadata.
+ * Preserves accessibility tree structure (text content, element hierarchy).
+ * Removes PNG/JPEG binary blobs that can be 20-100KB.
+ *
+ * @param text Raw snapshot output with embedded base64 data
+ * @returns Snapshot with images replaced by [Image: WxH, XXKB] placeholders
+ * @example
+ * Input: Accessibility tree + "data:image/png;base64,iVBORw0KGgo..." (50KB blob)
+ * Output: Accessibility tree + "[Image: 1024x768, 50KB]"
+ */
+function reducePlaywrightSnapshot(text: string): string {
+  try {
+    // Find all base64 image data URIs and estimate their sizes
+    const base64Pattern = /data:image\/(png|jpeg|jpg|webp|gif);base64,([A-Za-z0-9+/=]+)/g
+    let imageCount = 0
+
+    const processed = text.replace(base64Pattern, (match, format, data, index) => {
+      imageCount += 1
+      // Rough estimate: base64 is ~33% larger than binary (4 chars per 3 bytes)
+      const estimatedBytes = Math.round((data.length / 4) * 3)
+
+      // Try to extract dimensions from context before this image
+      // Look back up to 200 chars for a dimension pattern like "1024x768"
+      const contextStart = Math.max(0, index - 200)
+      const context = text.substring(contextStart, index)
+      const dimMatch = context.match(/(\d+)x(\d+)(?=[^0-9]|$)/)
+      const dims = dimMatch ? `${dimMatch[1]}x${dimMatch[2]}` : 'unknown'
+
+      return `[Image: ${dims}, ${Math.round(estimatedBytes / 1024)}KB]`
+    })
+
+    // Only use if we actually removed images and achieved meaningful savings
+    if (imageCount > 0) {
+      return processed
+    }
+    return text
+  } catch {
+    return text
+  }
+}
+
+/**
  * Mapping of tool names to their deterministic reducer functions.
  *
  * Each reducer is a pure function that extracts high-signal information
@@ -199,6 +243,7 @@ function reduceContext7Query(text: string): string {
 const TOOL_REDUCERS: Record<string, (text: string) => string> = {
   'playwright-browser_console_messages': reducePlaywrightConsole,
   'playwright-browser_network_requests': reducePlaywrightNetwork,
+  'playwright-browser_snapshot': reducePlaywrightSnapshot,
   'github-search_code': reduceGithubSearchCode,
   'github-list_issues': reduceGithubListIssues,
   'context7-query': reduceContext7Query,

@@ -60,6 +60,8 @@ interface CompressionStats {
   wasCompressed: boolean
   summarizationRatio: number
   cacheHit: boolean
+  strippedBytes?: number
+  strippedReason?: string
 }
 
 // LRU cache for deduplication — keeps last N tool calls
@@ -339,11 +341,20 @@ export async function redQueenCompress(
   }
 
   // Step 1.5: Deterministic tool-specific reduction
+  const originalReducerSize = getContentSizeEstimate(content)
   const reducedContent = applyToolReducer(content, tool)
   if (reducedContent !== content) {
     const reducedSize = getContentSizeEstimate(reducedContent)
-    stats.tokensSaved += Math.max(0, getContentSizeEstimate(content) - reducedSize)
+    const bytesSaved = originalReducerSize - reducedSize
+    stats.tokensSaved += Math.max(0, bytesSaved)
     stats.wasCompressed = true
+
+    // Track aggressive reduction (>70% stripped)
+    if (bytesSaved > originalReducerSize * 0.7) {
+      stats.strippedBytes = bytesSaved
+      stats.strippedReason = `tool-reduction/${tool}`
+    }
+
     logCompressionEvent('reduced', server, tool, stats)
     content = reducedContent
   }
@@ -352,10 +363,19 @@ export async function redQueenCompress(
   if (enableFiltering) {
     const maxItems = getMaxItems(tool)
     if (maxItems > 0) {
+      const filterOriginalSize = getContentSizeEstimate(content)
       const filtered = extractAndFilterResults(content, tool, maxItems)
       if (filtered !== content) {
+        const filterSize = getContentSizeEstimate(filtered)
+        const bytesRemoved = filterOriginalSize - filterSize
         stats.filteredItems = 1
         stats.wasCompressed = true
+
+        // Track aggressive filtering (>60% removed)
+        if (bytesRemoved > filterOriginalSize * 0.6) {
+          stats.strippedBytes = (stats.strippedBytes ?? 0) + bytesRemoved
+          stats.strippedReason = (stats.strippedReason ? stats.strippedReason + '; ' : '') + `filtering/${tool}`
+        }
       }
       content = filtered
       // Cache the filtered result
@@ -410,6 +430,16 @@ export async function redQueenCompress(
     logCompressionEvent('over_budget', server, tool, stats)
   }
 
+  // Final summary: disclosure of all stripping/aggressive reduction
+  if (stats.strippedBytes && stats.strippedBytes > 1024) {
+    if (REDQUEEN_DEBUG) {
+      console.error(
+        `[RedQueen DISCLOSURE] ${tool}: Removed ${Math.round(stats.strippedBytes / 1024)}KB of content ` +
+        `(${stats.strippedReason}). Ensure this is intentional.`,
+      )
+    }
+  }
+
   return { content, stats }
 }
 
@@ -420,10 +450,13 @@ function logCompressionEvent(
   stats: CompressionStats,
 ): void {
   if (REDQUEEN_DEBUG) {
+    const stripped = stats.strippedBytes
+      ? ` [STRIPPED: ${Math.round(stats.strippedBytes / 1024)}KB (${stats.strippedReason})]`
+      : ''
     console.error(
       `[RedQueen] ${reason} | server=${server} tool=${tool} ` +
       `tokensSaved=${stats.tokensSaved} dedup=${stats.dedupHits} filtered=${stats.filteredItems} ` +
-      `cacheHit=${stats.cacheHit} compression=${stats.summarizationRatio.toFixed(0)}%`,
+      `cacheHit=${stats.cacheHit} compression=${stats.summarizationRatio.toFixed(0)}%${stripped}`,
     )
   }
   logEvent('redqueen_mcp_tool_compressed', {
