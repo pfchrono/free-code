@@ -1,0 +1,14 @@
+- [feedback-saver-hooks](feedback_saver-hooks.md) — Save memory mid-session when user invokes memory hook
+- [feedback-stop-hook](feedback-stop-hook.md) — /stop hook triggers auto-save checkpoint
+- [mcp-config-location](mcp-config-location.md) — MCP servers in ~\.claude.json not .mcp.json
+- [mcp-server-setup](mcp-server-setup.md) — .mcp.json restart requirement, server formats
+- [bug-commitstandard-missing](bug_commitstandard-missing.md) — commitStandard missing from COMMANDS() despite being imported
+- [commands-stub-hunting](feedback-commands-untrusted.md) — Stubs vs complete commands, Read fails on stubs
+- [slash-commands](slash-commands.md) — /commit-standard exists as slash command, but undercover mode is internal utility, NOT slash command
+- [feedback-slash-commands](feedback-slash-commands.md) — Verify slash commands against commands.ts, don't trust memory without checking
+- [feedback-devbar-ant-feature-flags](feedback-devbar-ant-feature-flags.md) — ANT flags use process.env.USER_TYPE === 'ant', not literal string comparison
+- [feedback-build-checks](feedback_build_checks.md) — Build verification: use `bun run ./scripts/build.ts`, skip `tsc --noEmit` (bundler moduleResolution causes false failures)
+- [free-code-repo](project-free-code-repo.md) — Free Code CLI on Claude Code codebase, ANT feature flags via USER_TYPE env
+- [mcp-token-monitor-stats](mcp-token-monitor-stats.md) — Token monitor returns zeros until API calls recorded
+- [mcp-code-summarizer-working](mcp-code-summarizer-working.md) — Code summarizer operational, 76% compression
+- [feedback-claude-md-code-summarizer](feedback-claude-md-code-summarizer.md) — CLAUDE.md observability section (lines 142-145) describes non-existent APIs, needs update
