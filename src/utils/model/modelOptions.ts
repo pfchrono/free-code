@@ -616,6 +616,47 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
     return payg1POptions
   }
 
+  // MiniMax: show the actual MiniMax model catalog
+  if (getAPIProvider() === 'minimax') {
+    return [
+      {
+        value: 'MiniMax-M2.7',
+        label: 'MiniMax-M2.7',
+        description: '204.8K context, ~60 tps',
+      },
+      {
+        value: 'MiniMax-M2.7-highspeed',
+        label: 'MiniMax-M2.7-highspeed',
+        description: '204.8K context, ~100 tps',
+      },
+      {
+        value: 'MiniMax-M2.5',
+        label: 'MiniMax-M2.5',
+        description: '204.8K context, ~60 tps',
+      },
+      {
+        value: 'MiniMax-M2.5-highspeed',
+        label: 'MiniMax-M2.5-highspeed',
+        description: '204.8K context, ~100 tps',
+      },
+      {
+        value: 'MiniMax-M2.1',
+        label: 'MiniMax-M2.1',
+        description: '204.8K context, ~60 tps',
+      },
+      {
+        value: 'MiniMax-M2.1-highspeed',
+        label: 'MiniMax-M2.1-highspeed',
+        description: '204.8K context, ~100 tps',
+      },
+      {
+        value: 'MiniMax-M2',
+        label: 'MiniMax-M2',
+        description: '204.8K context, agentic',
+      },
+    ]
+  }
+
   // PAYG 3P: Default (Sonnet 4.5) + Sonnet (3P custom) or Sonnet 4.6/1M + Opus (3P custom) or Opus 4.1/Opus 4.6/Opus1M + Haiku + Opus 4.1
   const payg3pOptions = [getDefaultOptionForUser(fastMode)]
 

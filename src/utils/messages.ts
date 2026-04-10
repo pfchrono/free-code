@@ -4317,7 +4317,7 @@ function createToolResultMessage<Output>(
         ? `${tool.name} result:`
         : `Result of calling the ${tool.name} tool:`
     return createUserMessage({
-      content: `${prefix}\n${contentStr}`,
+      content: compactCavemanText(`${prefix}\n${contentStr}`),
       isMeta: true,
     })
   } catch {

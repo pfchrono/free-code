@@ -4,7 +4,7 @@ import type { SDKMessage } from '../entrypoints/agentSdkTypes.js'
 import type {
   SDKControlPermissionRequest,
   StdoutMessage,
-} from '../entrypoints/sdk/controlTypes.js'
+} from '../entrypoints/sdk/controlSchemas.js'
 import type { RemotePermissionResponse } from '../remote/RemoteSessionManager.js'
 import { logForDebugging } from '../utils/debug.js'
 import { jsonParse, jsonStringify } from '../utils/slowOperations.js'

@@ -109,7 +109,7 @@ export async function directRenderAndRun(_root: Root, element: React.ReactNode):
   await gracefulShutdown(0);
 }
 export async function showSetupScreens(root: Root, permissionMode: PermissionMode, allowDangerouslySkipPermissions: boolean, commands?: Command[], claudeInChrome?: boolean, devChannels?: ChannelEntry[]): Promise<boolean> {
-  if ("production" === 'test' || isEnvTruthy(false) || process.env.IS_DEMO // Skip onboarding in demo mode
+  if (process.env.NODE_ENV === 'test' || isEnvTruthy(false) || process.env.IS_DEMO // Skip onboarding in demo mode
   ) {
     return false;
   }

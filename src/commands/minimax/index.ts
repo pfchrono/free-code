@@ -6,7 +6,7 @@ const minimax = {
   description:
     'Store a repo-local MiniMax provider preference for future free-code launches',
   immediate: true,
-  argumentHint: '[status|models|off|<api-key>]',
+  argumentHint: '[status|models|usage|off|<api-key>]',
   load: () => import('./minimax.js'),
 } satisfies Command
 

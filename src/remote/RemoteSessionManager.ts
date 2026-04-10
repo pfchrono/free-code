@@ -4,7 +4,7 @@ import type {
   SDKControlPermissionRequest,
   SDKControlRequest,
   SDKControlResponse,
-} from '../entrypoints/sdk/controlTypes.js'
+} from '../entrypoints/sdk/controlSchemas.js'
 import { logForDebugging } from '../utils/debug.js'
 import { logError } from '../utils/log.js'
 import {

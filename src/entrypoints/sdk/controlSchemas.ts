@@ -661,3 +661,22 @@ export const StdinMessageSchema = lazySchema(() =>
     SDKUpdateEnvironmentVariablesMessageSchema(),
   ]),
 )
+
+// ============================================================================
+// Type Exports
+// ============================================================================
+
+export type SDKControlRequestInner = z.infer<
+  ReturnType<typeof SDKControlRequestInnerSchema>
+>
+export type SDKControlRequest = z.infer<
+  ReturnType<typeof SDKControlRequestSchema>
+>
+export type SDKControlResponse = z.infer<
+  ReturnType<typeof SDKControlResponseSchema>
+>
+export type SDKControlCancelRequest = z.infer<
+  ReturnType<typeof SDKControlCancelRequestSchema>
+>
+export type StdoutMessage = z.infer<ReturnType<typeof StdoutMessageSchema>>
+export type StdinMessage = z.infer<ReturnType<typeof StdinMessageSchema>>

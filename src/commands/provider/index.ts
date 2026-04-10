@@ -1,9 +1,11 @@
-import type { Command } from '../../types/command.js'
+import type { Command } from '../../commands.js'
 
 const provider = {
   type: 'local-jsx',
   name: 'provider',
-  description: 'Show or update the active API provider',
+  description: 'Manage AI provider profiles (OpenAI, Ollama, Gemini, custom)',
+  argumentHint: '[status|set <type>|discover|clear]',
+  immediate: true,
   load: () => import('./provider.js'),
 } satisfies Command
 

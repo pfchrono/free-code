@@ -19,7 +19,10 @@ import type {
 export type {
   SDKControlRequest,
   SDKControlResponse,
-} from './sdk/controlTypes.js'
+  SDKControlCancelRequest,
+  StdoutMessage,
+  StdinMessage,
+} from './sdk/controlSchemas.js'
 // Re-export core types (common serializable types)
 export * from './sdk/coreTypes.js'
 // Re-export runtime types (callbacks, interfaces with methods)

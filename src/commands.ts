@@ -12,6 +12,7 @@ import commit from './commands/commit.js'
 import copy from './commands/copy/index.js'
 import desktop from './commands/desktop/index.js'
 import commitPushPr from './commands/commit-push-pr.js'
+import commitStandard from './commands/commit-standard.js'
 import compact from './commands/compact/index.js'
 import config from './commands/config/index.js'
 import { context, contextNonInteractive } from './commands/context/index.js'
@@ -181,6 +182,9 @@ import openrouter from './commands/openrouter/index.ts'
 import lmstudio from './commands/lmstudio/index.ts'
 import zen from './commands/zen/index.ts'
 import minimax from './commands/minimax/index.ts'
+import provider from './commands/provider/index.ts'
+import sidebar from './commands/sidebar/index.ts'
+import palette from './commands/palette/index.ts'
 import cavemanMode from './commands/caveman-mode/index.ts'
 import dependencyGraph from './commands/dependency-graph/index.ts'
 import tag from './commands/tag/index.js'
@@ -276,6 +280,7 @@ const COMMANDS = memoize((): Command[] => [
   chrome,
   clear,
   color,
+  commitStandard,
   compact,
   config,
   copy,
@@ -351,6 +356,9 @@ const COMMANDS = memoize((): Command[] => [
   privacySettings,
   hooks,
   exportCommand,
+  provider,
+  sidebar,
+  palette,
   sandboxToggle,
   ...(!isUsing3PServices() ? [logout, login()] : []),
   passes,

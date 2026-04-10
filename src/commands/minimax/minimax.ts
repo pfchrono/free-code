@@ -1,3 +1,4 @@
+import chalk from 'chalk'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
@@ -8,7 +9,7 @@ import type {
   LocalJSXCommandContext,
   LocalJSXCommandOnDone,
 } from '../../types/command.js'
-import { getAPIProvider } from '../../utils/model/providers.js'
+import { getAPIProvider, setRuntimeProvider } from '../../utils/model/providers.js'
 import {
   getSettingsForSource,
   updateSettingsForSource,
@@ -20,7 +21,6 @@ type StoredApiProvider = 'firstParty' | 'minimax'
 const DISABLE_ARGS = new Set(['off', 'disable', 'disabled', 'reset'])
 const ENABLE_ARGS = new Set(['', 'on', 'enable', 'enabled'])
 
-// Known MiniMax models from https://platform.minimax.io/docs/api-reference/text-anthropic-api
 const MINIMAX_MODELS = [
   { id: 'MiniMax-M2.7', context: '204.8K', speed: '~60 tps' },
   { id: 'MiniMax-M2.7-highspeed', context: '204.8K', speed: '~100 tps' },
@@ -36,8 +36,9 @@ function getStoredProvider(): StoredApiProvider | null {
   return value === 'minimax' || value === 'firstParty' ? value : null
 }
 
-function buildStatusMessage(storedProvider: StoredApiProvider | null): string {
-  const activeProvider = getAPIProvider()
+async function buildStatusMessage(): Promise<string> {
+  const activeProvider = await getAPIProvider()
+  const storedProvider = getStoredProvider()
   const storedText = storedProvider
     ? `Repo-local provider preference: ${storedProvider}.`
     : 'Repo-local provider preference: none.'
@@ -58,7 +59,7 @@ function buildStatusMessage(storedProvider: StoredApiProvider | null): string {
   const timeoutMin = Math.round(parseInt(timeoutMs, 10) / 60000)
 
   return [
-    `${storedText} Current session provider: ${activeProvider}. Changes from /minimax apply on the next launch.`,
+    `${storedText} Current session provider: ${activeProvider}.`,
     keyText,
     regionNote,
     ` Endpoint: ${endpoint}.`,
@@ -69,7 +70,7 @@ function buildStatusMessage(storedProvider: StoredApiProvider | null): string {
 }
 
 function usage(): string {
-  return 'Usage: /minimax [status|models|off|<api-key>]'
+  return 'Usage: /minimax [status|models|usage|off|<api-key>]'
 }
 
 export async function call(
@@ -81,7 +82,7 @@ export async function call(
   const normalizedArg = trimmedArgs.toLowerCase()
 
   if (normalizedArg === 'status') {
-    onDone(buildStatusMessage(getStoredProvider()), { display: 'system' })
+    onDone(await buildStatusMessage(), { display: 'system' })
     return null
   }
 
@@ -101,17 +102,8 @@ export async function call(
   }
 
   if (DISABLE_ARGS.has(normalizedArg)) {
-    const result = updateSettingsForSource('projectSettings', {
-      apiProvider: 'firstParty',
-    })
-
-    if (result.error) {
-      onDone(
-        `Failed to update repo-local provider preference: ${result.error.message}`,
-        { display: 'system' },
-      )
-      return null
-    }
+    setRuntimeProvider('firstParty')
+    updateSettingsForSource('projectSettings', { apiProvider: 'firstParty' })
 
     logEvent('tengu_api_provider_preference_changed', {
       provider: 'firstParty' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -124,17 +116,17 @@ export async function call(
 
     if (localSettingsResult.error) {
       onDone(
-        `Stored repo-local first-party mode, but failed to clear repo-local MiniMax key: ${localSettingsResult.error.message}`,
+        `Switched to ${chalk.bold('first-party mode')}, but failed to clear repo-local MiniMax key: ${localSettingsResult.error.message}`,
         { display: 'system' },
       )
       return null
     }
 
     onDone(
-      'Stored repo-local first-party mode in .claude/settings.json and cleared any repo-local MiniMax key from .claude/settings.local.json. This session must end now to avoid mixed provider state. Restart free-code in this repo to continue with first-party mode. Use /minimax status after relaunch to confirm.',
+      `Switched to ${chalk.bold('first-party mode')}. Changes apply immediately.`,
       { display: 'system' },
     )
-    process.exit(0)
+    return null
   }
 
   // /minimax on or /minimax (no arg) — require a key to be set
@@ -168,11 +160,13 @@ export async function call(
       source: 'minimax_command' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     })
 
+    setRuntimeProvider('minimax')
+
     onDone(
-      'Stored repo-local MiniMax mode in .claude/settings.json. This session must end now to avoid mixed provider state. Restart free-code in this repo with MINIMAX_API_KEY set to continue with MiniMax. Use /minimax status after relaunch to confirm.',
+      `Switched to ${chalk.bold('MiniMax')}. Changes apply immediately.`,
       { display: 'system' },
     )
-    process.exit(0)
+    return null
   }
 
   if (trimmedArgs.includes(' ')) {
@@ -181,17 +175,7 @@ export async function call(
   }
 
   // Treat single-word arg as API key
-  const result = updateSettingsForSource('projectSettings', {
-    apiProvider: 'minimax',
-  })
-
-  if (result.error) {
-    onDone(
-      `Failed to update repo-local provider preference: ${result.error.message}`,
-      { display: 'system' },
-    )
-    return null
-  }
+  updateSettingsForSource('projectSettings', { apiProvider: 'minimax' })
 
   const localSettingsResult = updateSettingsForSource('localSettings', {
     minimaxApiKey: trimmedArgs,
@@ -206,6 +190,7 @@ export async function call(
   }
 
   process.env.MINIMAX_API_KEY = trimmedArgs
+  setRuntimeProvider('minimax')
 
   logEvent('tengu_api_provider_preference_changed', {
     provider: 'minimax' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -213,7 +198,7 @@ export async function call(
   })
 
   onDone(
-    'Stored repo-local MiniMax mode in .claude/settings.json and saved the API key in .claude/settings.local.json for this repo. Restart free-code in this repo to use the persisted key, or continue in this session with the loaded key. Use /minimax status to confirm.',
+    `Switched to ${chalk.bold('MiniMax')} with API key. Changes apply immediately.`,
     { display: 'system' },
   )
   return null

@@ -1,8 +1,8 @@
+import chalk from 'chalk'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
 } from '../../services/analytics/index.js'
-import process from 'process'
 import type { ToolUseContext } from '../../Tool.js'
 import type {
   LocalJSXCommandContext,
@@ -12,7 +12,7 @@ import {
   getCopilotModels,
   probeCopilotChatCompletionsModels,
 } from '../../services/api/copilot-client.js'
-import { getAPIProvider } from '../../utils/model/providers.js'
+import { getAPIProvider, setRuntimeProvider } from '../../utils/model/providers.js'
 import {
   getSettingsForSource,
   updateSettingsForSource,
@@ -28,13 +28,14 @@ function getStoredProvider(): StoredApiProvider | null {
   return value === 'copilot' || value === 'firstParty' ? value : null
 }
 
-function buildStatusMessage(storedProvider: StoredApiProvider | null): string {
+function buildStatusMessage(): string {
   const activeProvider = getAPIProvider()
+  const storedProvider = getStoredProvider()
   const storedText = storedProvider
     ? `Repo-local provider preference: ${storedProvider}.`
     : 'Repo-local provider preference: none.'
 
-  return `${storedText} Current session provider: ${activeProvider}. Changes from /copilot apply on the next launch.`
+  return `${storedText} Current session provider: ${activeProvider}.`
 }
 
 export async function call(
@@ -45,7 +46,7 @@ export async function call(
   const normalizedArg = args.trim().toLowerCase()
 
   if (normalizedArg === 'status') {
-    onDone(buildStatusMessage(getStoredProvider()), { display: 'system' })
+    onDone(buildStatusMessage(), { display: 'system' })
     return null
   }
 
@@ -115,17 +116,9 @@ export async function call(
   const nextProvider: StoredApiProvider = DISABLE_ARGS.has(normalizedArg)
     ? 'firstParty'
     : 'copilot'
-  const result = updateSettingsForSource('projectSettings', {
-    apiProvider: nextProvider,
-  })
 
-  if (result.error) {
-    onDone(
-      `Failed to update repo-local provider preference: ${result.error.message}`,
-      { display: 'system' },
-    )
-    return null
-  }
+  setRuntimeProvider(nextProvider)
+  updateSettingsForSource('projectSettings', { apiProvider: nextProvider })
 
   logEvent('tengu_api_provider_preference_changed', {
     provider: nextProvider as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -135,15 +128,15 @@ export async function call(
 
   if (nextProvider === 'copilot') {
     onDone(
-      'Stored repo-local GitHub Copilot mode in .claude/settings.json. This session must end now to avoid mixed provider state. Restart free-code in this repo to continue with Copilot. Use /copilot status after relaunch to confirm.',
+      `Switched to ${chalk.bold('GitHub Copilot')}. Changes apply immediately.`,
       { display: 'system' },
     )
-    process.exit(0)
+    return null
   }
 
   onDone(
-    'Stored repo-local first-party mode in .claude/settings.json. This session must end now to avoid mixed provider state. Restart free-code in this repo to continue with first-party mode. Use /copilot status after relaunch to confirm.',
+    `Switched to ${chalk.bold('first-party mode')}. Changes apply immediately.`,
     { display: 'system' },
   )
-  process.exit(0)
+  return null
 }

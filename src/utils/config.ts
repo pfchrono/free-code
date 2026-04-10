@@ -226,6 +226,7 @@ export type GlobalConfig = {
   hasSeenUndercoverAutoNotice?: boolean // ant-only: whether the one-time auto-undercover explainer has been shown
   hasSeenUltraplanTerms?: boolean // ant-only: whether the one-time CCR terms notice has been shown in the ultraplan launch dialog
   hasResetAutoModeOptInForDefaultOffer?: boolean // ant-only: one-shot migration guard, re-prompts churned auto-mode users
+  hasSeenAntModelSwitchCallout?: boolean // ant-only: whether the one-time ant model switch callout has been shown
   oauthAccount?: AccountInfo
 
   /**

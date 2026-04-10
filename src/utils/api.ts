@@ -168,6 +168,14 @@ export async function toolToAPISchema(
       input_schema = filterSwarmFieldsFromSchema(tool.name, input_schema)
     }
 
+    // Normalize schema: deduplicate required array to satisfy Anthropic API
+    if (input_schema.required && Array.isArray(input_schema.required)) {
+      const unique = [...new Set(input_schema.required)]
+      if (unique.length !== input_schema.required.length) {
+        input_schema = { ...input_schema, required: unique }
+      }
+    }
+
     base = {
       name: tool.name,
       description: await tool.prompt({

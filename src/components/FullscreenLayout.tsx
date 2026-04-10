@@ -46,6 +46,8 @@ type Props = {
    *  ScrollBox AND bottom slot. Provides ModalContext so Pane/Dialog inside
    *  skip their own frame. Fullscreen only; inline after overlay otherwise. */
   modal?: ReactNode;
+  /** Sidebar content rendered alongside the main content */
+  sidebar?: ReactNode;
   /** Ref passed via ModalContext so Tabs (or any scroll-owning descendant)
    *  can attach it to their own ScrollBox for tall content. */
   modalScrollRef?: React.RefObject<ScrollBoxHandle | null>;

@@ -6,7 +6,7 @@ import type {
   SDKControlRequest,
   SDKControlRequestInner,
   SDKControlResponse,
-} from '../entrypoints/sdk/controlTypes.js'
+} from '../entrypoints/sdk/controlSchemas.js'
 import { logForDebugging } from '../utils/debug.js'
 import { errorMessage } from '../utils/errors.js'
 import { logError } from '../utils/log.js'

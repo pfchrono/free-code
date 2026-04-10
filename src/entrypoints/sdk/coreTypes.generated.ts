@@ -75,13 +75,50 @@ export type SDKPartialAssistantMessage = SDKBaseMessage & {
   delta?: string
 }
 
-export type SDKResultMessage = SDKBaseMessage & {
-  type: 'result'
-  is_error?: boolean
-  result?: string
-  duration_ms?: number
-  total_cost_usd?: number
+export type SDKPermissionDenialEntry = {
+  tool_name: string
+  tool_use_id: string
+  tool_input: Record<string, unknown>
 }
+
+export type SDKResultSuccess = SDKBaseMessage & {
+  type: 'result'
+  subtype: 'success'
+  duration_ms: number
+  duration_api_ms: number
+  is_error: boolean
+  num_turns: number
+  result: string
+  stop_reason: string | null
+  total_cost_usd: number
+  usage: Record<string, unknown>
+  modelUsage: Record<string, ModelUsage>
+  permission_denials: SDKPermissionDenialEntry[]
+  structured_output?: unknown
+  fast_mode_state?: unknown
+}
+
+export type SDKResultError = SDKBaseMessage & {
+  type: 'result'
+  subtype:
+    | 'error_during_execution'
+    | 'error_max_turns'
+    | 'error_max_budget_usd'
+    | 'error_max_structured_output_retries'
+  duration_ms: number
+  duration_api_ms: number
+  is_error: boolean
+  num_turns: number
+  stop_reason: string | null
+  total_cost_usd: number
+  usage: Record<string, unknown>
+  modelUsage: Record<string, ModelUsage>
+  permission_denials: SDKPermissionDenialEntry[]
+  errors: string[]
+  fast_mode_state?: unknown
+}
+
+export type SDKResultMessage = SDKResultSuccess | SDKResultError
 
 export type SDKStatusMessage = SDKBaseMessage & {
   type: 'status'

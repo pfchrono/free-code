@@ -1,3 +1,4 @@
+import chalk from 'chalk'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
@@ -8,7 +9,7 @@ import type {
   LocalJSXCommandContext,
   LocalJSXCommandOnDone,
 } from '../../types/command.js'
-import { getAPIProvider } from '../../utils/model/providers.js'
+import { getAPIProvider, setRuntimeProvider } from '../../utils/model/providers.js'
 import {
   getSettingsForSource,
   updateSettingsForSource,
@@ -29,8 +30,9 @@ function getStoredProvider(): StoredApiProvider | null {
   return value === 'openrouter' || value === 'firstParty' ? value : null
 }
 
-function buildStatusMessage(storedProvider: StoredApiProvider | null): string {
+function buildStatusMessage(): string {
   const activeProvider = getAPIProvider()
+  const storedProvider = getStoredProvider()
   const storedText = storedProvider
     ? `Repo-local provider preference: ${storedProvider}.`
     : 'Repo-local provider preference: none.'
@@ -42,7 +44,7 @@ function buildStatusMessage(storedProvider: StoredApiProvider | null): string {
       ? ' OPENROUTER_API_KEY is stored in local settings for this repo.'
       : ' OPENROUTER_API_KEY is not set in this session.'
 
-  return `${storedText} Current session provider: ${activeProvider}. Changes from /openrouter apply on the next launch.${keyText}`
+  return `${storedText} Current session provider: ${activeProvider}.${keyText}`
 }
 
 function usage(): string {
@@ -58,7 +60,7 @@ export async function call(
   const normalizedArg = trimmedArgs.toLowerCase()
 
   if (normalizedArg === 'status') {
-    onDone(buildStatusMessage(getStoredProvider()), { display: 'system' })
+    onDone(buildStatusMessage(), { display: 'system' })
     return null
   }
 
@@ -106,17 +108,8 @@ export async function call(
   }
 
   if (DISABLE_ARGS.has(normalizedArg)) {
-    const result = updateSettingsForSource('projectSettings', {
-      apiProvider: 'firstParty',
-    })
-
-    if (result.error) {
-      onDone(
-        `Failed to update repo-local provider preference: ${result.error.message}`,
-        { display: 'system' },
-      )
-      return null
-    }
+    setRuntimeProvider('firstParty')
+    updateSettingsForSource('projectSettings', { apiProvider: 'firstParty' })
 
     logEvent('tengu_api_provider_preference_changed', {
       provider: 'firstParty' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -130,17 +123,17 @@ export async function call(
 
     if (localSettingsResult.error) {
       onDone(
-        `Stored repo-local first-party mode, but failed to clear repo-local OpenRouter key: ${localSettingsResult.error.message}`,
+        `Switched to ${chalk.bold('first-party mode')}, but failed to clear repo-local OpenRouter key: ${localSettingsResult.error.message}`,
         { display: 'system' },
       )
       return null
     }
 
     onDone(
-      'Stored repo-local first-party mode in .claude/settings.json and cleared any repo-local OpenRouter key from .claude/settings.local.json. This session must end now to avoid mixed provider state. Restart free-code in this repo to continue with first-party mode. Use /openrouter status after relaunch to confirm.',
+      `Switched to ${chalk.bold('first-party mode')}. Changes apply immediately.`,
       { display: 'system' },
     )
-    process.exit(0)
+    return null
   }
 
   if (!trimmedArgs || ENABLE_ARGS.has(normalizedArg)) {
@@ -152,17 +145,8 @@ export async function call(
       return null
     }
 
-    const result = updateSettingsForSource('projectSettings', {
-      apiProvider: 'openrouter',
-    })
-
-    if (result.error) {
-      onDone(
-        `Failed to update repo-local provider preference: ${result.error.message}`,
-        { display: 'system' },
-      )
-      return null
-    }
+    setRuntimeProvider('openrouter')
+    updateSettingsForSource('projectSettings', { apiProvider: 'openrouter' })
 
     logEvent('tengu_api_provider_preference_changed', {
       provider: 'openrouter' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -171,10 +155,10 @@ export async function call(
     })
 
     onDone(
-      'Stored repo-local OpenRouter mode in .claude/settings.json. This session must end now to avoid mixed provider state. Restart free-code in this repo with OPENROUTER_API_KEY set to continue with OpenRouter. Use /openrouter status after relaunch to confirm.',
+      `Switched to ${chalk.bold('OpenRouter')}. Changes apply immediately.`,
       { display: 'system' },
     )
-    process.exit(0)
+    return null
   }
 
   if (trimmedArgs.includes(' ')) {
@@ -182,17 +166,7 @@ export async function call(
     return null
   }
 
-  const result = updateSettingsForSource('projectSettings', {
-    apiProvider: 'openrouter',
-  })
-
-  if (result.error) {
-    onDone(
-      `Failed to update repo-local provider preference: ${result.error.message}`,
-      { display: 'system' },
-    )
-    return null
-  }
+  updateSettingsForSource('projectSettings', { apiProvider: 'openrouter' })
 
   const localSettingsResult = updateSettingsForSource('localSettings', {
     openrouterApiKey: trimmedArgs,
@@ -207,6 +181,7 @@ export async function call(
   }
 
   process.env.OPENROUTER_API_KEY = trimmedArgs
+  setRuntimeProvider('openrouter')
 
   logEvent('tengu_api_provider_preference_changed', {
     provider: 'openrouter' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -215,7 +190,7 @@ export async function call(
   })
 
   onDone(
-    'Stored repo-local OpenRouter mode in .claude/settings.json and saved the API key in .claude/settings.local.json for this repo. Restart free-code in this repo to use the persisted key, or continue in this session with the loaded key. Use /openrouter status to confirm.',
+    `Switched to ${chalk.bold('OpenRouter')} with API key. Changes apply immediately.`,
     { display: 'system' },
   )
   return null

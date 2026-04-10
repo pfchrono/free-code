@@ -1,3 +1,4 @@
+import chalk from 'chalk'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
@@ -8,7 +9,7 @@ import type {
   LocalJSXCommandContext,
   LocalJSXCommandOnDone,
 } from '../../types/command.js'
-import { getAPIProvider } from '../../utils/model/providers.js'
+import { getAPIProvider, setRuntimeProvider } from '../../utils/model/providers.js'
 import {
   getSettingsForSource,
   updateSettingsForSource,
@@ -24,13 +25,14 @@ function getStoredProvider(): StoredApiProvider | null {
   return value === 'zen' || value === 'firstParty' ? value : null
 }
 
-function buildStatusMessage(storedProvider: StoredApiProvider | null): string {
+function buildStatusMessage(): string {
   const activeProvider = getAPIProvider()
+  const storedProvider = getStoredProvider()
   const storedText = storedProvider
     ? `Repo-local provider preference: ${storedProvider}.`
     : 'Repo-local provider preference: none.'
 
-  return `${storedText} Current session provider: ${activeProvider}. Changes from /zen apply on the next launch.`
+  return `${storedText} Current session provider: ${activeProvider}.`
 }
 
 export async function call(
@@ -41,7 +43,7 @@ export async function call(
   const normalizedArg = args.trim().toLowerCase()
 
   if (normalizedArg === 'status') {
-    onDone(buildStatusMessage(getStoredProvider()), { display: 'system' })
+    onDone(buildStatusMessage(), { display: 'system' })
     return null
   }
 
@@ -98,17 +100,9 @@ export async function call(
   const nextProvider: StoredApiProvider = DISABLE_ARGS.has(normalizedArg)
     ? 'firstParty'
     : 'zen'
-  const result = updateSettingsForSource('projectSettings', {
-    apiProvider: nextProvider,
-  })
 
-  if (result.error) {
-    onDone(
-      `Failed to update repo-local provider preference: ${result.error.message}`,
-      { display: 'system' },
-    )
-    return null
-  }
+  setRuntimeProvider(nextProvider)
+  updateSettingsForSource('projectSettings', { apiProvider: nextProvider })
 
   logEvent('tengu_api_provider_preference_changed', {
     provider: nextProvider as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
@@ -117,15 +111,15 @@ export async function call(
 
   if (nextProvider === 'zen') {
     onDone(
-      'Stored repo-local OpenCode Zen mode in .claude/settings.json. This session must end now to avoid mixed provider state. Restart free-code in this repo to continue with Zen. Use /zen status after relaunch to confirm.',
+      `Switched to ${chalk.bold('OpenCode Zen')}. Changes apply immediately.`,
       { display: 'system' },
     )
-    process.exit(0)
+    return null
   }
 
   onDone(
-    'Stored repo-local first-party mode in .claude/settings.json. This session must end now to avoid mixed provider state. Restart free-code in this repo to continue with first-party mode. Use /zen status after relaunch to confirm.',
+    `Switched to ${chalk.bold('first-party mode')}. Changes apply immediately.`,
     { display: 'system' },
   )
-  process.exit(0)
+  return null
 }

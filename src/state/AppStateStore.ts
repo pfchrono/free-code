@@ -451,9 +451,12 @@ export type AppState = DeepImmutable<{
   // Always-on bridge: permission callbacks for bidirectional permission checks
   replBridgePermissionCallbacks?: BridgePermissionCallbacks
   // Channel permission callbacks — permission prompts over Telegram/iMessage/etc.
-  // Races against local UI + bridge + hooks + classifier via claim() in
+  // Races against local UI + bridge + classifier via claim() in
   // interactiveHandler.ts. Constructed once in useManageMCPConnections.
   channelPermissionCallbacks?: ChannelPermissionCallbacks
+  // Collapsible sidebar
+  sidebarOpen?: boolean
+  sidebarWidth?: number
 }
 
 export type AppStateStore = Store<AppState>
@@ -571,5 +574,7 @@ export function getDefaultAppState(): AppState {
     effortValue: undefined,
     activeOverlays: new Set<string>(),
     fastMode: false,
+    sidebarOpen: false,
+    sidebarWidth: 40,
   }
 }
