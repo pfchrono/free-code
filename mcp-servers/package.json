@@ -1,0 +1,14 @@
+{
+  "name": "free-code-mcp-servers",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Collection of MCP servers for token monitoring and code analysis",
+  "workspaces": [
+    "token-monitor",
+    "code-summarizer"
+  ],
+  "scripts": {
+    "build": "npm run build -w token-monitor && npm run build -w code-summarizer",
+    "dev": "npm run dev -w token-monitor & npm run dev -w code-summarizer"
+  }
+}
