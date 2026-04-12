@@ -105,7 +105,8 @@ Recent updates added full provider workflow improvements across startup, auth, c
 - Added startup provider override handling from `.claude/settings.json`
 - Added Windows install guidance and launcher flow in `install.ps1`
 - Fixed `install.ps1 -Dev` to resolve the dev binary from `dist/` only
-- Added ignore coverage for `.claude/settings.local.json` and `.claude/worktrees/`
+- Added ignore coverage for `.claude/settings.local.json`, `.claude/worktrees/`, and OpenSpec temp artifacts
+- Added OpenSpec change set for status snapshots, session memory persistence, and compaction inspectability
 
 Provider preference changes are repo-local and apply on the next launch.
 
@@ -130,6 +131,16 @@ pwsh -ExecutionPolicy Bypass -File .\install.ps1
 ```powershell
 pwsh -ExecutionPolicy Bypass -File .\install.ps1 -Dev
 ```
+
+### Local rebuild behavior
+
+`install.ps1` already handles local-checkout rebuilds. When the script is run from the repo root, it detects the local source tree, rebuilds `dist\cli(.exe)` or `dist\cli-dev(.exe)`, and refreshes the launchers in `%USERPROFILE%\.local\bin`.
+
+Important Windows note:
+
+- If `free-code.exe` is currently running, PowerShell may not be able to replace `%USERPROFILE%\.local\bin\free-code.exe` because the file is locked by the active process.
+- In that case the script still updates `free-code.cmd`, but the native `.exe` launcher may stay on the old binary until you exit the running session and rerun `install.ps1`.
+- So for a guaranteed binary refresh, exit `free-code` first, then run `install.ps1`.
 
 After install:
 

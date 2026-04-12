@@ -5,4 +5,7 @@ __pycache__/
 bun.lock
 .claude/worktrees/
 .claude/plugins/
+.openspec/
+openspec/tmp/
+@openspec*/
 
