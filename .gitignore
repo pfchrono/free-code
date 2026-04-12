@@ -21,3 +21,4 @@ temp-uncommitted/
 .openspec/
 openspec/tmp/
 @openspec*/
+gui/src-tauri/target/
