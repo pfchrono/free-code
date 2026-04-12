@@ -1,109 +1,102 @@
 # Free-Code MCP Servers
 
-Two real-time observability tools for token management and code analysis.
+Workspace containing:
+- `token-monitor` — token usage telemetry and anomaly signals
+- `code-summarizer` — code structure summarization, directory analysis, search, dependency graph
 
-## Token Monitor MCP
+## Build
 
-Real-time token usage tracking. Monitors per-request consumption, detects anomalies, identifies cache hits/misses.
+From `mcp-servers/`:
 
-**Tools:**
-- `record_token_event` — Log token usage for a completed request
-- `get_metrics` — Real-time metrics (avg tokens, peaks, RPS, cache hit rate, spike detection)
-- `get_request_stats` — Lookup specific request token data
+```bash
+npm install
+npm run build
+```
 
-**Usage:**
+Builds both workspaces:
+- `token-monitor/build/index.js`
+- `code-summarizer/build/index.js`
+
+## Install (Global Binaries)
+
+### Token Monitor
+
 ```bash
 cd token-monitor
 npm install
 npm run build
-node build/index.js
+npm install --global --prefix "$HOME/.local" --workspaces=false .
 ```
 
-**Integration:**
-Configure in `.mcp/servers.json`:
-```json
-{
-  "token-monitor": {
-    "command": "node",
-    "args": ["./mcp-servers/token-monitor/build/index.js"]
-  }
-}
-```
+Binary: `token-monitor`
 
-Then log events in code:
-```typescript
-// After API call completes
-await mcp.callTool('token-monitor', 'record_token_event', {
-  requestId: 'req-123',
-  inputTokens: 450,
-  outputTokens: 1200,
-  model: 'claude-opus-4-6',
-  duration: 2500,
-})
+### Code Summarizer
 
-// Get dashboard data
-const metrics = await mcp.callTool('token-monitor', 'get_metrics', {})
-```
-
-## Code Summarizer MCP
-
-Compress large code files. Extracts exports, functions, classes, interfaces with line references. Target: 20-30% reduction.
-
-**Tools:**
-- `summarize_file` — Analyze single file structure
-- `analyze_directory` — Batch analyze directory (first 10 files)
-
-**Usage:**
 ```bash
 cd code-summarizer
 npm install
 npm run build
-node build/index.js
+npm install --global --prefix "$HOME/.local" --workspaces=false .
 ```
 
-**Integration:**
+Binary: `code-summarizer`
+
+## MCP Config
+
+### Codex / Claude Code (`.mcp.json`)
+
 ```json
 {
-  "code-summarizer": {
-    "command": "node",
-    "args": ["./mcp-servers/code-summarizer/build/index.js"]
+  "mcpServers": {
+    "token-monitor": {
+      "command": "token-monitor",
+      "args": []
+    },
+    "code-summarizer": {
+      "command": "code-summarizer",
+      "args": []
+    }
   }
 }
 ```
 
-Example call:
-```typescript
-const summary = await mcp.callTool('code-summarizer', 'summarize_file', {
-  filePath: '/path/to/large-file.ts'
-})
-// Returns: file structure, exports, functions, compression ratio (~25-35%)
+If binaries are not on PATH, use absolute commands:
+- Unix/macOS: `~/.local/bin/token-monitor`, `~/.local/bin/code-summarizer`
+- Windows: `~/.local/token-monitor.cmd`, `~/.local/code-summarizer.cmd`
+
+### Claude Desktop (`claude_desktop_config.json`)
+
+```json
+{
+  "mcpServers": {
+    "token-monitor": {
+      "command": "token-monitor",
+      "args": []
+    },
+    "code-summarizer": {
+      "command": "code-summarizer",
+      "args": []
+    }
+  }
+}
 ```
 
-## Deployment
+### free-code CLI (`/mcp add`)
 
-1. **Build both servers:**
-   ```bash
-   npm run build -w mcp-servers/token-monitor
-   npm run build -w mcp-servers/code-summarizer
-   ```
+```bash
+free-code mcp add token-monitor token-monitor
+free-code mcp add code-summarizer code-summarizer
+```
 
-2. **Register with Claude Code:**
-   Update `.mcp/servers.json` with both server configs
+## Tool Summary
 
-3. **Start using:**
-   - Token Monitor: Track usage in real-time, detect budget risks
-   - Code Summarizer: Compress context before sending large files to APIs
+### token-monitor
+- `record_token_event`
+- `get_metrics`
+- `get_request_stats`
 
-## Architecture
-
-Both servers use the Model Context Protocol (MCP) and communicate via stdio. They maintain in-memory state and provide JSON outputs for integration with Claude Code workflows.
-
-**Token Monitor:**
-- 10k event history (circular buffer)
-- 60s baseline window for anomaly detection
-- 2x threshold for spike detection
-
-**Code Summarizer:**
-- Regex-based AST parsing (no dependencies)
-- Extracts signatures, ignores bodies
-- Per-file and directory-level analysis
+### code-summarizer
+- `summarize_file`
+- `analyze_directory`
+- `search_code`
+- `find_related_files`

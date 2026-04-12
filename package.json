@@ -6,8 +6,8 @@
   "type": "module",
   "packageManager": "bun@1.3.11",
   "bin": {
-    "free-code": "./cli",
-    "free-code-source": "./cli"
+    "free-code": "cli",
+    "free-code-source": "cli"
   },
   "engines": {
     "bun": ">=1.3.11"
@@ -25,7 +25,9 @@
     "compile:dev:full:no-telemetry": "bun run ./scripts/build.ts --compile --dev --feature-set=dev-full --no-telemetry",
     "dev": "bun run ./src/entrypoints/cli.tsx",
     "verify:no-phone-home": "bun run ./scripts/verify-no-phone-home.ts",
-    "verify:no-phone-home:compile": "bun run ./scripts/verify-no-phone-home.ts dist/cli"
+    "verify:no-phone-home:compile": "bun run ./scripts/verify-no-phone-home.ts dist/cli",
+    "test": "bun test",
+    "test:provider": "bun test ./src/utils/model/providers.test.ts"
   },
   "dependencies": {
     "@alcalzone/ansi-tokenize": "^0.3.0",
@@ -101,6 +103,7 @@
     "qrcode": "^1.5.4",
     "react": "^19.2.4",
     "react-compiler-runtime": "19.1.0-rc.3",
+    "react-devtools-core": "^7.0.1",
     "react-reconciler": "^0.33.0",
     "semver": "^7.7.4",
     "sharp": "^0.34.5",
@@ -127,5 +130,20 @@
   "devDependencies": {
     "@types/bun": "^1.3.11",
     "typescript": "^6.0.2"
-  }
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pfchrono/free-code.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/pfchrono/free-code/issues"
+  },
+  "homepage": "https://github.com/pfchrono/free-code#readme"
 }

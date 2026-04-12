@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
@@ -92,7 +93,7 @@ class TokenMonitor {
 
 const monitor = new TokenMonitor()
 
-const recordTokenEventSchema = z.object({
+const recordTokenEventSchema = {
   requestId: z.string().describe('Unique request identifier'),
   inputTokens: z.number().describe('Tokens in the input prompt'),
   outputTokens: z.number().describe('Tokens generated in response'),
@@ -100,24 +101,36 @@ const recordTokenEventSchema = z.object({
   cacheCreationTokens: z.number().optional().describe('Tokens created in cache (if applicable)'),
   model: z.string().describe('Model name (e.g. claude-opus-4-6)'),
   duration: z.number().describe('Request duration in milliseconds'),
-})
+}
 
-const getRequestStatsSchema = z.object({
+const getRequestStatsSchema = {
   requestId: z.string().describe('Request ID to look up'),
-})
+}
 
 const server = new McpServer({
   name: 'token-monitor',
-  version: '1.0.0',
+  version: '1.1.0',
 })
 
-server.registerTool(
+const registerTool = (
+  server as unknown as { registerTool: (...args: any[]) => unknown }
+).registerTool.bind(server) as (...args: any[]) => unknown
+
+registerTool(
   'record_token_event',
   {
     description: 'Record a token usage event for a completed request',
     inputSchema: recordTokenEventSchema,
   },
-  async args => {
+  async (args: {
+    requestId: string
+    inputTokens: number
+    outputTokens: number
+    cacheReadTokens?: number
+    cacheCreationTokens?: number
+    model: string
+    duration: number
+  }) => {
     const totalTokens =
       (args.inputTokens || 0) +
       (args.outputTokens || 0) +
@@ -147,11 +160,11 @@ server.registerTool(
   },
 )
 
-server.registerTool(
+registerTool(
   'get_metrics',
   {
     description: 'Get current token usage metrics and anomalies',
-    inputSchema: z.object({}),
+    inputSchema: {},
   },
   async () => {
     const metrics = monitor.getMetrics()
@@ -166,13 +179,13 @@ server.registerTool(
   },
 )
 
-server.registerTool(
+registerTool(
   'get_request_stats',
   {
     description: 'Get token stats for a specific request',
     inputSchema: getRequestStatsSchema,
   },
-  async args => {
+  async (args: { requestId: string }) => {
     const stats = monitor.getRequestStats(args.requestId)
     if (!stats) {
       return {

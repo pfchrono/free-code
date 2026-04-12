@@ -1,17 +1,20 @@
-import capitalize from 'lodash-es/capitalize.js'
-import Fuse from 'fuse.js'
-import * as React from 'react'
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Box, Text, useInput } from '../ink.js'
-import { useAppState, useSetAppState } from '../state/AppState.js'
-import { useExitOnCtrlCDWithKeybindings } from '../hooks/useExitOnCtrlCDWithKeybindings.js'
-import { useRegisterKeybindingContext } from '../keybindings/KeybindingContext.js'
-import { Select } from './CustomSelect/index.js'
-import { Pane } from './design-system/Pane.js'
-import type { APIProvider } from '../utils/model/providers.js'
-import { discoverOllama } from '../services/provider/index.js'
-import { recommendOllamaModel } from '../services/provider/recommendation.js'
-import { getFavoriteModels, getRecentModels, toggleFavorite, isFavorite, addToRecent } from '../utils/modelPreferences.js'
+import { c as _c } from "react/compiler-runtime";
+import Fuse from 'fuse.js';
+import * as React from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useStdout } from 'ink';
+import { useExitOnCtrlCDWithKeybindings } from '../hooks/useExitOnCtrlCDWithKeybindings.js';
+import { useRegisterKeybindingContext } from '../keybindings/KeybindingContext.js';
+import { Box, Text, useInput } from '../ink.js';
+import type { SelectProps } from './CustomSelect/select.js';
+import { useAppState } from '../state/AppState.js';
+import { Select } from './CustomSelect/index.js';
+import { Pane } from './design-system/Pane.js';
+import type { APIProvider } from '../utils/model/providers.js';
+import { discoverOllama } from '../services/provider/index.js';
+import { recommendOllamaModel } from '../services/provider/recommendation.js';
+import { getModelOptions, getModelPickerAvailabilitySummary } from '../utils/model/modelOptions.js';
+import { getFavoriteModels, getRecentModels, toggleFavorite, isFavorite, addToRecent } from '../utils/modelPreferences.js';
 
 export type ProviderOption = {
   value: APIProvider
@@ -83,7 +86,9 @@ export function ProviderPicker({
   initialProvider,
 }: ProviderPickerProps): React.ReactNode {
   useRegisterKeybindingContext('ProviderPicker', true)
-  useExitOnCtrlCDWithKeybindings(onCancel)
+  useExitOnCtrlCDWithKeybindings(undefined, () => { onCancel(); return true })
+  const { stdout } = useStdout()
+
   const currentProvider = useAppState(s => s.provider)
 
   const [focusedField, setFocusedField] = useState<'provider' | 'model'>('provider')
@@ -96,16 +101,11 @@ export function ProviderPicker({
   const [showOllama, setShowOllama] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const providerSelectRef = useRef<{ focus: () => void } | null>(null)
-  const modelSelectRef = useRef<{ focus: () => void } | null>(null)
-
-  useEffect(() => {
-    if (focusedField === 'provider' && providerSelectRef.current) {
-      providerSelectRef.current.focus()
-    } else if (focusedField === 'model' && modelSelectRef.current) {
-      modelSelectRef.current.focus()
-    }
-  }, [focusedField])
+  const selectKey = useMemo(() => {
+    return focusedField === 'provider'
+      ? `provider-${selectedProvider}`
+      : `model-${selectedProvider}-${selectedModel || 'default'}-${searchQuery}`
+  }, [focusedField, selectedProvider, selectedModel, searchQuery])
 
   const providerSelectOptions = useMemo(() => {
     return PROVIDER_OPTIONS.map(p => ({
@@ -116,20 +116,23 @@ export function ProviderPicker({
   }, [])
 
   const currentProviderModels = useMemo(() => {
-    const provider = PROVIDER_OPTIONS.find(p => p.value === selectedProvider)
-    if (!provider) return []
-
     if (showOllama && ollamaModels.length > 0) {
       return ollamaModels.map(m => ({ value: m, label: m }))
     }
 
-    return (provider.models ?? []).map(m => ({ value: m, label: m }))
+    return getModelOptions({ provider: selectedProvider }).map(m => ({
+      value: m.value ?? '',
+      label: m.label,
+      description: m.description,
+    }))
   }, [selectedProvider, showOllama, ollamaModels])
 
   const modelSelectOptions = useMemo(() => {
     return currentProviderModels.map(opt => ({
       ...opt,
-      description: isFavorite(selectedProvider, opt.value) ? '★ favorite' : undefined,
+      description: isFavorite(selectedProvider, opt.value)
+        ? '★ favorite'
+        : opt.description,
     }))
   }, [currentProviderModels, selectedProvider])
 
@@ -170,6 +173,12 @@ export function ProviderPicker({
         }
       }
       setLoadingModels(false)
+      return
+    }
+
+    const providerModels = getModelOptions({ provider: provider as APIProvider })
+    if (providerModels.length > 0) {
+      setSelectedModel(providerModels[0].value ?? '')
     }
   }, [])
 
@@ -178,24 +187,9 @@ export function ProviderPicker({
   }, [])
 
   const handleTabKey = useCallback(() => {
-    if (focusedField === 'provider') {
-      setFocusedField('model')
-    } else {
-      setFocusedField('provider')
-    }
-  }, [focusedField])
-
-  const handleEnterKey = useCallback(() => {
-    if (focusedField === 'provider') {
-      if (currentProviderModels.length > 0) {
-        setFocusedField('model')
-      } else {
-        handleConfirm()
-      }
-    } else {
-      handleConfirm()
-    }
-  }, [focusedField, currentProviderModels.length])
+    if (currentProviderModels.length === 0) return
+    setFocusedField(field => (field === 'provider' ? 'model' : 'provider'))
+  }, [currentProviderModels.length])
 
   const handleToggleFavorite = useCallback(() => {
     if (selectedModel) {
@@ -210,6 +204,17 @@ export function ProviderPicker({
     onSelect(selectedProvider, selectedModel || undefined)
   }, [selectedProvider, selectedModel, onSelect])
 
+  useInput((_input, key) => {
+    if (key.escape) {
+      onCancel()
+      return
+    }
+
+    if (key.return && stdout?.isTTY) {
+      handleConfirm()
+    }
+  }, { isActive: stdout?.isTTY ?? false })
+
   const handleDiscoverOllama = useCallback(async () => {
     setLoadingModels(true)
     const discovery = await discoverOllama()
@@ -223,15 +228,24 @@ export function ProviderPicker({
   const selectedProviderOption = PROVIDER_OPTIONS.find(p => p.value === selectedProvider)
   const displayModelOptions = searchQuery ? filteredModelOptions : modelSelectOptions
 
-  useInput((input, key) => {
-    if (key.tab) {
-      handleTabKey()
-    } else if (key.return) {
-      handleEnterKey()
-    } else if (key.escape) {
-      onCancel()
+  const activeSelectProps: Pick<SelectProps<string>, 'defaultValue' | 'defaultFocusValue' | 'onChange' | 'onCancel'> = useMemo(() => {
+    if (focusedField === 'provider') {
+      return {
+        defaultValue: selectedProvider,
+        defaultFocusValue: selectedProvider,
+        onChange: handleProviderChange,
+        onCancel,
+      }
     }
-  })
+
+    const modelValue = selectedModel || displayModelOptions[0]?.value || ''
+    return {
+      defaultValue: modelValue,
+      defaultFocusValue: modelValue,
+      onChange: handleModelChange,
+      onCancel: () => setFocusedField('provider'),
+    }
+  }, [focusedField, selectedProvider, selectedModel, displayModelOptions, handleProviderChange, handleModelChange, onCancel])
 
   return (
     <Pane>
@@ -246,7 +260,7 @@ export function ProviderPicker({
           {' Provider '}
           <Text bold={true} color={focusedField === 'model' ? 'green' : undefined}>[M]</Text>
           {' Model '}
-          {'· Tab to switch · Enter to select/confirm'}
+          {'· Click section to switch · Enter to select/confirm'}
         </Text>
 
         <Box
@@ -254,18 +268,21 @@ export function ProviderPicker({
           gap={1}
           borderStyle={focusedField === 'provider' ? 'bold' : undefined}
           borderColor={focusedField === 'provider' ? 'cyan' : undefined}
+          onClick={() => setFocusedField('provider')}
         >
           <Text bold={true} color={focusedField === 'provider' ? 'green' : undefined}>
             Provider {focusedField === 'provider' ? '←' : ''}
           </Text>
-          <Select
-            ref={providerSelectRef as any}
-            options={providerSelectOptions}
-            value={selectedProvider}
-            onChange={handleProviderChange}
-            dense={true}
-            layout="compact-vertical"
-          />
+          {focusedField === 'provider' ? (
+            <Select
+              key={selectKey}
+              options={providerSelectOptions}
+              {...activeSelectProps}
+              layout="compact-vertical"
+            />
+          ) : (
+            <Text dimColor={true}>{selectedProviderOption?.label ?? selectedProvider}</Text>
+          )}
         </Box>
 
         {selectedProviderOption && (
@@ -284,18 +301,21 @@ export function ProviderPicker({
             gap={1}
             borderStyle={focusedField === 'model' ? 'bold' : undefined}
             borderColor={focusedField === 'model' ? 'cyan' : undefined}
+            onClick={() => setFocusedField('model')}
           >
             <Text bold={true} color={focusedField === 'model' ? 'green' : undefined}>
               Model {focusedField === 'model' ? '←' : ''}
             </Text>
-            <Select
-              ref={modelSelectRef as any}
-              options={displayModelOptions}
-              value={selectedModel || displayModelOptions[0]?.value || ''}
-              onChange={handleModelChange}
-              dense={true}
-              layout="compact-vertical"
-            />
+            {focusedField === 'model' ? (
+              <Select
+                key={selectKey}
+                options={displayModelOptions}
+                {...activeSelectProps}
+                layout="compact-vertical"
+              />
+            ) : (
+              <Text dimColor={true}>{selectedModel || displayModelOptions[0]?.label || 'No model selected'}</Text>
+            )}
           </Box>
         )}
 

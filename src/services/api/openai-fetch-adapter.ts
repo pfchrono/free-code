@@ -83,6 +83,50 @@ function translateTools(tools: AnthropicTool[]): Array<Record<string, unknown>> 
   }))
 }
 
+function mergeTranslatedMessages(
+  translated: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+  const merged: Array<Record<string, unknown>> = []
+
+  for (const message of translated) {
+    const previous = merged.at(-1)
+    if (!previous || previous.role !== message.role) {
+      merged.push(message)
+      continue
+    }
+
+    if (
+      previous.role === 'user' &&
+      typeof previous.content === 'string' &&
+      typeof message.content === 'string'
+    ) {
+      previous.content = `${previous.content}\n${message.content}`
+      continue
+    }
+
+    if (previous.role === 'assistant') {
+      const previousContent = typeof previous.content === 'string' ? previous.content : ''
+      const nextContent = typeof message.content === 'string' ? message.content : ''
+      previous.content = [previousContent, nextContent].filter(Boolean).join('\n')
+
+      const previousToolCalls = Array.isArray(previous.tool_calls)
+        ? (previous.tool_calls as Array<Record<string, unknown>>)
+        : []
+      const nextToolCalls = Array.isArray(message.tool_calls)
+        ? (message.tool_calls as Array<Record<string, unknown>>)
+        : []
+      if (previousToolCalls.length > 0 || nextToolCalls.length > 0) {
+        previous.tool_calls = [...previousToolCalls, ...nextToolCalls]
+      }
+      continue
+    }
+
+    merged.push(message)
+  }
+
+  return merged
+}
+
 function translateMessages(
   messages: AnthropicMessage[],
 ): Array<Record<string, unknown>> {
@@ -150,7 +194,11 @@ function translateMessages(
     translated.push(nextMessage)
   }
 
-  return translated
+  return mergeTranslatedMessages(translated)
+}
+
+export const testExports = {
+  translateMessages,
 }
 
 function preferredTokenKey(modelId: string, capability?: OpenAIModelCapability): 'max_tokens' | 'max_completion_tokens' {

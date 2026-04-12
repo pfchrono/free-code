@@ -45,6 +45,7 @@ import skills from './commands/skills/index.js'
 import status from './commands/status/index.js'
 import tasks from './commands/tasks/index.js'
 import teleport from './commands/teleport/index.js'
+import wiki from './commands/wiki/index.js'
 /* eslint-disable @typescript-eslint/no-require-imports */
 const agentsPlatform =
   process.env.USER_TYPE === 'ant'
@@ -340,6 +341,7 @@ const COMMANDS = memoize((): Command[] => [
   usage,
   usageReport,
   vim,
+  wiki,
   ...(webCmd ? [webCmd] : []),
   ...(forkCmd ? [forkCmd] : []),
   ...(buddy ? [buddy] : []),
@@ -374,8 +376,30 @@ const COMMANDS = memoize((): Command[] => [
 
 export const builtInCommandNames = memoize(
   (): Set<string> =>
-    new Set(COMMANDS().flatMap(_ => [_.name, ...(_.aliases ?? [])])),
+    new Set(COMMANDS().flatMap(_ => {
+      const aliases = Array.isArray(_.aliases) ? _.aliases : []
+      return [_.name, ...aliases]
+    })),
 )
+
+export function getCommandAliases(cmd: {
+  name: string
+  aliases?: unknown
+}): string[] {
+  if (cmd.aliases === undefined) {
+    return []
+  }
+
+  if (Array.isArray(cmd.aliases)) {
+    return cmd.aliases.filter((alias): alias is string => typeof alias === 'string')
+  }
+
+  logForDebugging(
+    `Command "${cmd.name}" has invalid aliases type: ${typeof cmd.aliases}`,
+    { level: 'warn' },
+  )
+  return []
+}
 
 async function getSkills(cwd: string): Promise<{
   skillDirCommands: Command[]
@@ -720,10 +744,11 @@ export function findCommand(
   commands: Command[],
 ): Command | undefined {
   return commands.find(
-    _ =>
-      _.name === commandName ||
-      getCommandName(_) === commandName ||
-      _.aliases?.includes(commandName),
+    _ => {
+      if (_.name === commandName || getCommandName(_) === commandName) return true
+      if (Array.isArray(_.aliases) && _.aliases.includes(commandName)) return true
+      return false
+    },
   )
 }
 
@@ -738,7 +763,8 @@ export function getCommand(commandName: string, commands: Command[]): Command {
       `Command ${commandName} not found. Available commands: ${commands
         .map(_ => {
           const name = getCommandName(_)
-          return _.aliases ? `${name} (aliases: ${_.aliases.join(', ')})` : name
+          const aliases = Array.isArray(_.aliases) ? _.aliases : []
+          return aliases.length > 0 ? `${name} (aliases: ${aliases.join(', ')})` : name
         })
         .sort((a, b) => a.localeCompare(b))
         .join(', ')}`,

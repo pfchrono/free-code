@@ -18,5 +18,16 @@ export type {
   SDKMessage,
 } from '../entrypoints/sdk/coreTypes.generated'
 
-// Alias for backwards compatibility
+import type {
+  SDKCompactBoundaryMessage,
+  SDKMessage,
+  SDKToolProgressMessage,
+  SDKUserMessage,
+} from '../entrypoints/sdk/coreTypes.generated'
+
+// Backwards-compatible aliases used across app code
 export type Message = SDKMessage
+export type UserMessage = SDKUserMessage
+export type ProgressMessage = SDKToolProgressMessage
+export type HookResultMessage = SDKCompactBoundaryMessage
+export type PartialCompactDirection = 'before' | 'after'

@@ -8,6 +8,7 @@ import {
   allWorkingDirectories,
   pathInWorkingPath,
 } from '../../utils/permissions/filesystem.js'
+import { startupRawTrace } from '../../utils/startupRawTrace.js'
 
 export type AddDirectoryResult =
   | {
@@ -32,6 +33,7 @@ export async function validateDirectoryForWorkspace(
   directoryPath: string,
   permissionContext: ToolPermissionContext,
 ): Promise<AddDirectoryResult> {
+  startupRawTrace('validateDir: ENTERED dir=' + String(directoryPath));
   if (!directoryPath) {
     return {
       resultType: 'emptyPath',
@@ -41,10 +43,13 @@ export async function validateDirectoryForWorkspace(
   // resolve() strips the trailing slash expandPath can leave on absolute
   // inputs, so /foo and /foo/ map to the same storage key (CC-33).
   const absolutePath = resolve(expandPath(directoryPath))
+  startupRawTrace('validateDir: absolutePath=' + absolutePath);
 
   // Check if path exists and is a directory (single syscall)
   try {
+    startupRawTrace('validateDir: before stat call');
     const stats = await stat(absolutePath)
+    startupRawTrace('validateDir: after stat call');
     if (!stats.isDirectory()) {
       return {
         resultType: 'notADirectory',

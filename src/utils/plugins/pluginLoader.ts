@@ -3054,11 +3054,43 @@ export function mergePluginSources(sources: {
     }
     return true
   })
+
+  // Deduplicate marketplace plugins by short name — keep enabled copy, or
+  // if none enabled keep last encountered. Report error when two enabled
+  // copies collide.
+  const seenNames = new Set<string>()
+  const marketplacePluginsDeduped: LoadedPlugin[] = []
+  for (const p of sources.marketplace) {
+    if (sessionNames.has(p.name)) continue // already filtered above
+    if (seenNames.has(p.name)) {
+      const existing = marketplacePluginsDeduped.find(e => e.name === p.name)
+      if (existing?.enabled && p.enabled) {
+        errors.push({
+          type: 'generic-error',
+          source: p.source,
+          plugin: p.name,
+          error: `Duplicate marketplace plugin "${p.name}" from multiple sources`,
+        })
+      }
+      // Prefer enabled over disabled, otherwise keep existing (last wins)
+      if (!existing?.enabled || p.enabled) {
+        marketplacePluginsDeduped.splice(
+          marketplacePluginsDeduped.findIndex(e => e.name === p.name),
+          1,
+        )
+        marketplacePluginsDeduped.push(p)
+      }
+    } else {
+      seenNames.add(p.name)
+      marketplacePluginsDeduped.push(p)
+    }
+  }
+
   // Session first, then non-overridden marketplace, then builtin.
   // Downstream first-match consumers see session plugins before
   // installed ones for any that slipped past the name filter.
   return {
-    plugins: [...sessionPlugins, ...marketplacePlugins, ...sources.builtin],
+    plugins: [...sessionPlugins, ...marketplacePluginsDeduped, ...sources.builtin],
     errors,
   }
 }

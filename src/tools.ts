@@ -1,4 +1,5 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
+import { startupRawTrace } from './utils/startupRawTrace.js'
 import { toolMatchesName, type Tool, type Tools } from './Tool.js'
 import { AgentTool } from './tools/AgentTool/AgentTool.js'
 import { SkillTool } from './tools/SkillTool/SkillTool.js'
@@ -191,7 +192,7 @@ export function getToolsForDefaultPreset(): string[] {
  * NOTE: This MUST stay in sync with https://console.statsig.com/4aF3Ewatb6xPVpCwxb5nA3/dynamic_configs/claude_code_global_system_caching, in order to cache the system prompt across users.
  */
 export function getAllBaseTools(): Tools {
-  return [
+  const tools: Tools = [
     AgentTool,
     TaskOutputTool,
     BashTool,
@@ -247,7 +248,8 @@ export function getAllBaseTools(): Tools {
     // Include ToolSearchTool when tool search might be enabled (optimistic check)
     // The actual decision to defer tools happens at request time in claude.ts
     ...(isToolSearchEnabledOptimistic() ? [ToolSearchTool] : []),
-  ]
+  ];
+  return tools;
 }
 
 /**
@@ -269,8 +271,12 @@ export function filterToolsByDenyRules<
 }
 
 export const getTools = (permissionContext: ToolPermissionContext): Tools => {
+  startupRawTrace('getTools: ENTERED');
   // Simple mode: only Bash, Read, and Edit tools
-  if (isEnvTruthy(process.env.CLAUDE_CODE_SIMPLE)) {
+  const isSimple = isEnvTruthy(process.env.CLAUDE_CODE_SIMPLE);
+  startupRawTrace('getTools: isSimple=' + String(isSimple));
+  if (isSimple) {
+    startupRawTrace('getTools: entering simple mode branch');
     // --bare + REPL mode: REPL wraps Bash/Read/Edit/etc inside the VM, so
     // return REPL instead of the raw primitives. Matches the non-bare path
     // below which also hides REPL_ONLY_TOOLS when REPL is enabled.
@@ -282,8 +288,10 @@ export const getTools = (permissionContext: ToolPermissionContext): Tools => {
       ) {
         replSimple.push(TaskStopTool, getSendMessageTool())
       }
+      startupRawTrace('getTools: before filterToolsByDenyRules simple repl');
       return filterToolsByDenyRules(replSimple, permissionContext)
     }
+    startupRawTrace('getTools: simple tools branch');
     const simpleTools: Tool[] = [BashTool, FileReadTool, FileEditTool]
     // When coordinator mode is also active, include AgentTool and TaskStopTool
     // so the coordinator gets Task+TaskStop (via useMergedTools filtering) and
@@ -294,20 +302,25 @@ export const getTools = (permissionContext: ToolPermissionContext): Tools => {
     ) {
       simpleTools.push(AgentTool, TaskStopTool, getSendMessageTool())
     }
+    startupRawTrace('getTools: before filterToolsByDenyRules simple');
     return filterToolsByDenyRules(simpleTools, permissionContext)
   }
 
+  startupRawTrace('getTools: non-simple mode branch');
   // Get all base tools and filter out special tools that get added conditionally
   const specialTools = new Set([
     ListMcpResourcesTool.name,
     ReadMcpResourceTool.name,
     SYNTHETIC_OUTPUT_TOOL_NAME,
   ])
-
-  const tools = getAllBaseTools().filter(tool => !specialTools.has(tool.name))
+  startupRawTrace('getTools: before getAllBaseTools');
+  const tools = getAllBaseTools().filter(tool => tool != null && !specialTools.has(tool.name))
+  startupRawTrace('getTools: after getAllBaseTools, tools count=' + tools.length);
 
   // Filter out tools that are denied by the deny rules
+  startupRawTrace('getTools: before filterToolsByDenyRules');
   let allowedTools = filterToolsByDenyRules(tools, permissionContext)
+  startupRawTrace('getTools: after filterToolsByDenyRules');
 
   // When REPL mode is enabled, hide primitive tools from direct use.
   // They're still accessible inside REPL via the VM context.

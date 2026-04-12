@@ -771,10 +771,12 @@ async function buildReplacement(
  *   across turns; returning a new object would require error-prone ref
  *   updates after every query.
  *
- * Returns `{ messages, newlyReplaced }`:
+ * Returns `{ messages, newlyReplaced, estimatedSavedTokens }`:
  *   - messages: same array instance when no replacement is needed
  *   - newlyReplaced: replacements made THIS call (not re-applies).
  *     Caller persists these to the transcript for resume reconstruction.
+ *   - estimatedSavedTokens: coarse per-call estimate based on
+ *     (original bytes - replacement bytes) / BYTES_PER_TOKEN.
  */
 export async function enforceToolResultBudget(
   messages: Message[],
@@ -783,6 +785,7 @@ export async function enforceToolResultBudget(
 ): Promise<{
   messages: Message[]
   newlyReplaced: ToolResultReplacementRecord[]
+  estimatedSavedTokens: number
 }> {
   const candidatesByMessage = collectCandidatesByMessage(messages)
   const nameByToolUseId =
@@ -857,7 +860,7 @@ export async function enforceToolResultBudget(
   }
 
   if (replacementMap.size === 0 && toPersist.length === 0) {
-    return { messages, newlyReplaced: [] }
+    return { messages, newlyReplaced: [], estimatedSavedTokens: 0 }
   }
 
   // Fresh: concurrent persist for all selected candidates across all
@@ -867,6 +870,7 @@ export async function enforceToolResultBudget(
   )
   const newlyReplaced: ToolResultReplacementRecord[] = []
   let replacedSize = 0
+  let estimatedSavedTokens = 0
   for (const [candidate, replacement] of freshReplacements) {
     // Mark seen HERE, post-await, atomically with replacements.set for
     // success cases. For persist failures (replacement === null) the ID
@@ -875,6 +879,8 @@ export async function enforceToolResultBudget(
     state.seenIds.add(candidate.toolUseId)
     if (replacement === null) continue
     replacedSize += candidate.size
+    const bytesSaved = Math.max(0, candidate.size - replacement.content.length)
+    estimatedSavedTokens += Math.floor(bytesSaved / BYTES_PER_TOKEN)
     replacementMap.set(candidate.toolUseId, replacement.content)
     state.replacements.set(candidate.toolUseId, replacement.content)
     newlyReplaced.push({
@@ -895,7 +901,7 @@ export async function enforceToolResultBudget(
   }
 
   if (replacementMap.size === 0) {
-    return { messages, newlyReplaced: [] }
+    return { messages, newlyReplaced: [], estimatedSavedTokens: 0 }
   }
 
   if (newlyReplaced.length > 0) {
@@ -915,6 +921,7 @@ export async function enforceToolResultBudget(
   return {
     messages: replaceToolResultContents(messages, replacementMap),
     newlyReplaced,
+    estimatedSavedTokens,
   }
 }
 
@@ -928,21 +935,24 @@ export async function enforceToolResultBudget(
  * resume (repl_main_thread*, agent:*); ephemeral runForkedAgent callers
  * (agentSummary, sessionMemory, /btw, compact) pass undefined.
  *
- * @returns messages with replacements applied, or the input array unchanged
- *   when the feature is off or no replacement occurred.
+ * @returns messages with replacements applied plus estimatedSavedTokens.
+ *   Returns { messages, estimatedSavedTokens: 0 } when disabled/no-op.
  */
 export async function applyToolResultBudget(
   messages: Message[],
   state: ContentReplacementState | undefined,
   writeToTranscript?: (records: ToolResultReplacementRecord[]) => void,
   skipToolNames?: ReadonlySet<string>,
-): Promise<Message[]> {
-  if (!state) return messages
+): Promise<{ messages: Message[]; estimatedSavedTokens: number }> {
+  if (!state) return { messages, estimatedSavedTokens: 0 }
   const result = await enforceToolResultBudget(messages, state, skipToolNames)
   if (result.newlyReplaced.length > 0) {
     writeToTranscript?.(result.newlyReplaced)
   }
-  return result.messages
+  return {
+    messages: result.messages,
+    estimatedSavedTokens: result.estimatedSavedTokens,
+  }
 }
 
 /**

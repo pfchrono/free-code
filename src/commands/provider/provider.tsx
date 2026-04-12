@@ -7,10 +7,14 @@ import type {
   LocalJSXCommandCall,
 } from '../../types/command.js'
 import { useAppState } from '../../state/AppState.js'
-import { Box, Text, useInput } from '../../ink.js'
+import { Box, Text } from '../../ink.js'
+import useInput from '../../ink/hooks/use-input.js'
 import { Pane } from '../../components/design-system/Pane.js'
 import { ProviderPicker } from '../../components/ProviderPicker.js'
-import { getAPIProvider, setRuntimeProvider, type APIProvider } from '../../utils/model/providers.js'
+import { getAPIProvider, type APIProvider } from '../../utils/model/providers.js'
+import { getDefaultMainLoopModelSetting } from '../../utils/model/model.js'
+import { switchProviderDirectly } from '../../hooks/useProviderSwitch.js'
+import { setMainLoopModelOverride } from '../../bootstrap/state.js'
 import { getFavoriteModels, getRecentModels } from '../../utils/modelPreferences.js'
 import { useRegisterKeybindingContext } from '../../keybindings/KeybindingContext.js'
 import { useExitOnCtrlCDWithKeybindings } from '../../hooks/useExitOnCtrlCDWithKeybindings.js'
@@ -144,7 +148,8 @@ export const call: LocalJSXCommandCall = async (
   context,
   args,
 ) => {
-  const normalizedArgs = args.trim().toLowerCase()
+  const rawArgs = args.trim()
+  const normalizedArgs = rawArgs.toLowerCase()
 
   if (normalizedArgs === 'status' || normalizedArgs === 'info') {
     const provider = getAPIProvider()
@@ -179,11 +184,14 @@ export const call: LocalJSXCommandCall = async (
     const currentProvider = getAPIProvider()
 
     const handleSelect = (provider: APIProvider, model?: string) => {
-      setRuntimeProvider(provider)
+      switchProviderDirectly(provider)
+      const nextModel = model ?? getDefaultMainLoopModelSetting()
+      setMainLoopModelOverride(undefined)
       context.services?.setAppState?.(state => ({
         ...state,
         provider,
-        mainLoopModelForSession: model ?? state.mainLoopModelForSession,
+        mainLoopModel: nextModel,
+        mainLoopModelForSession: null,
       }))
       onDone(
         `Switched to ${chalk.bold(provider)}${model ? ` with model ${chalk.bold(model)}` : ''}. Changes apply immediately.`,
@@ -207,7 +215,6 @@ export const call: LocalJSXCommandCall = async (
   if (normalizedArgs === 'indicator' || normalizedArgs === 'show') {
     const provider = getAPIProvider()
     const info = PROVIDER_INFO[provider] ?? { label: provider, description: '' }
-    const color = info.color ?? 'cyan'
 
     const lines = [
       '',
@@ -216,6 +223,44 @@ export const call: LocalJSXCommandCall = async (
     ]
 
     onDone(lines.join('\n'), { display: 'system' })
+    return null
+  }
+
+  if (normalizedArgs.startsWith('set ')) {
+    const providerInput = rawArgs.slice(4).trim()
+    const providerKey = normalizedArgs.slice(4).trim()
+    const provider = providerKey as APIProvider
+
+    if (!PROVIDER_INFO[provider]) {
+      onDone(`Unknown provider: ${providerInput}`, { display: 'system' })
+      return null
+    }
+
+    switchProviderDirectly(provider)
+    const nextModel = getDefaultMainLoopModelSetting()
+    setMainLoopModelOverride(undefined)
+    context.services?.setAppState?.(state => ({
+      ...state,
+      provider,
+      mainLoopModel: nextModel,
+      mainLoopModelForSession: null,
+    }))
+
+    onDone(`Switched to ${chalk.bold(provider)}. Changes apply immediately.`, { display: 'system' })
+    return null
+  }
+
+  if (normalizedArgs === 'discover') {
+    const providers = Object.entries(PROVIDER_INFO)
+      .map(([key, info]) => `  ${key} - ${info.description}`)
+      .join('\n')
+
+    onDone([
+      'Available providers:',
+      providers,
+      '',
+      'Use /provider set <provider> to switch.',
+    ].join('\n'), { display: 'system' })
     return null
   }
 

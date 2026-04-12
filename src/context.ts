@@ -19,6 +19,10 @@ import { logError } from './utils/log.js'
 
 const MAX_STATUS_CHARS = 2000
 
+export type UserContextOptions = {
+  includeClaudeMd?: boolean
+}
+
 // System prompt injection for cache breaking (ant-only, ephemeral debugging state)
 let systemPromptInjection: string | null = null
 
@@ -153,7 +157,9 @@ export const getSystemContext = memoize(
  * This context is prepended to each conversation, and cached for the duration of the conversation.
  */
 export const getUserContext = memoize(
-  async (): Promise<{
+  async ({
+    includeClaudeMd = true,
+  }: UserContextOptions = {}): Promise<{
     [k: string]: string
   }> => {
     const startTime = Date.now()
@@ -165,20 +171,24 @@ export const getUserContext = memoize(
     const shouldDisableClaudeMd =
       isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS) ||
       (isBareMode() && getAdditionalDirectoriesForClaudeMd().length === 0)
+    const shouldLoadClaudeMd = includeClaudeMd && !shouldDisableClaudeMd
     // Await the async I/O (readFile/readdir directory walk) so the event
     // loop yields naturally at the first fs.readFile.
-    const claudeMd = shouldDisableClaudeMd
-      ? null
-      : getClaudeMds(filterInjectedMemoryFiles(await getMemoryFiles()))
+    const claudeMd = shouldLoadClaudeMd
+      ? getClaudeMds(filterInjectedMemoryFiles(await getMemoryFiles()))
+      : null
     // Cache for the auto-mode classifier (yoloClassifier.ts reads this
     // instead of importing claudemd.ts directly, which would create a
     // cycle through permissions/filesystem → permissions → yoloClassifier).
-    setCachedClaudeMdContent(claudeMd || null)
+    if (shouldLoadClaudeMd) {
+      setCachedClaudeMdContent(claudeMd || null)
+    }
 
     logForDiagnosticsNoPII('info', 'user_context_completed', {
       duration_ms: Date.now() - startTime,
       claudemd_length: claudeMd?.length ?? 0,
       claudemd_disabled: Boolean(shouldDisableClaudeMd),
+      include_claude_md: shouldLoadClaudeMd,
     })
 
     return {
@@ -186,4 +196,6 @@ export const getUserContext = memoize(
       currentDate: `Today's date is ${getLocalISODate()}.`,
     }
   },
-)
+  ({ includeClaudeMd }: { includeClaudeMd?: boolean } = {}) => {
+  return includeClaudeMd === false ? 'no-claude-md' : 'with-claude-md'
+})

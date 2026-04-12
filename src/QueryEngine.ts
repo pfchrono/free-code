@@ -69,7 +69,10 @@ import {
   type ProcessUserInputContext,
   processUserInput,
 } from './utils/processUserInput/processUserInput.js'
-import { fetchSystemPromptParts } from './utils/queryContext.js'
+import {
+  fetchSystemPromptParts,
+  shouldIncludeClaudeMdForPrompt,
+} from './utils/queryContext.js'
 import { setCwd } from './utils/Shell.js'
 import {
   flushSessionStorage,
@@ -83,10 +86,19 @@ import {
 } from './utils/thinking.js'
 
 // Lazy: MessageSelector.tsx pulls React/ink; only needed for message filtering at query time
-/* eslint-disable @typescript-eslint/no-require-imports */
-const messageSelector =
-  (): typeof import('src/components/MessageSelector.js') =>
-    require('src/components/MessageSelector.js')
+let selectableUserMessagesFilter:
+  | typeof import('src/components/MessageSelector.js').selectableUserMessagesFilter
+  | undefined
+
+const getSelectableUserMessagesFilter = async () => {
+  if (!selectableUserMessagesFilter) {
+    ;({ selectableUserMessagesFilter } = await import(
+      'src/components/MessageSelector.js'
+    ))
+  }
+
+  return selectableUserMessagesFilter
+}
 
 import {
   localCommandOutputToSDKAssistantMessage,
@@ -297,6 +309,8 @@ export class QueryEngine {
       ),
       mcpClients,
       customSystemPrompt: customPrompt,
+      leanPrompt: true,
+      includeClaudeMd: shouldIncludeClaudeMdForPrompt(prompt),
     })
     headlessProfilerCheckpoint('after_getSystemPrompt')
     const userContext = {
@@ -462,13 +476,15 @@ export class QueryEngine {
       }
     }
 
+    const selectableUserMessagesFilter = await getSelectableUserMessagesFilter()
+
     // Filter messages that should be acknowledged after transcript
     const replayableMessages = messagesFromUserInput.filter(
       msg =>
         (msg.type === 'user' &&
           !msg.isMeta && // Skip synthetic caveat messages
           !msg.toolUseResult && // Skip tool results (they'll be acked from query)
-          messageSelector().selectableUserMessagesFilter(msg)) || // Skip non-user-authored messages (task notifications, etc.)
+          selectableUserMessagesFilter(msg)) || // Skip non-user-authored messages (task notifications, etc.)
         (msg.type === 'system' && msg.subtype === 'compact_boundary'), // Always ack compact boundaries
     )
     const messagesToAck = replayUserMessages ? replayableMessages : []
@@ -640,7 +656,7 @@ export class QueryEngine {
 
     if (fileHistoryEnabled() && persistSession) {
       messagesFromUserInput
-        .filter(messageSelector().selectableUserMessagesFilter)
+        .filter(selectableUserMessagesFilter)
         .forEach(message => {
           void fileHistoryMakeSnapshot(
             (updater: (prev: FileHistoryState) => FileHistoryState) => {
@@ -1048,11 +1064,10 @@ export class QueryEngine {
       }
     }
 
-    // Stop hooks yield progress/attachment messages AFTER the assistant
-    // response (via yield* handleStopHooks in query.ts). Since #23537 pushes
-    // those to `messages` inline, last(messages) can be a progress/attachment
-    // instead of the assistant — which makes textResult extraction below
-    // return '' and -p mode emit a blank line. Allowlist to assistant|user:
+    // Stop hooks now emit a compact summary message after execution
+    // (via yield* handleStopHooks in query.ts). We still keep an allowlist
+    // to assistant|user so legacy attachment/progress outputs from hooks don't
+    // become the final turn message used by textResult extraction.
     // isResultSuccessful handles both (user with all tool_result blocks is a
     // valid successful terminal state).
     const result = messages.findLast(

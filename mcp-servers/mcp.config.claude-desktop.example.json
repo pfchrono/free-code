@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "token-monitor": {
+      "command": "token-monitor",
+      "args": []
+    },
+    "code-summarizer": {
+      "command": "code-summarizer",
+      "args": []
+    }
+  }
+}

@@ -267,11 +267,15 @@ function getInitialState(): State {
     typeof realpathSync === 'function'
   ) {
     const rawCwd = cwd()
-    try {
-      resolvedCwd = realpathSync(rawCwd).normalize('NFC')
-    } catch {
-      // File Provider EPERM on CloudStorage mounts (lstat per path component).
-      resolvedCwd = rawCwd.normalize('NFC')
+    if (!rawCwd) {
+      resolvedCwd = ''
+    } else {
+      try {
+        resolvedCwd = realpathSync(rawCwd).normalize('NFC')
+      } catch {
+        // File Provider EPERM on CloudStorage mounts (lstat per path component).
+        resolvedCwd = rawCwd.normalize('NFC')
+      }
     }
   }
   const state: State = {
@@ -721,18 +725,71 @@ export function getTotalWebSearchRequests(): number {
   return sumBy(Object.values(STATE.modelUsage), 'webSearchRequests')
 }
 
+let inputTokensAtTurnStart = 0
 let outputTokensAtTurnStart = 0
 let currentTurnTokenBudget: number | null = null
+let currentTurnSavedInputTokens = 0
+let currentTurnSavedOutputTokens = 0
+let currentTurnToolSavedInputTokens = 0
+let currentTurnToolSavedOutputTokens = 0
+export function getTurnInputTokens(): number {
+  return getTotalInputTokens() - inputTokensAtTurnStart
+}
 export function getTurnOutputTokens(): number {
   return getTotalOutputTokens() - outputTokensAtTurnStart
+}
+export function getCurrentTurnSavedTokens(): number {
+  return currentTurnSavedInputTokens + currentTurnSavedOutputTokens
+}
+export function getCurrentTurnSavedInputTokens(): number {
+  return currentTurnSavedInputTokens
+}
+export function getCurrentTurnSavedOutputTokens(): number {
+  return currentTurnSavedOutputTokens
+}
+export function getCurrentTurnToolSavedTokens(): number {
+  return currentTurnToolSavedInputTokens + currentTurnToolSavedOutputTokens
+}
+export function getCurrentTurnToolSavedInputTokens(): number {
+  return currentTurnToolSavedInputTokens
+}
+export function getCurrentTurnToolSavedOutputTokens(): number {
+  return currentTurnToolSavedOutputTokens
+}
+export function addCurrentTurnSavedInputTokens(tokens: number): void {
+  if (!Number.isFinite(tokens) || tokens <= 0) return
+  currentTurnSavedInputTokens += Math.floor(tokens)
+}
+export function addCurrentTurnSavedOutputTokens(tokens: number): void {
+  if (!Number.isFinite(tokens) || tokens <= 0) return
+  currentTurnSavedOutputTokens += Math.floor(tokens)
+}
+export function addCurrentTurnToolSavedInputTokens(tokens: number): void {
+  if (!Number.isFinite(tokens) || tokens <= 0) return
+  currentTurnToolSavedInputTokens += Math.floor(tokens)
+}
+export function addCurrentTurnToolSavedOutputTokens(tokens: number): void {
+  if (!Number.isFinite(tokens) || tokens <= 0) return
+  currentTurnToolSavedOutputTokens += Math.floor(tokens)
+}
+export function addCurrentTurnSavedTokens(tokens: number): void {
+  addCurrentTurnSavedInputTokens(tokens)
+}
+export function resetCurrentTurnSavedTokens(): void {
+  currentTurnSavedInputTokens = 0
+  currentTurnSavedOutputTokens = 0
+  currentTurnToolSavedInputTokens = 0
+  currentTurnToolSavedOutputTokens = 0
 }
 export function getCurrentTurnTokenBudget(): number | null {
   return currentTurnTokenBudget
 }
 let budgetContinuationCount = 0
 export function snapshotOutputTokensForTurn(budget: number | null): void {
+  inputTokensAtTurnStart = getTotalInputTokens()
   outputTokensAtTurnStart = getTotalOutputTokens()
   currentTurnTokenBudget = budget
+  resetCurrentTurnSavedTokens()
   budgetContinuationCount = 0
 }
 export function getBudgetContinuationCount(): number {
@@ -923,8 +980,13 @@ export function resetStateForTests(): void {
   Object.entries(getInitialState()).forEach(([key, value]) => {
     STATE[key as keyof State] = value as never
   })
+  inputTokensAtTurnStart = 0
   outputTokensAtTurnStart = 0
   currentTurnTokenBudget = null
+  currentTurnSavedInputTokens = 0
+  currentTurnSavedOutputTokens = 0
+  currentTurnToolSavedInputTokens = 0
+  currentTurnToolSavedOutputTokens = 0
   budgetContinuationCount = 0
   sessionSwitched.clear()
 }
@@ -1064,6 +1126,10 @@ export function getIsInteractive(): boolean {
 
 export function setIsInteractive(value: boolean): void {
   STATE.isInteractive = value
+}
+
+export function isReplBridgeActive(): boolean {
+  return false
 }
 
 export function getClientType(): string {

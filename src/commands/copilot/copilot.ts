@@ -12,7 +12,8 @@ import {
   getCopilotModels,
   probeCopilotChatCompletionsModels,
 } from '../../services/api/copilot-client.js'
-import { getAPIProvider, setRuntimeProvider } from '../../utils/model/providers.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
+import { switchProviderDirectly } from '../../hooks/useProviderSwitch.js'
 import {
   getSettingsForSource,
   updateSettingsForSource,
@@ -117,7 +118,7 @@ export async function call(
     ? 'firstParty'
     : 'copilot'
 
-  setRuntimeProvider(nextProvider)
+  switchProviderDirectly(nextProvider)
   updateSettingsForSource('projectSettings', { apiProvider: nextProvider })
 
   logEvent('tengu_api_provider_preference_changed', {

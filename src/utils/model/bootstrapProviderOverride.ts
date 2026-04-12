@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 
-type RepoLocalApiProvider = 'firstParty' | 'codex' | 'openai' | 'openrouter' | 'copilot' | 'lmstudio' | 'zen'
+type RepoLocalApiProvider = 'firstParty' | 'codex' | 'openai' | 'openrouter' | 'copilot' | 'lmstudio' | 'zen' | 'minimax'
 
 type RepoLocalProviderSettings = {
   apiProvider?: RepoLocalApiProvider
@@ -29,7 +29,8 @@ function readRepoLocalApiProvider(): RepoLocalApiProvider | null {
       parsed.apiProvider === 'openrouter' ||
       parsed.apiProvider === 'copilot' ||
       parsed.apiProvider === 'lmstudio' ||
-      parsed.apiProvider === 'zen'
+      parsed.apiProvider === 'zen' ||
+      parsed.apiProvider === 'minimax'
       ? parsed.apiProvider
       : null
   } catch {
@@ -47,6 +48,7 @@ function clearProviderFlags(): void {
   delete process.env.CLAUDE_CODE_USE_COPILOT
   delete process.env.CLAUDE_CODE_USE_LMSTUDIO
   delete process.env.CLAUDE_CODE_USE_ZEN
+  delete process.env.CLAUDE_CODE_USE_MINIMAX
 }
 
 export function applyRepoLocalApiProviderOverride(): void {
@@ -85,5 +87,10 @@ export function applyRepoLocalApiProviderOverride(): void {
 
   if (apiProvider === 'zen') {
     process.env.CLAUDE_CODE_USE_ZEN = '1'
+    return
+  }
+
+  if (apiProvider === 'minimax') {
+    process.env.CLAUDE_CODE_USE_MINIMAX = '1'
   }
 }

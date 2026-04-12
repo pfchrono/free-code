@@ -15,7 +15,7 @@ const memoryEntrySchema = z.object({
   timestamp: z.number(),
   type: z.enum(['conversation', 'task', 'session', 'context', 'insight']),
   content: z.string(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   tags: z.array(z.string()).optional(),
   importance: z.number().min(0).max(1).optional(), // 0-1 importance score
   ttl: z.number().optional(), // TTL in milliseconds
@@ -158,6 +158,11 @@ class PersistentMemorySystem {
     // Apply limit
     if (options.limit) {
       filtered = filtered.slice(0, options.limit)
+    }
+
+    // Update lastAccess for LRU tracking on returned entries
+    for (const entry of filtered) {
+      entry.lastAccess = Date.now()
     }
 
     this.updateAccessTime()

@@ -106,7 +106,7 @@ export function getModelPickerAvailabilitySummary(): string | null {
   }
 
   if (provider === 'codex' || isCodexSubscriber()) {
-    return `Showing ${CODEX_MODELS.length} curated ChatGPT Codex models.`
+    return `Showing ${CODEX_MODELS.length} curated Codex/OpenAI models for coding and general chat.`
   }
 
   if (provider === 'copilot' || isCopilotSubscriber()) {
@@ -563,7 +563,7 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
   }
 
   if (isClaudeAISubscriber()) {
-    if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
+    if (isMaxSubscriber() || isTeamPremiumSubscriber() || isCopilotSubscriber()) {
       // Max and Team Premium users: Opus is default, show Sonnet as alternative
       const premiumOptions = [getDefaultOptionForUser(fastMode)]
       if (!isOpus1mMergeEnabled() && checkOpus1mAccess()) {

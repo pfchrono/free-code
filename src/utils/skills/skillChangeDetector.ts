@@ -264,7 +264,10 @@ function scheduleReload(changedPath: string): void {
     // operation) just spams the hook matcher with identical queries. Pass the
     // first path as a representative; hooks can inspect all paths via the
     // skills directory if they need the full set.
-    const results = await executeConfigChangeHooks('skills', paths[0]!)
+    if (paths.length === 0) return
+    const representativePath = paths.find(path => typeof path === 'string' && path.length > 0)
+    if (!representativePath) return
+    const results = await executeConfigChangeHooks('skills', representativePath)
     if (hasBlockingResult(results)) {
       logForDebugging(
         `ConfigChange hook blocked skill reload (${paths.length} paths)`,

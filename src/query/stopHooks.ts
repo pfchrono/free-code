@@ -16,7 +16,6 @@ import type {
   TombstoneMessage,
   ToolUseSummaryMessage,
 } from '../types/message.js'
-import { createAttachmentMessage } from '../utils/attachments.js'
 import { logForDebugging } from '../utils/debug.js'
 import { errorMessage } from '../utils/errors.js'
 import type { REPLHookContext } from '../utils/hooks/postSamplingHooks.js'
@@ -60,6 +59,124 @@ import {
 type StopHookResult = {
   blockingErrors: Message[]
   preventContinuation: boolean
+  summaryMessages: Message[]
+}
+
+type StopHookSummaryTracker = {
+  hookCount: number
+  hookInfos: StopHookInfo[]
+  hookErrors: string[]
+  preventedContinuation: boolean
+  stopReason: string
+  hasOutput: boolean
+  toolUseID: string
+}
+
+function createStopHookSummaryTracker(): StopHookSummaryTracker {
+  return {
+    hookCount: 0,
+    hookInfos: [],
+    hookErrors: [],
+    preventedContinuation: false,
+    stopReason: '',
+    hasOutput: false,
+    toolUseID: '',
+  }
+}
+
+function maybeAddStopHookSummaryMessage(
+  tracker: StopHookSummaryTracker,
+  summaryMessages: Message[],
+  hookLabel: string | undefined,
+  totalDurationMs: number,
+) {
+  if (
+    tracker.hookCount === 0 &&
+    tracker.hookErrors.length === 0 &&
+    !tracker.preventedContinuation &&
+    tracker.stopReason.length === 0
+  ) {
+    return
+  }
+
+  summaryMessages.push(
+    createStopHookSummaryMessage(
+      tracker.hookCount,
+      tracker.hookInfos,
+      tracker.hookErrors,
+      tracker.preventedContinuation,
+      tracker.stopReason || undefined,
+      tracker.hasOutput,
+      'suggestion',
+      tracker.toolUseID,
+      hookLabel,
+      totalDurationMs,
+    ),
+  )
+}
+
+function collectStopHookTelemetryFromResult(
+  result: { message?: Message } & { blockingError?: { blockingError: string } },
+  tracker: StopHookSummaryTracker,
+) {
+  if (!result.message) {
+    return
+  }
+
+  if (result.message.type === 'progress' && result.message.toolUseID) {
+    tracker.hookCount += 1
+    tracker.toolUseID = result.message.toolUseID
+    const progressData = result.message.data as HookProgress
+    if (progressData.command) {
+      tracker.hookInfos.push({
+        command: progressData.command,
+        promptText: progressData.promptText,
+      })
+    }
+  }
+
+  if (result.message.type === 'attachment') {
+    const attachment = result.message.attachment
+    if (
+      'hookEvent' in attachment &&
+      (attachment.hookEvent === 'Stop' ||
+        attachment.hookEvent === 'SubagentStop' ||
+        attachment.hookEvent === 'TeammateIdle' ||
+        attachment.hookEvent === 'TaskCompleted')
+    ) {
+      if (attachment.type === 'hook_non_blocking_error') {
+        tracker.hookErrors.push(
+          attachment.stderr || `Exit code ${attachment.exitCode}`,
+        )
+        tracker.hasOutput = true
+      } else if (attachment.type === 'hook_error_during_execution') {
+        tracker.hookErrors.push(attachment.content)
+        tracker.hasOutput = true
+      } else if (attachment.type === 'hook_success') {
+        if (
+          (attachment.stdout && attachment.stdout.trim()) ||
+          (attachment.stderr && attachment.stderr.trim())
+        ) {
+          tracker.hasOutput = true
+        }
+      }
+
+      if (
+        'durationMs' in attachment &&
+        'command' in attachment &&
+        attachment.durationMs !== undefined
+      ) {
+        const info = tracker.hookInfos.find(
+          i =>
+            i.command === attachment.command &&
+            i.durationMs === undefined,
+        )
+        if (info) {
+          info.durationMs = attachment.durationMs
+        }
+      }
+    }
+  }
 }
 
 export async function* handleStopHooks(
@@ -172,10 +289,13 @@ export async function* handleStopHooks(
     }
   }
 
+  const summaryMessages: Message[] = []
   try {
-    const blockingErrors = []
+    const blockingErrors: Message[] = []
     const appState = toolUseContext.getAppState()
     const permissionMode = appState.toolPermissionContext.mode
+    const stopHookTracker = createStopHookSummaryTracker()
+    const stopHookStartTime = Date.now()
 
     const generator = executeStopHooks(
       permissionMode,
@@ -188,71 +308,9 @@ export async function* handleStopHooks(
       toolUseContext.agentType,
     )
 
-    // Consume all progress messages and get blocking errors
-    let stopHookToolUseID = ''
-    let hookCount = 0
-    let preventedContinuation = false
-    let stopReason = ''
-    let hasOutput = false
-    const hookErrors: string[] = []
-    const hookInfos: StopHookInfo[] = []
-
     for await (const result of generator) {
       if (result.message) {
-        yield result.message
-        // Track toolUseID from progress messages and count hooks
-        if (result.message.type === 'progress' && result.message.toolUseID) {
-          stopHookToolUseID = result.message.toolUseID
-          hookCount++
-          // Extract hook command and prompt text from progress data
-          const progressData = result.message.data as HookProgress
-          if (progressData.command) {
-            hookInfos.push({
-              command: progressData.command,
-              promptText: progressData.promptText,
-            })
-          }
-        }
-        // Track errors and output from attachments
-        if (result.message.type === 'attachment') {
-          const attachment = result.message.attachment
-          if (
-            'hookEvent' in attachment &&
-            (attachment.hookEvent === 'Stop' ||
-              attachment.hookEvent === 'SubagentStop')
-          ) {
-            if (attachment.type === 'hook_non_blocking_error') {
-              hookErrors.push(
-                attachment.stderr || `Exit code ${attachment.exitCode}`,
-              )
-              // Non-blocking errors always have output
-              hasOutput = true
-            } else if (attachment.type === 'hook_error_during_execution') {
-              hookErrors.push(attachment.content)
-              hasOutput = true
-            } else if (attachment.type === 'hook_success') {
-              // Check if successful hook produced any stdout/stderr
-              if (
-                (attachment.stdout && attachment.stdout.trim()) ||
-                (attachment.stderr && attachment.stderr.trim())
-              ) {
-                hasOutput = true
-              }
-            }
-            // Extract per-hook duration for timing visibility.
-            // Hooks run in parallel; match by command + first unassigned entry.
-            if ('durationMs' in attachment && 'command' in attachment) {
-              const info = hookInfos.find(
-                i =>
-                  i.command === attachment.command &&
-                  i.durationMs === undefined,
-              )
-              if (info) {
-                info.durationMs = attachment.durationMs
-              }
-            }
-          }
-        }
+        collectStopHookTelemetryFromResult(result, stopHookTracker)
       }
       if (result.blockingError) {
         const userMessage = createUserMessage({
@@ -260,23 +318,14 @@ export async function* handleStopHooks(
           isMeta: true, // Hide from UI (shown in summary message instead)
         })
         blockingErrors.push(userMessage)
-        yield userMessage
-        hasOutput = true
-        // Add to hookErrors so it appears in the summary
-        hookErrors.push(result.blockingError.blockingError)
+        stopHookTracker.hookErrors.push(result.blockingError.blockingError)
+        stopHookTracker.hasOutput = true
       }
       // Check if hook wants to prevent continuation
       if (result.preventContinuation) {
-        preventedContinuation = true
-        stopReason = result.stopReason || 'Stop hook prevented continuation'
-        // Create attachment to track the stopped continuation (for structured data)
-        yield createAttachmentMessage({
-          type: 'hook_stopped_continuation',
-          message: stopReason,
-          hookName: 'Stop',
-          toolUseID: stopHookToolUseID,
-          hookEvent: 'Stop',
-        })
+        stopHookTracker.preventedContinuation = true
+        stopHookTracker.stopReason =
+          result.stopReason || 'Stop hook prevented continuation'
       }
 
       // Check if we were aborted during hook execution
@@ -290,45 +339,39 @@ export async function* handleStopHooks(
         yield createUserInterruptionMessage({
           toolUse: false,
         })
-        return { blockingErrors: [], preventContinuation: true }
+        return { blockingErrors: [], preventContinuation: true, summaryMessages }
       }
     }
 
-    // Create summary system message if hooks ran
-    if (hookCount > 0) {
-      yield createStopHookSummaryMessage(
-        hookCount,
-        hookInfos,
-        hookErrors,
-        preventedContinuation,
-        stopReason,
-        hasOutput,
-        'suggestion',
-        stopHookToolUseID,
-      )
+    const stopHookDurationMs = Date.now() - stopHookStartTime
+    maybeAddStopHookSummaryMessage(
+      stopHookTracker,
+      summaryMessages,
+      'Stop',
+      stopHookDurationMs,
+    )
 
+    if (stopHookTracker.hookErrors.length > 0) {
       // Send notification about errors (shown in verbose/transcript mode via ctrl+o)
-      if (hookErrors.length > 0) {
-        const expandShortcut = getShortcutDisplay(
-          'app:toggleTranscript',
-          'Global',
-          'ctrl+o',
-        )
-        toolUseContext.addNotification?.({
-          key: 'stop-hook-error',
-          text: `Stop hook error occurred \u00b7 ${expandShortcut} to see`,
-          priority: 'immediate',
-        })
-      }
+      const expandShortcut = getShortcutDisplay(
+        'app:toggleTranscript',
+        'Global',
+        'ctrl+o',
+      )
+      toolUseContext.addNotification?.({
+        key: 'stop-hook-error',
+        text: `Stop hook error occurred · ${expandShortcut} to see`,
+        priority: 'immediate',
+      })
     }
 
-    if (preventedContinuation) {
-      return { blockingErrors: [], preventContinuation: true }
+    if (stopHookTracker.preventedContinuation) {
+      return { blockingErrors: [], preventContinuation: true, summaryMessages }
     }
 
     // Collect blocking errors from stop hooks
     if (blockingErrors.length > 0) {
-      return { blockingErrors, preventContinuation: false }
+      return { blockingErrors, preventContinuation: false, summaryMessages }
     }
 
     // After Stop hooks pass, run TeammateIdle and TaskCompleted hooks if this is a teammate
@@ -336,11 +379,9 @@ export async function* handleStopHooks(
       const teammateName = getAgentName() ?? ''
       const teamName = getTeamName() ?? ''
       const teammateBlockingErrors: Message[] = []
-      let teammatePreventedContinuation = false
-      let teammateStopReason: string | undefined
-      // Each hook executor generates its own toolUseID — capture from progress
-      // messages (same pattern as stopHookToolUseID at L142), not the Stop ID.
-      let teammateHookToolUseID = ''
+      const taskCompletedTracker = createStopHookSummaryTracker()
+      const teammateIdleTracker = createStopHookSummaryTracker()
+      const taskCompletedStart = Date.now()
 
       // Run TaskCompleted hooks for any in-progress tasks owned by this teammate
       const taskListId = getTaskListId()
@@ -364,13 +405,7 @@ export async function* handleStopHooks(
 
         for await (const result of taskCompletedGenerator) {
           if (result.message) {
-            if (
-              result.message.type === 'progress' &&
-              result.message.toolUseID
-            ) {
-              teammateHookToolUseID = result.message.toolUseID
-            }
-            yield result.message
+            collectStopHookTelemetryFromResult(result, taskCompletedTracker)
           }
           if (result.blockingError) {
             const userMessage = createUserMessage({
@@ -378,28 +413,30 @@ export async function* handleStopHooks(
               isMeta: true,
             })
             teammateBlockingErrors.push(userMessage)
-            yield userMessage
+            taskCompletedTracker.hookErrors.push(
+              result.blockingError.blockingError,
+            )
           }
-          // Match Stop hook behavior: allow preventContinuation/stopReason
           if (result.preventContinuation) {
-            teammatePreventedContinuation = true
-            teammateStopReason =
+            taskCompletedTracker.preventedContinuation = true
+            taskCompletedTracker.stopReason =
               result.stopReason || 'TaskCompleted hook prevented continuation'
-            yield createAttachmentMessage({
-              type: 'hook_stopped_continuation',
-              message: teammateStopReason,
-              hookName: 'TaskCompleted',
-              toolUseID: teammateHookToolUseID,
-              hookEvent: 'TaskCompleted',
-            })
           }
           if (toolUseContext.abortController.signal.aborted) {
-            return { blockingErrors: [], preventContinuation: true }
+            return { blockingErrors: [], preventContinuation: true, summaryMessages }
           }
         }
       }
 
+      maybeAddStopHookSummaryMessage(
+        taskCompletedTracker,
+        summaryMessages,
+        'TaskCompleted',
+        Date.now() - taskCompletedStart,
+      )
+
       // Run TeammateIdle hooks
+      const teammateIdleStart = Date.now()
       const teammateIdleGenerator = executeTeammateIdleHooks(
         teammateName,
         teamName,
@@ -409,10 +446,7 @@ export async function* handleStopHooks(
 
       for await (const result of teammateIdleGenerator) {
         if (result.message) {
-          if (result.message.type === 'progress' && result.message.toolUseID) {
-            teammateHookToolUseID = result.message.toolUseID
-          }
-          yield result.message
+          collectStopHookTelemetryFromResult(result, teammateIdleTracker)
         }
         if (result.blockingError) {
           const userMessage = createUserMessage({
@@ -420,39 +454,44 @@ export async function* handleStopHooks(
             isMeta: true,
           })
           teammateBlockingErrors.push(userMessage)
-          yield userMessage
+          teammateIdleTracker.hookErrors.push(
+            result.blockingError.blockingError,
+          )
         }
         // Match Stop hook behavior: allow preventContinuation/stopReason
         if (result.preventContinuation) {
-          teammatePreventedContinuation = true
-          teammateStopReason =
+          teammateIdleTracker.preventedContinuation = true
+          teammateIdleTracker.stopReason =
             result.stopReason || 'TeammateIdle hook prevented continuation'
-          yield createAttachmentMessage({
-            type: 'hook_stopped_continuation',
-            message: teammateStopReason,
-            hookName: 'TeammateIdle',
-            toolUseID: teammateHookToolUseID,
-            hookEvent: 'TeammateIdle',
-          })
         }
         if (toolUseContext.abortController.signal.aborted) {
-          return { blockingErrors: [], preventContinuation: true }
+          return { blockingErrors: [], preventContinuation: true, summaryMessages }
         }
       }
+      maybeAddStopHookSummaryMessage(
+        teammateIdleTracker,
+        summaryMessages,
+        'TeammateIdle',
+        Date.now() - teammateIdleStart,
+      )
 
-      if (teammatePreventedContinuation) {
-        return { blockingErrors: [], preventContinuation: true }
+      if (
+        taskCompletedTracker.preventedContinuation ||
+        teammateIdleTracker.preventedContinuation
+      ) {
+        return { blockingErrors: [], preventContinuation: true, summaryMessages }
       }
 
       if (teammateBlockingErrors.length > 0) {
         return {
           blockingErrors: teammateBlockingErrors,
           preventContinuation: false,
+          summaryMessages,
         }
       }
     }
 
-    return { blockingErrors: [], preventContinuation: false }
+    return { blockingErrors: [], preventContinuation: false, summaryMessages }
   } catch (error) {
     const durationMs = Date.now() - hookStartTime
     logEvent('tengu_stop_hook_error', {
@@ -462,12 +501,16 @@ export async function* handleStopHooks(
         ?.chainId as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       queryDepth: toolUseContext.queryTracking?.depth,
     })
-    // Yield a system message that is not visible to the model for the user
-    // to debug their hook.
-    yield createSystemMessage(
-      `Stop hook failed: ${errorMessage(error)}`,
-      'warning',
+    summaryMessages.push(
+      createSystemMessage(
+        `Stop hook failed: ${errorMessage(error)}`,
+        'warning',
+      ),
     )
-    return { blockingErrors: [], preventContinuation: false }
+    return {
+      blockingErrors: [],
+      preventContinuation: false,
+      summaryMessages,
+    }
   }
 }

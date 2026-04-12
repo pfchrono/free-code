@@ -1,7 +1,8 @@
 #!/usr/bin/env pwsh
 
 param(
-  [switch]$Dev
+  [switch]$Dev,
+  [switch]$Mcp
 )
 
 $ErrorActionPreference = 'Stop'
@@ -251,6 +252,94 @@ function Ensure-UserPath([string]$Directory) {
   }
 }
 
+function Install-MCP-Servers {
+  Info 'Installing MCP servers...'
+
+  $npm = Get-Command npm -ErrorAction SilentlyContinue
+  if (-not $npm) {
+    Fail @'
+npm is required for MCP server installation.
+Install Node.js first:
+  winget install --id OpenJS.NodeJS.LTS -e --source winget
+'@
+  }
+
+  $mcpWorkspace = Join-Path $InstallDir 'mcp-servers'
+  $localPrefix = Join-Path $HOME '.local'
+  $codeSummarizerCmd = Join-Path $localPrefix 'code-summarizer.cmd'
+  $tokenMonitorCmd = Join-Path $localPrefix 'token-monitor.cmd'
+
+  if (Test-Path $mcpWorkspace) {
+    Info "Building local MCP servers from $mcpWorkspace..."
+    Push-Location $mcpWorkspace
+    try {
+      npm install | Out-Host
+      Assert-LastExitCode 'npm install failed for mcp-servers.'
+
+      npm run build | Out-Host
+      Assert-LastExitCode 'npm run build failed for mcp-servers.'
+
+      npm install --global --prefix $localPrefix --workspaces=false ./token-monitor | Out-Host
+      Assert-LastExitCode 'Failed to install token-monitor globally.'
+
+      npm install --global --prefix $localPrefix --workspaces=false ./code-summarizer | Out-Host
+      Assert-LastExitCode 'Failed to install code-summarizer globally.'
+    }
+    finally {
+      Pop-Location
+    }
+  }
+  else {
+    Warn "MCP workspace not found at $mcpWorkspace. Skipping local MCP package install."
+  }
+
+  $mcpServers = @(
+    @{ Name = 'MiniMax'; Command = 'uvx'; Args = @('minimax-coding-plan-mcp', '-y') },
+    @{ Name = 'codesight'; Command = 'npx'; Args = @('codesight', '--wiki', '--mcp', '--watch', '-hook') },
+    @{ Name = 'code-summarizer'; Command = $codeSummarizerCmd; Args = @() },
+    @{ Name = 'token-monitor'; Command = $tokenMonitorCmd; Args = @() }
+  )
+
+  $existingServers = & free-code mcp list 2>&1 | Out-String
+
+  foreach ($server in $mcpServers) {
+    $serverName = $server.Name
+    $cmd = $server.Command
+    $args = $server.Args
+
+    if ($existingServers -match $serverName) {
+      Ok "  MCP server '$serverName' already installed, skipping"
+      continue
+    }
+
+    if ($serverName -in @('code-summarizer', 'token-monitor') -and -not (Test-Path $cmd)) {
+      Warn "  MCP server '$serverName' launcher not found at '$cmd'. Skipping."
+      continue
+    }
+
+    Info "  Adding MCP server: $serverName"
+    try {
+      if ($args.Count -gt 0) {
+        & free-code mcp add $serverName $cmd $args 2>&1 | Out-Null
+      }
+      else {
+        & free-code mcp add $serverName $cmd 2>&1 | Out-Null
+      }
+      if ($LASTEXITCODE -eq 0) {
+        Ok "  MCP server '$serverName' added successfully"
+      }
+      else {
+        Warn "  MCP server '$serverName' failed (exit $LASTEXITCODE). Skipping."
+      }
+    }
+    catch {
+      Warn "  Could not add '$serverName': $_"
+    }
+  }
+
+  Ok 'MCP server setup complete'
+}
+
 function Link-Binary([string]$BinaryPath) {
   New-Item -ItemType Directory -Force -Path $LinkDir | Out-Null
 
@@ -301,6 +390,12 @@ Clone-Repo
 Install-Deps
 $binaryPath = Build-Binary
 Link-Binary $binaryPath
+if ($Mcp) {
+  Install-MCP-Servers
+}
+else {
+  Info 'Skipping MCP server install (pass -Mcp to enable).'
+}
 
 Write-Host ''
 Write-Host '  Installation complete!' -ForegroundColor Green

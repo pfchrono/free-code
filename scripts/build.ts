@@ -42,6 +42,7 @@ const fullExperimentalFeatures = [
   'SHOT_STATS',
   'TEAMMEM',
   'TOKEN_BUDGET',
+  'TOKEN_SMOKEN_GUARD',
   'TREE_SITTER_BASH',
   'TREE_SITTER_BASH_SHADOW',
   'ULTRAPLAN',
@@ -81,7 +82,7 @@ function getVersionChangelog(): string {
   )
 }
 
-const defaultFeatures = ['VOICE_MODE']
+const defaultFeatures = ['VOICE_MODE', 'TOKEN_SMOKEN_GUARD']
 const featureSet = new Set(defaultFeatures)
 for (let i = 0; i < args.length; i += 1) {
   const arg = args[i]

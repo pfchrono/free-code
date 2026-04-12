@@ -733,6 +733,12 @@ export async function initializeVersionedPlugins(): Promise<void> {
   )
 }
 
+function isEnabledPluginSetting(
+  value: boolean | string[] | undefined,
+): boolean {
+  return value !== false && value !== undefined
+}
+
 /**
  * Remove all plugin entries belonging to a specific marketplace from installed_plugins.json.
  *
@@ -1048,7 +1054,11 @@ function getPluginVersionFromManifest(
 export async function migrateFromEnabledPlugins(): Promise<void> {
   // Use merged settings for shouldSkipSync check
   const settings = getSettings_DEPRECATED()
-  const enabledPlugins = settings.enabledPlugins || {}
+  const enabledPlugins = Object.fromEntries(
+    Object.entries(settings.enabledPlugins || {}).filter(([, value]) =>
+      isEnabledPluginSetting(value),
+    ),
+  )
 
   // No plugins in settings = nothing to sync
   if (Object.keys(enabledPlugins).length === 0) {

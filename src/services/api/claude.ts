@@ -335,6 +335,11 @@ export function getPromptCachingEnabled(model: string): boolean {
   // Global disable takes precedence
   if (isEnvTruthy(process.env.DISABLE_PROMPT_CACHING)) return false
 
+  // Third-party providers do not support Anthropic prompt caching controls.
+  if (getAPIProvider() !== 'firstParty' && getAPIProvider() !== 'bedrock' && getAPIProvider() !== 'vertex') {
+    return false
+  }
+
   // Check if we should disable for small/fast model
   if (isEnvTruthy(process.env.DISABLE_PROMPT_CACHING_HAIKU)) {
     const smallFastModel = getSmallFastModel()

@@ -86,26 +86,45 @@ bun run dev
 
 ## Tool usage & consolidation
 
-Use cheapest tool for task. Direct tools (Read, Grep, Glob) for small scoped lookups. Batch multiple operations into single tool calls when possible.
+Use best tool for task. Use shell for narrow file reads/tests and CodeSight MCP for broad repo analysis.
 
 ### Tool selection
 
 | Task | Preferred tool |
 |------|----------------|
-| Known file or small targeted read | `Read` |
-| Known text/symbol/pattern search | `Grep` |
-| Known file/path pattern search | `Glob` |
-| Multiple commands in one call | `Bash` (chained with `&&`) or parallel tool calls |
+| Known file or small targeted read | `shell_command` (`Get-Content`) |
+| Known text/symbol/pattern search | `shell_command` (`Select-String`) |
+| Known file/path pattern search | `shell_command` |
+| Multiple commands in one call | `multi_tool_use.parallel` |
 | Agent/subagent work | Use for broad exploration, architecture decisions |
 
-**Bash is reserved for:** `git`, `mkdir`, `rm`, `mv`, directory navigation, and short-output commands.
+### Reading code
+
+Use CodeSight MCP tools for broad source facts:
+- `mcp__codesight__codesight_get_knowledge` — decisions, specs, notes, knowledge
+- `mcp__codesight__codesight_get_routes` — API/file routes
+- `mcp__codesight__codesight_get_schema` — schema/types
+- `mcp__codesight__codesight_get_env` — environment variables
+- `mcp__codesight__codesight_scan` — scan code with query
+- `mcp__codesight__codesight_lint_wiki` — wiki consistency check
 
 ### Cost guardrails
 
-- Batch parallel operations (e.g., `Read` multiple files in sequence if independent)
-- Combine related Grep/Glob searches before executing
+- Batch parallel operations with independent calls.
+- Combine related shell searches before executing.
 - Use Agent tool for research-heavy tasks to reduce tool call overhead
 - Avoid unnecessary sequential tool calls when one batch call would suffice
+- For risky edits, confirm current state with `git status --short` first.
+
+### Prompt handling
+
+- Default query paths already use lean system prompts; avoid adding verbose behavioral prose in prompt text.
+- Keep `CLAUDE.md` reads conditional on need (instruction/tool-usage related prompts) rather than unconditional.
+
+### Windows shell note
+
+- Use PowerShell commands directly for shell execution.
+- Do not rely on plain `bash` for POSIX behavior assumptions.
 
 ## CodeSight + memory
 
@@ -114,22 +133,13 @@ Use cheapest tool for task. Direct tools (Read, Grep, Glob) for small scoped loo
 - Read `.codesight/KNOWLEDGE.md` for decisions, specs, notes, retros.
 - Use CodeSight for code facts: routes, schema, deps, blast radius, hot files, env.
 - If CodeSight MCP exists, use targeted MCP tool over broad scans.
-- Use project memory + mempalace for prior decisions, user prefs, non-code context.
-- Use current source as truth. Memory explains why. CodeSight shows where.
-- Search order: CodeSight → repo source (`Read`/`Grep`/`Glob`) → memory/MEMORY.md → mempalace if needed.
+- Use current source as truth. Memory tools can help if available; CodeSight shows where.
+- Search order: CodeSight → repo source (`shell_command` + targeted reads).
 - If local `.codesight/` stale or missing, refresh with `npx codesight` / `npx codesight --wiki` / `npx codesight --mode knowledge`.
 - Keep reads small. Prefer one CodeSight article or slice over broad file sweeps.
+- Keep edits minimal and avoid unrelated file rewrites.
 
 ## Observability & MCP Integration
 
-- **Token Monitor MCP** (`mcp-servers/token-monitor`): Real-time token usage tracking, anomaly detection, cache analytics
-  - Record events: `observability.logApiCall({inputTokens, outputTokens, model, duration})`
-  - Get metrics: `await observability.tokens.getMetrics()` → `{avgTokensPerRequest, peakTokensPerSecond, cacheHitRate, spikesDetected}`
-  - Check anomalies: `await observability.tokens.checkForAnomalies()` (returns true if spikes/high rates detected)
-  
-- **Code Summarizer MCP** (`mcp-servers/code-summarizer`): File compression for context efficiency
-  - Summarize file: `await observability.code.summarizeFile(filePath)` → structure with exports, functions, compression ratio
-  - Prepare for API: `await observability.prepareFileContent(filePath)` → compressed summary if >20% reduction, else null
-  - Estimate savings: `observability.code.estimateTokenSavings(summary)` → tokens saved
-
-- **Usage**: Import from `src/services/observability`, call after API interactions. See `src/services/observability/USAGE.md` for patterns.
+- `mcp__sentry__` tools are available for project/org/release/events lookups when observability context is needed.
+- Use CodeSight first for structure, then Sentry for runtime/issue investigation.

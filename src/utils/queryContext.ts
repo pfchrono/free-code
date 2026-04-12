@@ -11,7 +11,7 @@
 
 import type { Command } from '../commands.js'
 import { getSystemPrompt } from '../constants/prompts.js'
-import { getSystemContext, getUserContext } from '../context.js'
+import { type UserContextOptions, getSystemContext, getUserContext } from '../context.js'
 import type { MCPServerConnection } from '../services/mcp/types.js'
 import type { AppState } from '../state/AppStateStore.js'
 import type { Tools, ToolUseContext } from '../Tool.js'
@@ -26,6 +26,38 @@ import {
   shouldEnableThinkingByDefault,
   type ThinkingConfig,
 } from './thinking.js'
+import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs'
+import { getContentText } from './messages.js'
+
+const CLAUDE_MD_TRIGGER_PHRASES: ReadonlyArray<RegExp> = [
+  /\bclaude\.?md\b/i,
+  /\bagents?\.md\b/i,
+  /\blocal\s+instructions?\b/i,
+  /\bglobal\s+instructions?\b/i,
+  /\bread(?:ing)?\s+(?:the\s+)?(?:local|global)?\s*instructions\b/i,
+  /\bagent\s+instructions?\b/i,
+  /\bsystem\s+prompt\b/i,
+  /\bprompt\s+guidance\b/i,
+  /\bhow\s+to\s+use\b/i,
+  /\btool\s+instructions?\b/i,
+  /\bmcp\s+instructions?\b/i,
+]
+
+const CLAUDE_MD_TRIGGER_PATTERN = new RegExp(
+  CLAUDE_MD_TRIGGER_PHRASES.map(_ => _.source).join('|'),
+  'i',
+)
+
+export function shouldIncludeClaudeMdForPrompt(
+  prompt?: string | ContentBlockParam[] | null,
+): boolean {
+  const promptText =
+    typeof prompt === 'string'
+      ? prompt
+      : getContentText((prompt as ContentBlockParam[] | null) ?? []).trim()
+
+  return promptText !== '' && CLAUDE_MD_TRIGGER_PATTERN.test(promptText)
+}
 
 /**
  * Fetch the three context pieces that form the API cache-key prefix:
@@ -47,27 +79,38 @@ export async function fetchSystemPromptParts({
   additionalWorkingDirectories,
   mcpClients,
   customSystemPrompt,
+  includeClaudeMd,
+  leanPrompt,
 }: {
   tools: Tools
   mainLoopModel: string
   additionalWorkingDirectories: string[]
   mcpClients: MCPServerConnection[]
   customSystemPrompt: string | undefined
+  includeClaudeMd?: UserContextOptions['includeClaudeMd']
+  leanPrompt?: boolean
 }): Promise<{
   defaultSystemPrompt: string[]
   userContext: { [k: string]: string }
   systemContext: { [k: string]: string }
 }> {
+  const effectiveLeanPrompt = leanPrompt ?? true
+  const effectiveIncludeClaudeMd =
+    includeClaudeMd ??
+    (effectiveLeanPrompt ? false : true)
   const [defaultSystemPrompt, userContext, systemContext] = await Promise.all([
     customSystemPrompt !== undefined
-      ? Promise.resolve([])
-      : getSystemPrompt(
-          tools,
-          mainLoopModel,
-          additionalWorkingDirectories,
-          mcpClients,
-        ),
-    getUserContext(),
+        ? Promise.resolve([])
+        : getSystemPrompt(
+            tools,
+            mainLoopModel,
+            additionalWorkingDirectories,
+            mcpClients,
+            { lean: effectiveLeanPrompt },
+          ),
+    getUserContext({
+      includeClaudeMd: effectiveIncludeClaudeMd,
+    }),
     customSystemPrompt !== undefined ? Promise.resolve({}) : getSystemContext(),
   ])
   return { defaultSystemPrompt, userContext, systemContext }
@@ -112,6 +155,12 @@ export async function buildSideQuestionFallbackParams({
 }): Promise<CacheSafeParams> {
   const mainLoopModel = getMainLoopModel()
   const appState = getAppState()
+  const lastUserPrompt = [...messages].reverse().find(
+    message => message.type === 'user' && !message.isMeta,
+  )
+  const includeClaudeMd = shouldIncludeClaudeMdForPrompt(
+    lastUserPrompt ? getContentText(lastUserPrompt.message.content) : undefined,
+  )
 
   const { defaultSystemPrompt, userContext, systemContext } =
     await fetchSystemPromptParts({
@@ -122,6 +171,8 @@ export async function buildSideQuestionFallbackParams({
       ),
       mcpClients,
       customSystemPrompt,
+      leanPrompt: true,
+      includeClaudeMd,
     })
 
   const systemPrompt = asSystemPrompt([

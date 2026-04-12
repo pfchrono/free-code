@@ -46,6 +46,7 @@ import type { PermissionMode } from './utils/permissions/PermissionMode.js'
 import { getPlanSlug } from './utils/plans.js'
 import { saveWorktreeState } from './utils/sessionStorage.js'
 import { profileCheckpoint } from './utils/startupProfiler.js'
+import { startupRawTrace } from './utils/startupRawTrace.js'
 import {
   createTmuxSessionForWorktree,
   createWorktreeForSession,
@@ -65,6 +66,7 @@ export async function setup(
   messagingSocketPath?: string,
 ): Promise<void> {
   logForDiagnosticsNoPII('info', 'setup_started')
+  startupRawTrace('setup: entered isBareMode=' + String(isBareMode()));
 
   // Check for Node.js version < 18
   const nodeVersion = process.version.match(/^v(\d+)\./)?.[1]

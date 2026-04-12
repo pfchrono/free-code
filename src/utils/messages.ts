@@ -2926,6 +2926,43 @@ export type StreamingThinking = {
   streamingEndedAt?: number
 }
 
+type StreamingUsageUpdate = {
+  inputTokens?: number
+  outputTokens?: number
+}
+
+function extractStreamingUsageUpdate(usage: unknown): StreamingUsageUpdate | null {
+  if (!usage || typeof usage !== 'object') return null
+  const candidate = usage as Partial<{
+    input_tokens: unknown
+    cache_creation_input_tokens: unknown
+    cache_read_input_tokens: unknown
+    output_tokens: unknown
+  }>
+  const inputTokens =
+    (typeof candidate.input_tokens === 'number' ? candidate.input_tokens : 0) +
+    (typeof candidate.cache_creation_input_tokens === 'number'
+      ? candidate.cache_creation_input_tokens
+      : 0) +
+    (typeof candidate.cache_read_input_tokens === 'number'
+      ? candidate.cache_read_input_tokens
+      : 0)
+  const outputTokens =
+    typeof candidate.output_tokens === 'number'
+      ? candidate.output_tokens
+      : undefined
+  const next: StreamingUsageUpdate = {}
+  if (inputTokens > 0) {
+    next.inputTokens = Math.floor(inputTokens)
+  }
+  if (typeof outputTokens === 'number' && outputTokens >= 0) {
+    next.outputTokens = Math.floor(outputTokens)
+  }
+  return next.inputTokens === undefined && next.outputTokens === undefined
+    ? null
+    : next
+}
+
 /**
  * Handles messages from a stream, updating response length for deltas and appending completed messages
  */
@@ -2948,6 +2985,7 @@ export function handleMessageFromStream(
   ) => void,
   onApiMetrics?: (metrics: { ttftMs: number }) => void,
   onStreamingText?: (f: (current: string | null) => string | null) => void,
+  onStreamingUsage?: (usage: StreamingUsageUpdate) => void,
 ): void {
   if (
     message.type !== 'stream_event' &&
@@ -2991,6 +3029,10 @@ export function handleMessageFromStream(
   if (message.event.type === 'message_start') {
     if (message.ttftMs != null) {
       onApiMetrics?.({ ttftMs: message.ttftMs })
+    }
+    const usageUpdate = extractStreamingUsageUpdate(message.event.message.usage)
+    if (usageUpdate) {
+      onStreamingUsage?.(usageUpdate)
     }
   }
 
@@ -3088,6 +3130,12 @@ export function handleMessageFromStream(
     case 'content_block_stop':
       return
     case 'message_delta':
+      {
+        const usageUpdate = extractStreamingUsageUpdate(message.event.usage)
+        if (usageUpdate) {
+          onStreamingUsage?.(usageUpdate)
+        }
+      }
       onSetStreamMode('responding')
       return
     default:
@@ -3483,7 +3531,7 @@ You are a teammate in team "${attachment.teamName}".
 
 **Team Leader:** The team lead's name is "team-lead". Send updates and completion notifications to them.
 
-Read the team config to discover your teammates' names. Check the task list periodically. Create new tasks when work should be divided. Mark tasks resolved when complete.
+Read the team config to discover your teammates' names. Check the task list periodically. Create new tasks when work should be divided. Keep task state updated immediately as progress changes. Mark tasks in_progress before starting work, completed when finished, and keep blocked/on-hold tasks updated. When all tasks are complete, report what was finished, clear completed tasks, and continue working from the task list until tracked work is finished.
 
 **IMPORTANT:** Always refer to teammates by their NAME (e.g., "team-lead", "analyzer", "researcher"), never by UUID. When messaging, use the name directly:
 
@@ -3687,7 +3735,7 @@ Read the team config to discover your teammates' names. Check the task list peri
         .map(task => `#${task.id}. [${task.status}] ${task.subject}`)
         .join('\n')
 
-      let message = `The task tools haven't been used recently. If you're working on tasks that would benefit from tracking progress, consider using ${TASK_CREATE_TOOL_NAME} to add new tasks and ${TASK_UPDATE_TOOL_NAME} to update task status (set to in_progress when starting, completed when done). Also consider cleaning up the task list if it has become stale. Only use these if relevant to the current work. This is just a gentle reminder - ignore if not applicable. Make sure that you NEVER mention this reminder to the user\n`
+      let message = `The task tools haven't been used recently. If you're working on tasks that would benefit from tracking progress, consider using ${TASK_CREATE_TOOL_NAME} to add new tasks and ${TASK_UPDATE_TOOL_NAME} to update task status immediately as progress changes (set to in_progress before starting, completed when done, keep blocked/on-hold tasks updated). When all tasks are complete, report what was finished and clear completed tasks from the task list. Also consider cleaning up the task list if it has become stale. Only use these if relevant to the current work. This is just a gentle reminder - ignore if not applicable. Make sure that you NEVER mention this reminder to the user\n`
       if (taskItems.length > 0) {
         message += `\n\nHere are the existing tasks:\n\n${taskItems}`
       }
@@ -4441,7 +4489,10 @@ export function createStopHookSummaryMessage(
 export function createTurnDurationMessage(
   durationMs: number,
   budget?: { tokens: number; limit: number; nudges: number },
+  saved?: { input: number; output: number },
   messageCount?: number,
+  usage?: { input: number; output: number },
+  toolSaved?: { input: number; output: number },
 ): SystemTurnDurationMessage {
   return {
     type: 'system',
@@ -4450,6 +4501,12 @@ export function createTurnDurationMessage(
     budgetTokens: budget?.tokens,
     budgetLimit: budget?.limit,
     budgetNudges: budget?.nudges,
+    savedInputTokens: saved?.input,
+    savedOutputTokens: saved?.output,
+    inputTokens: usage?.input,
+    outputTokens: usage?.output,
+    toolSavedInputTokens: toolSaved?.input,
+    toolSavedOutputTokens: toolSaved?.output,
     messageCount,
     timestamp: new Date().toISOString(),
     uuid: randomUUID(),

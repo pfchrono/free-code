@@ -7,8 +7,17 @@
     "token-monitor",
     "code-summarizer"
   ],
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
   "scripts": {
-    "build": "npm run build -w token-monitor && npm run build -w code-summarizer",
-    "dev": "npm run dev -w token-monitor & npm run dev -w code-summarizer"
+    "build:token-monitor": "npm run build -w token-monitor",
+    "build:code-summarizer": "npm run build -w code-summarizer",
+    "build": "npm run build:token-monitor && npm run build:code-summarizer",
+    "dev": "npm run dev -w token-monitor & npm run dev -w code-summarizer",
+    "pack:token-monitor": "npm pack -w token-monitor",
+    "pack:code-summarizer": "npm pack -w code-summarizer",
+    "pack:all": "npm run pack:token-monitor && npm run pack:code-summarizer"
   }
 }

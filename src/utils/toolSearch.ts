@@ -34,6 +34,7 @@ import { getMergedBetas } from './betas.js'
 import { getContextWindowForModel } from './context.js'
 import { logForDebugging } from './debug.js'
 import { isEnvDefinedFalsy, isEnvTruthy } from './envUtils.js'
+import { normalizeLegacyToolName } from './permissions/permissionRuleParser.js'
 import {
   getAPIProvider,
   isFirstPartyAnthropicBaseUrl,
@@ -572,7 +573,7 @@ export function extractDiscoveredToolNames(messages: Message[]): Set<string> {
       if (isToolResultBlockWithContent(block)) {
         for (const item of block.content) {
           if (isToolReferenceWithName(item)) {
-            discoveredTools.add(item.tool_name)
+            discoveredTools.add(normalizeLegacyToolName(item.tool_name))
           }
         }
       }

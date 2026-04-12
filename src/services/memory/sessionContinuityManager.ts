@@ -30,7 +30,7 @@ const sessionStateSchema = z.object({
   keyInsights: z.array(z.string()).default([]),
 
   // Metadata
-  metadata: z.record(z.any()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
 })
 
 const sessionHistorySchema = z.object({

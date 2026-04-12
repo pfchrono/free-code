@@ -9,7 +9,8 @@ import type {
   LocalJSXCommandContext,
   LocalJSXCommandOnDone,
 } from '../../types/command.js'
-import { getAPIProvider, setRuntimeProvider } from '../../utils/model/providers.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
+import { switchProviderDirectly } from '../../hooks/useProviderSwitch.js'
 import {
   getSettingsForSource,
   updateSettingsForSource,
@@ -108,7 +109,7 @@ export async function call(
   }
 
   if (DISABLE_ARGS.has(normalizedArg)) {
-    setRuntimeProvider('firstParty')
+    switchProviderDirectly('firstParty')
     updateSettingsForSource('projectSettings', { apiProvider: 'firstParty' })
 
     logEvent('tengu_api_provider_preference_changed', {
@@ -145,7 +146,7 @@ export async function call(
       return null
     }
 
-    setRuntimeProvider('openrouter')
+    switchProviderDirectly('openrouter')
     updateSettingsForSource('projectSettings', { apiProvider: 'openrouter' })
 
     logEvent('tengu_api_provider_preference_changed', {
@@ -181,7 +182,7 @@ export async function call(
   }
 
   process.env.OPENROUTER_API_KEY = trimmedArgs
-  setRuntimeProvider('openrouter')
+  switchProviderDirectly('openrouter')
 
   logEvent('tengu_api_provider_preference_changed', {
     provider: 'openrouter' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,

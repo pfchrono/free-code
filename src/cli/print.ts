@@ -488,6 +488,7 @@ export async function runHeadless(
     workload: string | undefined
     setupTrigger?: 'init' | 'maintenance' | undefined
     sessionStartHooksPromise?: ReturnType<typeof processSessionStartHooks>
+    startupInitialUserMessage?: NormalizedUserMessage
     setSDKStatus?: (status: SDKStatus) => void
   },
 ): Promise<void> {
@@ -685,7 +686,8 @@ export async function runHeadless(
   // alone (an attachment, not a turn) would leave the REPL with nothing to
   // respond to. The hook promise is awaited inside loadInitialMessages, so the
   // module-level pending value is set by the time we get here.
-  const hookInitialUserMessage = takeInitialUserMessage()
+  const hookInitialUserMessage =
+    options.startupInitialUserMessage ?? takeInitialUserMessage()
   if (hookInitialUserMessage) {
     structuredIO.prependUserMessage(hookInitialUserMessage)
   }

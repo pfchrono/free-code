@@ -9,7 +9,8 @@ import type {
   LocalJSXCommandContext,
   LocalJSXCommandOnDone,
 } from '../../types/command.js'
-import { getAPIProvider, setRuntimeProvider } from '../../utils/model/providers.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
+import { switchProviderDirectly } from '../../hooks/useProviderSwitch.js'
 import {
   getSettingsForSource,
   updateSettingsForSource,
@@ -63,7 +64,7 @@ export async function call(
       }),
       '',
       `Default model: ${DEFAULT_CODEX_MODEL}`,
-      'Note: Codex availability is inferred from the web backend catalog used by this adapter.',
+      'Note: For up-to-date OpenAI model docs, see developers.openai.com/api/docs/models.',
     ]
     onDone(lines.join('\n'), { display: 'system' })
     return null
@@ -78,7 +79,7 @@ export async function call(
     ? 'firstParty'
     : 'codex'
 
-  setRuntimeProvider(nextProvider)
+  switchProviderDirectly(nextProvider)
   updateSettingsForSource('projectSettings', { apiProvider: nextProvider })
 
   logEvent('tengu_api_provider_preference_changed', {

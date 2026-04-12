@@ -8,9 +8,7 @@ export function getPrompt(): string {
 `
     : ''
 
-  const idDescription = isAgentSwarmsEnabled()
-    ? '- **id**: Task identifier (use with TaskGet, TaskUpdate)'
-    : '- **id**: Task identifier (use with TaskGet, TaskUpdate)'
+  const idDescription = '- **id**: Task identifier (use with TaskGet, TaskUpdate)'
 
   const teammateWorkflow = isAgentSwarmsEnabled()
     ? `
@@ -25,25 +23,22 @@ When working as a teammate:
 `
     : ''
 
-  return `Use this tool to list all tasks in the task list.
+  return `Use this tool to list all tasks.
 
-## When to Use This Tool
+Use it to:
+- find available work (pending, unowned, unblocked)
+- check overall progress
+- find blocked tasks and dependencies
+${teammateUseCase}- check for newly unblocked work after finishing a task
+- prefer lower task IDs when multiple tasks are available
 
-- To see what tasks are available to work on (status: 'pending', no owner, not blocked)
-- To check overall progress on the project
-- To find tasks that are blocked and need dependencies resolved
-${teammateUseCase}- After completing a task, to check for newly unblocked work or claim the next available task
-- **Prefer working on tasks in ID order** (lowest ID first) when multiple tasks are available, as earlier tasks often set up context for later ones
-
-## Output
-
-Returns a summary of each task:
+Returns task summaries with:
 ${idDescription}
-- **subject**: Brief description of the task
+- **subject**: brief task title
 - **status**: 'pending', 'in_progress', or 'completed'
-- **owner**: Agent ID if assigned, empty if available
-- **blockedBy**: List of open task IDs that must be resolved first (tasks with blockedBy cannot be claimed until dependencies resolve)
+- **owner**: assigned agent ID, if any
+- **blockedBy**: open task IDs that must complete first
 
-Use TaskGet with a specific task ID to view full details including description and comments.
+Use TaskGet for full task details.
 ${teammateWorkflow}`
 }

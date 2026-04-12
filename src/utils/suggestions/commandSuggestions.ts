@@ -2,6 +2,7 @@ import Fuse from 'fuse.js'
 import {
   type Command,
   formatDescriptionWithSource,
+  getCommandAliases,
   getCommand,
   getCommandName,
 } from '../../commands.js'
@@ -46,7 +47,7 @@ function getCommandFuse(commands: Command[]): Fuse<CommandSearchItem> {
         partKey: parts.length > 1 ? parts : undefined,
         commandName,
         command: cmd,
-        aliasKey: cmd.aliases,
+        aliasKey: getCommandAliases(cmd),
       }
     })
 
@@ -479,7 +480,7 @@ export function generateCommandSuggestions(
   const fuseSuggestions = sortedResults.map(result => {
     const cmd = result.r.item.command
     // Only show alias in parentheses if the user typed an alias
-    const matchedAlias = findMatchedAlias(query, cmd.aliases)
+    const matchedAlias = findMatchedAlias(query, getCommandAliases(cmd))
     return createCommandSuggestionItem(cmd, matchedAlias)
   })
   // Skip the prepend if hiddenExact is already in fuseSuggestions — this

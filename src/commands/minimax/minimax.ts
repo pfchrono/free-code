@@ -9,7 +9,8 @@ import type {
   LocalJSXCommandContext,
   LocalJSXCommandOnDone,
 } from '../../types/command.js'
-import { getAPIProvider, setRuntimeProvider } from '../../utils/model/providers.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
+import { switchProviderDirectly } from '../../hooks/useProviderSwitch.js'
 import {
   getSettingsForSource,
   updateSettingsForSource,
@@ -102,7 +103,7 @@ export async function call(
   }
 
   if (DISABLE_ARGS.has(normalizedArg)) {
-    setRuntimeProvider('firstParty')
+    switchProviderDirectly('firstParty')
     updateSettingsForSource('projectSettings', { apiProvider: 'firstParty' })
 
     logEvent('tengu_api_provider_preference_changed', {
@@ -160,7 +161,7 @@ export async function call(
       source: 'minimax_command' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
     })
 
-    setRuntimeProvider('minimax')
+    switchProviderDirectly('minimax')
 
     onDone(
       `Switched to ${chalk.bold('MiniMax')}. Changes apply immediately.`,
@@ -190,7 +191,7 @@ export async function call(
   }
 
   process.env.MINIMAX_API_KEY = trimmedArgs
-  setRuntimeProvider('minimax')
+  switchProviderDirectly('minimax')
 
   logEvent('tengu_api_provider_preference_changed', {
     provider: 'minimax' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,

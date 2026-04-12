@@ -8,7 +8,8 @@ import type {
   LocalJSXCommandContext,
   LocalJSXCommandOnDone,
 } from '../../types/command.js'
-import { getAPIProvider, setRuntimeProvider } from '../../utils/model/providers.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
+import { switchProviderDirectly } from '../../hooks/useProviderSwitch.js'
 import {
   getSettingsForSource,
   updateSettingsForSource,
@@ -22,6 +23,7 @@ import {
   getOpenAIModelCost,
   type TaskCategory,
 } from '../../utils/model/openaiCapabilities.js'
+import { formatModelPricing } from '../../utils/modelCost.js'
 
 type StoredApiProvider = 'firstParty' | 'openai'
 type OpenAICapabilityFlags = NonNullable<OpenAIModelCapability['capabilities']>
@@ -83,9 +85,7 @@ export async function call(
 
           const caps = getCapabilityFlags(capability)
           const cost = capability.cost_per_1k_tokens
-          const costStr = cost
-            ? `$${cost.input?.toFixed(4) || '?'}/$${cost.output?.toFixed(4) || '?'}`
-            : 'cost unknown'
+          const costStr = cost ? formatModelPricing(cost) : 'cost unknown'
           const features = [
             caps.reasoning && 'reasoning',
             caps.vision && 'vision',
@@ -167,12 +167,7 @@ export async function call(
     ]
 
     if (cost) {
-      lines.push(
-        '',
-        'Pricing (per 1K tokens):',
-        `  Input: $${cost.input?.toFixed(4) || 'unknown'}`,
-        `  Output: $${cost.output?.toFixed(4) || 'unknown'}`,
-      )
+      lines.push('', `Pricing: ${formatModelPricing(cost)}`)
     }
 
     onDone(lines.join('\n'), { display: 'system' })
@@ -189,7 +184,7 @@ export async function call(
     ? 'firstParty'
     : 'openai'
 
-  setRuntimeProvider(nextProvider)
+  switchProviderDirectly(nextProvider)
   updateSettingsForSource('projectSettings', { apiProvider: nextProvider })
 
   logEvent('tengu_api_provider_preference_changed', {

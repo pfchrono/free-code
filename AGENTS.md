@@ -43,6 +43,12 @@ bun test -- "test name"
 bun test --coverage
 ```
 
+## MCP Tooling
+
+- `codesight` MCP is available for repository analysis. Use it for repo scanning, hot files, routes, env vars, coverage, schema, and summary views.
+- `sentry` MCP is available for observability workflows (organizations, projects, releases, DSN, issue events).
+- Use these tools when broad analysis is needed; keep shell reads for narrow or explicit file inspection.
+
 ## Code Style Guidelines
 
 ### TypeScript
@@ -189,7 +195,29 @@ describe('createCopilotFetch', () => {
 - **Query engine**: `src/QueryEngine.ts`
 - **API clients**: `src/services/api/`
 
-## Key Files
+## Prompt Behavior
+
+- Keep system prompt text concise and implementation-focused.
+- Default prompt assembly uses lean mode (`getSystemPrompt(..., { lean: true })` in `src/utils/queryContext.ts` and `src/QueryEngine.ts`).
+- Only request `CLAUDE.md` context when the prompt implies instruction or tool-doc lookup (`shouldIncludeClaudeMdForPrompt`), so prompt token use stays tight.
+
+## GUI Development (Tauri + React)
+
+### Current Status
+- GUI `--gui` mode functional with stub responses
+- Tauri app scaffolded and builds
+- Binary: `gui/src-tauri/target/release/free-code-gui.exe`
+- Installer: `gui/src-tauri/target/release/bundle/nsis/`
+
+### Key Challenge
+The CLI `--gui` mode uses stub responses. The challenge is integrating the CLI core (`QueryEngine.submitMessage()`) to process real user inputs. See `GUI.md` for detailed architecture analysis.
+
+### Integration Path
+1. Initialize `QueryEngine` in `--gui` mode once at startup
+2. Call `queryEngine.submitMessage()` for each user input turn
+3. Stream `SDKMessage` results via `writeGuiEvent()`
+
+### Key Files
 
 | Path | Purpose |
 |------|---------|
@@ -200,6 +228,13 @@ describe('createCopilotFetch', () => {
 | `src/services/api/copilot-fetch-adapter.ts` | Request translation layer |
 | `src/utils/codebase/` | Live dependency graph |
 | `src/tools/FileEditTool/` | File editing with hash anchors |
+| `src/gui/guiProtocol.ts` | JSON event/command types for GUI |
+| `src/gui/guiMode.ts` | GUI mode handler (stub responses) |
+| `src/cli/print.ts` | Headless execution (runHeadless, runHeadlessStreaming) |
+| `src/QueryEngine.ts` | Core query logic (submitMessage) |
+| `src/cli/structuredIO.ts` | Input/output bridging |
+| `gui/src-tauri/src/main.rs` | Tauri Rust backend |
+| `gui/src/hooks/useCliSession.ts` | React hook for CLI session |
 
 ## Commit Conventions
 
@@ -217,3 +252,31 @@ fix(api): handle rate limit errors gracefully
 test(adapter): add vision content translation tests
 docs(readme): update provider documentation
 ```
+
+## Operational Safeguards
+
+- Keep edits minimal and scoped to requested behavior.
+- Check `git status --short` before risky edits.
+- Run the smallest relevant test/build slice first, then expand only if needed.
+
+## Communication Style
+
+Use caveman mode when user requests terse/short/token-efficient responses:
+
+### Activation
+| ON | OFF |
+|----|----|
+| "caveman", "terse", "kurz", "less tokens" | "normal", "verbose" |
+
+### Rules
+- Drop: articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries (sure/certainly)
+- Short synonyms (big not extensive, fix not "implement a solution for")
+- No hedging (skip "it might be worth considering")
+- Fragments OK. Technical terms stay exact.
+- Pattern: `[thing] [action] [reason]. [next step].`
+- Code/commits/PRs: write normal
+
+### Example
+**User:** "Why is my React component re-rendering?"
+**Normal (69 tokens):** "The reason your React component is re-rendering is likely because you're creating a new object reference on each render cycle..."
+**Caveman (19 tokens):** "New object ref each render. Inline object prop = new ref = re-render. Wrap in `useMemo`."

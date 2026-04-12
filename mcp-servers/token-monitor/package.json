@@ -1,16 +1,25 @@
 {
   "name": "@free-code/mcp-token-monitor",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Real-time token usage monitoring MCP server",
   "main": "build/index.js",
+  "bin": {
+    "token-monitor": "build/index.js"
+  },
   "files": ["build"],
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "start": "node build/index.js",
+    "dev": "tsc --watch",
+    "prepare": "npm run build"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

@@ -27,6 +27,7 @@ import {
 } from './PermissionMode.js'
 import { applyPermissionRulesToPermissionContext } from './permissions.js'
 import { loadAllPermissionRulesFromDisk } from './permissionsLoader.js'
+import { startupRawTrace } from '../startupRawTrace.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const autoModeStateModule = feature('TRANSCRIPT_CLASSIFIER')
@@ -889,6 +890,7 @@ export async function initializeToolPermissionContext({
   dangerousPermissions: DangerousPermissionInfo[]
   overlyBroadBashPermissions: DangerousPermissionInfo[]
 }> {
+  startupRawTrace('permSetup: initializeToolPermissionContext ENTERED');
   // Parse comma-separated allowed and disallowed tools if provided
   // Normalize legacy tool names (e.g., 'Task' → 'Agent') so that in-memory
   // rule removal in stripDangerousPermissionsForAutoMode matches correctly.
@@ -943,7 +945,9 @@ export async function initializeToolPermissionContext({
     !settingsDisableBypassPermissionsMode
 
   // Load all permission rules from disk
+  startupRawTrace('permSetup: before loadAllPermissionRulesFromDisk');
   const rulesFromDisk = loadAllPermissionRulesFromDisk()
+  startupRawTrace('permSetup: after loadAllPermissionRulesFromDisk, rules count=' + rulesFromDisk.length);
 
   // Ant-only: Detect overly broad shell allow rules for all modes.
   // Bash(*) or PowerShell(*) are equivalent to YOLO mode for that shell.
@@ -995,16 +999,21 @@ export async function initializeToolPermissionContext({
     ...(settings.permissions?.additionalDirectories || []),
     ...addDirs,
   ]
+  startupRawTrace('permSetup: allAdditionalDirectories length=' + allAdditionalDirectories.length + (allAdditionalDirectories.length > 0 ? ' first=' + allAdditionalDirectories[0] : ''));
   // Parallelize fs validation; apply updates serially (cumulative context).
   // validateDirectoryForWorkspace only reads permissionContext to check if the
   // dir is already covered — behavioral difference from parallelizing is benign
   // (two overlapping --add-dirs both succeed instead of one being flagged
   // alreadyInWorkingDirectory, which was silently skipped anyway).
-  const validationResults = await Promise.all(
-    allAdditionalDirectories.map(dir =>
-      validateDirectoryForWorkspace(dir, toolPermissionContext),
-    ),
-  )
+  startupRawTrace('permSetup: before Promise.all validateDirectory');
+  const validationResults = allAdditionalDirectories.length === 0
+    ? []
+    : await Promise.all(
+        allAdditionalDirectories.map(dir =>
+          validateDirectoryForWorkspace(dir, toolPermissionContext),
+        ),
+      )
+  startupRawTrace('permSetup: after Promise.all validateDirectory');
   for (const result of validationResults) {
     if (result.resultType === 'success') {
       toolPermissionContext = applyPermissionUpdate(toolPermissionContext, {
@@ -1024,6 +1033,7 @@ export async function initializeToolPermissionContext({
     }
   }
 
+  startupRawTrace('permSetup: returning from initializeToolPermissionContext');
   return {
     toolPermissionContext,
     warnings,

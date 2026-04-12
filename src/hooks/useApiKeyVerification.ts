@@ -42,7 +42,7 @@ export function useApiKeyVerification(): ApiKeyVerificationResult {
   })
   const [error, setError] = useState<Error | null>(null)
 
-  const verify = useCallback(async (): Promise<void> => {
+  const reverify = useCallback(async (): Promise<void> => {
     if (!isAnthropicAuthEnabled() || isClaudeAISubscriber() || isCodexSubscriber() || isCopilotSubscriber()) {
       setStatus('valid')
       return
@@ -76,11 +76,14 @@ export function useApiKeyVerification(): ApiKeyVerificationResult {
       setStatus(newStatus)
       return
     }
+    // These are all singleton utilities that don't change - intentionally omitted
+    // to prevent effect loops in REPL.tsx where reverify is in useEffect deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return {
     status,
-    reverify: verify,
+    reverify,
     error,
   }
 }

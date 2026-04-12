@@ -370,7 +370,7 @@ export function getClaudeAiUserDefaultModelDescription(
   if (isCopilotSubscriber()) {
     return 'Claude Sonnet 4 · GitHub Copilot default coding model'
   }
-  if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
+  if (isMaxSubscriber() || isTeamPremiumSubscriber() || isCopilotSubscriber()) {
     if (isOpus1mMergeEnabled()) {
       return `Opus 4.6 with 1M context · Most capable for complex work${fastMode ? getOpus46PricingSuffix(true) : ''}`
     }

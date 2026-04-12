@@ -109,6 +109,10 @@ import { productionDeps, type QueryDeps } from './query/deps.js'
 import type { Terminal, Continue } from './query/transitions.js'
 import { feature } from 'bun:bundle'
 import {
+  addCurrentTurnToolSavedInputTokens,
+  addCurrentTurnToolSavedOutputTokens,
+  addCurrentTurnSavedInputTokens,
+  addCurrentTurnSavedOutputTokens,
   getCurrentTurnTokenBudget,
   getTurnOutputTokens,
   incrementBudgetContinuationCount,
@@ -124,6 +128,63 @@ const taskSummaryModule = feature('BG_SESSIONS')
   ? (require('./utils/taskSummary.js') as typeof import('./utils/taskSummary.js'))
   : null
 /* eslint-enable @typescript-eslint/no-require-imports */
+
+function shouldForwardToolUpdateToUser(message: Message): boolean {
+  if (message.type === 'progress') {
+    return false
+  }
+
+  if (
+    message.type === 'attachment' &&
+    'hookEvent' in message.attachment
+  ) {
+    return false
+  }
+
+  return true
+}
+
+function estimateSuppressedOutputTokens(message: Message): number {
+  try {
+    if (message.type === 'progress') {
+      return Math.ceil(JSON.stringify(message.data).length / 4)
+    }
+    if (message.type === 'attachment') {
+      return Math.ceil(JSON.stringify(message.attachment).length / 4)
+    }
+    if (message.type === 'system' && typeof message.content === 'string') {
+      return Math.ceil(message.content.length / 4)
+    }
+    if (message.type === 'assistant' && Array.isArray(message.message.content)) {
+      const text = message.message.content
+        .filter(
+          (
+            block,
+          ): block is {
+            type: 'text'
+            text: string
+          } => block.type === 'text',
+        )
+        .map(block => block.text)
+        .join('\n')
+      return Math.ceil(text.length / 4)
+    }
+    if (message.type === 'user' && typeof message.message.content === 'string') {
+      return Math.ceil(message.message.content.length / 4)
+    }
+    return 0
+  } catch {
+    return 0
+  }
+}
+
+function estimateToolCallInputTokens(toolUse: ToolUseBlock): number {
+  try {
+    return Math.ceil(JSON.stringify(toolUse.input ?? {}).length / 4)
+  } catch {
+    return 0
+  }
+}
 
 function* yieldMissingToolResultBlocks(
   assistantMessages: AssistantMessage[],
@@ -381,7 +442,10 @@ async function* queryLoop(
     const persistReplacements =
       querySource.startsWith('agent:') ||
       querySource.startsWith('repl_main_thread')
-    messagesForQuery = await applyToolResultBudget(
+    const {
+      messages: budgetedMessages,
+      estimatedSavedTokens: toolResultBudgetSavedTokens,
+    } = await applyToolResultBudget(
       messagesForQuery,
       toolUseContext.contentReplacementState,
       persistReplacements
@@ -397,6 +461,10 @@ async function* queryLoop(
           .map(t => t.name),
       ),
     )
+    messagesForQuery = budgetedMessages
+    if (toolResultBudgetSavedTokens > 0) {
+      addCurrentTurnSavedInputTokens(toolResultBudgetSavedTokens)
+    }
 
     // Apply snip before microcompact (both may run — they are not mutually exclusive).
     // snipTokensFreed is plumbed to autocompact so its threshold check reflects
@@ -730,17 +798,21 @@ async function* queryLoop(
           })
 
           if (cavemanCompressionStats.messagesCompressed > 0) {
+            const estimatedTokensSaved = Math.floor(
+              (cavemanCompressionStats.bytesBeforeCompression -
+                cavemanCompressionStats.bytesAfterCompression) /
+                4,
+            )
             logEvent('tengu_caveman_compression_applied', {
               messagesCompressed: cavemanCompressionStats.messagesCompressed,
               bytesBeforeCompression: cavemanCompressionStats.bytesBeforeCompression,
               bytesAfterCompression: cavemanCompressionStats.bytesAfterCompression,
               compressionRatio: cavemanCompressionStats.bytesAfterCompression / cavemanCompressionStats.bytesBeforeCompression,
-              estimatedTokensSaved: Math.floor(
-                (cavemanCompressionStats.bytesBeforeCompression - cavemanCompressionStats.bytesAfterCompression) / 4
-              ),
+              estimatedTokensSaved,
               queryChainId: queryChainIdForAnalytics,
               queryDepth: queryTracking.depth,
             })
+            addCurrentTurnSavedInputTokens(estimatedTokensSaved)
           }
 
           return compressed
@@ -928,6 +1000,11 @@ async function* queryLoop(
                 content => content.type === 'tool_use',
               ) as ToolUseBlock[]
               if (msgToolUseBlocks.length > 0) {
+                const toolInputTokens = msgToolUseBlocks.reduce(
+                  (sum, block) => sum + estimateToolCallInputTokens(block),
+                  0,
+                )
+                addCurrentTurnToolSavedInputTokens(toolInputTokens)
                 toolUseBlocks.push(...msgToolUseBlocks)
                 needsFollowUp = true
               }
@@ -948,7 +1025,15 @@ async function* queryLoop(
             ) {
               for (const result of streamingToolExecutor.getCompletedResults()) {
                 if (result.message) {
-                  yield result.message
+                  const toolOutputTokens = estimateSuppressedOutputTokens(
+                    result.message,
+                  )
+                  addCurrentTurnToolSavedOutputTokens(toolOutputTokens)
+                  if (shouldForwardToolUpdateToUser(result.message)) {
+                    yield result.message
+                  } else {
+                    addCurrentTurnSavedOutputTokens(toolOutputTokens)
+                  }
                   toolResults.push(
                     ...normalizeMessagesForAPI(
                       [result.message],
@@ -1372,6 +1457,9 @@ async function* queryLoop(
         querySource,
         stopHookActive,
       )
+      for (const summaryMessage of stopHookResult.summaryMessages) {
+        yield summaryMessage
+      }
 
       if (stopHookResult.preventContinuation) {
         return { reason: 'stop_hook_prevented' }
@@ -1481,7 +1569,15 @@ async function* queryLoop(
 
     for await (const update of toolUpdates) {
       if (update.message) {
-        yield update.message
+        const toolOutputTokens = estimateSuppressedOutputTokens(
+          update.message,
+        )
+        addCurrentTurnToolSavedOutputTokens(toolOutputTokens)
+        if (shouldForwardToolUpdateToUser(update.message)) {
+          yield update.message
+        } else {
+          addCurrentTurnSavedOutputTokens(toolOutputTokens)
+        }
 
         if (
           update.message.type === 'attachment' &&

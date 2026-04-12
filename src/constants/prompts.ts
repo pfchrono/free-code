@@ -268,10 +268,16 @@ Examples of the kind of risky actions that warrant user confirmation:
 When you encounter an obstacle, do not use destructive actions as a shortcut to simply make it go away. For instance, try to identify root causes and fix underlying issues rather than bypassing safety checks (e.g. --no-verify). If you discover unexpected state like unfamiliar files, branches, or configuration, investigate before deleting or overwriting, as it may represent the user's in-progress work. For example, typically resolve merge conflicts rather than discarding changes; similarly, if a lock file exists, investigate what process holds it rather than deleting it. In short: only take risky actions carefully, and when in doubt, ask before acting. Follow both the spirit and letter of these instructions - measure twice, cut once.`
 }
 
-function getUsingYourToolsSection(enabledTools: Set<string>): string {
+function getUsingYourToolsSection(
+  enabledTools: Set<string>,
+  options?: {
+    lean?: boolean
+  },
+): string {
   const taskToolName = [TASK_CREATE_TOOL_NAME, TODO_WRITE_TOOL_NAME].find(n =>
     enabledTools.has(n),
   )
+  const isLean = options?.lean === true
 
   // In REPL mode, Read/Write/Edit/Glob/Grep/Bash/Agent are hidden from direct
   // use (REPL_ONLY_TOOLS). The "prefer dedicated tools over Bash" guidance is
@@ -290,26 +296,48 @@ function getUsingYourToolsSection(enabledTools: Set<string>): string {
   // dedicated Glob/Grep tools, so skip guidance pointing at them.
   const embedded = hasEmbeddedSearchTools()
 
-  const providedToolSubitems = [
-    `To read files use ${FILE_READ_TOOL_NAME} instead of cat, head, tail, or sed`,
-    `To edit files use ${FILE_EDIT_TOOL_NAME} instead of sed or awk`,
-    `To create files use ${FILE_WRITE_TOOL_NAME} instead of cat with heredoc or echo redirection`,
-    ...(embedded
-      ? []
-      : [
-          `To search for files use ${GLOB_TOOL_NAME} instead of find or ls`,
-          `To search the content of files, use ${GREP_TOOL_NAME} instead of grep or rg`,
-        ]),
-    `Reserve using the ${BASH_TOOL_NAME} exclusively for system commands and terminal operations that require shell execution. If you are unsure and there is a relevant dedicated tool, default to using the dedicated tool and only fallback on using the ${BASH_TOOL_NAME} tool for these if it is absolutely necessary.`,
-  ]
+  const providedToolSubitems = isLean
+    ? [
+        `Read files with ${FILE_READ_TOOL_NAME}, not shell commands, when available.`,
+        `Edit files with ${FILE_EDIT_TOOL_NAME}, avoid 'sed' and 'awk' for this`,
+        `Create files with ${FILE_WRITE_TOOL_NAME}, not heredocs.`,
+        ...(embedded
+          ? []
+          : [
+              `Use ${GLOB_TOOL_NAME} for filename discovery instead of 'find' or 'ls'.`,
+              `Use ${GREP_TOOL_NAME} for content search instead of 'grep' or 'rg'.`,
+            ]),
+        `Use ${BASH_TOOL_NAME} only for shell-only workflows.`,
+      ]
+    : [
+        `To read files use ${FILE_READ_TOOL_NAME} instead of cat, head, tail, or sed`,
+        `To edit files use ${FILE_EDIT_TOOL_NAME} instead of sed or awk`,
+        `To create files use ${FILE_WRITE_TOOL_NAME} instead of cat with heredoc or echo redirection`,
+        ...(embedded
+          ? []
+          : [
+              `To search for files use ${GLOB_TOOL_NAME} instead of find or ls`,
+              `To search the content of files, use ${GREP_TOOL_NAME} instead of grep or rg`,
+            ]),
+        `Reserve using the ${BASH_TOOL_NAME} exclusively for system commands and terminal operations that require shell execution. If you are unsure and there is a relevant dedicated tool, default to using the dedicated tool and only fallback on using the ${BASH_TOOL_NAME} tool for these if it is absolutely necessary.`,
+      ]
 
   const items = [
-    `Do NOT use the ${BASH_TOOL_NAME} to run commands when a relevant dedicated tool is provided. Using dedicated tools allows the user to better understand and review your work. This is CRITICAL to assisting the user:`,
+    ...(isReplModeEnabled()
+      ? []
+      : isLean
+        ? [
+            `Use dedicated tools first, then shell for unsupported workflows.`,
+            taskToolName
+              ? `Use ${taskToolName} and mark tasks complete as you finish each one.`
+              : null,
+            `Run independent tool calls in parallel; run dependent ones in sequence.`,
+          ]
+        : [
+            `Do NOT use the ${BASH_TOOL_NAME} to run commands when a relevant dedicated tool is provided. Using dedicated tools allows the user to better understand and review your work. This is CRITICAL to assisting the user:`,
+            `You can call multiple tools in a single response. If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency. However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call them sequentially. For instance, if one operation must complete before another starts, run these operations sequentially instead.`,
+          ]),
     providedToolSubitems,
-    taskToolName
-      ? `Break down and manage your work with the ${taskToolName} tool. These tools are helpful for planning your work and helping the user track your progress. Mark each task as completed as soon as you are done with the task. Do not batch up multiple tasks before marking them as completed.`
-      : null,
-    `You can call multiple tools in a single response. If you intend to call multiple tools and there are no dependencies between them, make all independent tool calls in parallel. Maximize use of parallel tool calls where possible to increase efficiency. However, if some tool calls depend on previous calls to inform dependent values, do NOT call these tools in parallel and instead call them sequentially. For instance, if one operation must complete before another starts, run these operations sequentially instead.`,
   ].filter(item => item !== null)
 
   return [`# Using your tools`, ...prependBullets(items)].join(`\n`)
@@ -354,6 +382,9 @@ function getDiscoverSkillsGuidance(): string | null {
 function getSessionSpecificGuidanceSection(
   enabledTools: Set<string>,
   skillToolCommands: Command[],
+  options?: {
+    lean?: boolean
+  },
 ): string | null {
   const hasAskUserQuestionTool = enabledTools.has(ASK_USER_QUESTION_TOOL_NAME)
   const hasSkills =
@@ -362,6 +393,21 @@ function getSessionSpecificGuidanceSection(
   const searchTools = hasEmbeddedSearchTools()
     ? `\`find\` or \`grep\` via the ${BASH_TOOL_NAME} tool`
     : `the ${GLOB_TOOL_NAME} or ${GREP_TOOL_NAME}`
+  const isLean = options?.lean === true
+
+  if (isLean) {
+    const leanItems = [
+      hasAskUserQuestionTool
+        ? `If a tool call is denied and you need clarity, ask ${ASK_USER_QUESTION_TOOL_NAME}.`
+        : null,
+      getIsNonInteractiveSession()
+        ? null
+        : `If user must run interactive shell work, ask them to use \`! <command>\` so output lands in this session.`,
+    ].filter(item => item !== null)
+
+    if (leanItems.length === 0) return null
+    return ['# Session-specific guidance', ...prependBullets(leanItems)].join('\n')
+  }
 
   const items = [
     hasAskUserQuestionTool
@@ -443,12 +489,65 @@ function getSimpleToneAndStyleSection(): string {
   return [`# Tone and style`, ...prependBullets(items)].join(`\n`)
 }
 
+function getLeanSystemSection(): string {
+  const items = [
+    `You are a task-oriented software-engineering model.`,
+    `Use tools to make direct changes, then report outcomes.`,
+    `Keep actions scoped and do not over-communicate.`,
+  ]
+
+  return [`# System`, ...prependBullets(items)].join(`\n`)
+}
+
+function getLeanDoingTasksSection(): string {
+  const items = [
+    `Complete the requested engineering task directly.`,
+    `Read relevant files before editing.`,
+    `Keep changes minimal, scoped, and concrete.`,
+    `Verify key assumptions before reporting completion.`,
+  ]
+
+  return [`# Doing tasks`, ...prependBullets(items)].join(`\n`)
+}
+
+function getLeanActionsSection(): string {
+  const items = [
+    `Ask before destructive or shared-system actions (delete, reset, force push, infra changes).`,
+    `For local, reversible code changes, proceed without delay.`,
+  ]
+
+  return [`# Actions`, ...prependBullets(items)].join(`\n`)
+}
+
+function getLeanOutputSection(): string {
+  const items = [
+    `Keep replies brief and actionable. Start with result, then next step.`,
+    `Show only what user needs: file path, command, test result.`,
+    `Use caveman style for plain prose.`,
+    `Avoid tool-call narration unless it changes completion risk.`,
+  ]
+
+  return [`# Output`, ...prependBullets(items)].join(`\n`)
+}
+
+function getLeanIntroSection(): string {
+  return `You are free-code, an engineering agent.
+Work with tools, keep scope tight, and report only actionable outcomes.
+
+${CYBER_RISK_INSTRUCTION}
+IMPORTANT: You MUST NEVER generate or guess URLs for the user unless you are confident they are for programming help. You may use URLs provided by the user in messages or local files.`
+}
+
 export async function getSystemPrompt(
   tools: Tools,
   model: string,
   additionalWorkingDirectories?: string[],
   mcpClients?: MCPServerConnection[],
+  options?: {
+    lean?: boolean
+  },
 ): Promise<string[]> {
+  const leanPrompt = options?.lean === true
   if (isEnvTruthy(process.env.CLAUDE_CODE_SIMPLE)) {
     return [
       `You are free-code, a software engineering CLI assistant.\n\nCWD: ${getCwd()}\nDate: ${getSessionStartDate()}`,
@@ -491,88 +590,126 @@ ${CYBER_RISK_INSTRUCTION}`,
   }
 
   const dynamicSections = [
-    systemPromptSection('session_guidance', () =>
-      getSessionSpecificGuidanceSection(enabledTools, skillToolCommands),
-    ),
-    systemPromptSection('memory', () => loadMemoryPrompt()),
-    systemPromptSection('ant_model_override', () =>
-      getAntModelOverrideSection(),
-    ),
-    systemPromptSection('env_info_simple', () =>
-      computeSimpleEnvInfo(model, additionalWorkingDirectories),
-    ),
-    systemPromptSection('language', () =>
-      getLanguageSection(settings.language),
-    ),
-    systemPromptSection('output_style', () =>
-      getOutputStyleSection(outputStyleConfig),
-    ),
-    // When delta enabled, instructions are announced via persisted
-    // mcp_instructions_delta attachments (attachments.ts) instead of this
-    // per-turn recompute, which busts the prompt cache on late MCP connect.
-    // Gate check inside compute (not selecting between section variants)
-    // so a mid-session gate flip doesn't read a stale cached value.
-    DANGEROUS_uncachedSystemPromptSection(
-      'mcp_instructions',
-      () =>
-        isMcpInstructionsDeltaEnabled()
-          ? null
-          : getMcpInstructionsSection(mcpClients),
-      'MCP servers connect/disconnect between turns',
-    ),
-    systemPromptSection('scratchpad', () => getScratchpadInstructions()),
-    systemPromptSection('frc', () => getFunctionResultClearingSection(model)),
-    systemPromptSection(
-      'summarize_tool_results',
-      () => SUMMARIZE_TOOL_RESULTS_SECTION,
-    ),
-    // Caveman mode - ultra-compressed communication
-    systemPromptSection('caveman_mode', () => getCavemanModeSection()),
-    // Numeric length anchors — research shows ~1.2% output token reduction vs
-    // qualitative "be concise". Ant-only to measure quality impact first.
-    ...(process.env.USER_TYPE === 'ant'
+    ...(leanPrompt
       ? [
-          systemPromptSection(
-            'numeric_length_anchors',
+          systemPromptSection('session_guidance', () =>
+            getSessionSpecificGuidanceSection(enabledTools, skillToolCommands, {
+              lean: true,
+            }),
+          ),
+          systemPromptSection('memory', () => loadMemoryPrompt()),
+          DANGEROUS_uncachedSystemPromptSection(
+            'mcp_instructions',
             () =>
-              'Length limits: keep text between tool calls to \u226425 words. Keep final responses to \u2264100 words unless the task requires more detail.',
+              isMcpInstructionsDeltaEnabled()
+                ? null
+                : getMcpInstructionsSection(mcpClients),
+            'MCP servers connect/disconnect between turns',
+          ),
+          systemPromptSection(
+            'summarize_tool_results',
+            () => SUMMARIZE_TOOL_RESULTS_SECTION,
           ),
         ]
-      : []),
-    ...(feature('TOKEN_BUDGET')
-      ? [
-          // Cached unconditionally — the "When the user specifies..." phrasing
-          // makes it a no-op with no budget active. Was DANGEROUS_uncached
-          // (toggled on getCurrentTurnTokenBudget()), busting ~20K tokens per
-          // budget flip. Not moved to a tail attachment: first-response and
-          // budget-continuation paths don't see attachments (#21577).
-          systemPromptSection(
-            'token_budget',
-            () =>
-              'When the user specifies a token target (e.g., "+500k", "spend 2M tokens", "use 1B tokens"), your output token count will be shown each turn. Keep working until you approach the target \u2014 plan your work to fill it productively. The target is a hard minimum, not a suggestion. If you stop early, the system will automatically continue you.',
+      : [
+          systemPromptSection('session_guidance', () =>
+            getSessionSpecificGuidanceSection(enabledTools, skillToolCommands),
           ),
-        ]
-      : []),
-    ...(feature('KAIROS') || feature('KAIROS_BRIEF')
-      ? [systemPromptSection('brief', () => getBriefSection())]
-      : []),
+          systemPromptSection('memory', () => loadMemoryPrompt()),
+          systemPromptSection('ant_model_override', () =>
+            getAntModelOverrideSection(),
+          ),
+          systemPromptSection('env_info_simple', () =>
+            computeSimpleEnvInfo(model, additionalWorkingDirectories),
+          ),
+          systemPromptSection('language', () =>
+            getLanguageSection(settings.language),
+          ),
+          systemPromptSection('output_style', () =>
+            getOutputStyleSection(outputStyleConfig),
+          ),
+          // When delta enabled, instructions are announced via persisted
+          // mcp_instructions_delta attachments (attachments.ts) instead of this
+          // per-turn recompute, which busts the prompt cache on late MCP connect.
+          // Gate check inside compute (not selecting between section variants)
+          // so a mid-session gate flip doesn't read a stale cached value.
+          DANGEROUS_uncachedSystemPromptSection(
+            'mcp_instructions',
+            () =>
+              isMcpInstructionsDeltaEnabled()
+                ? null
+                : getMcpInstructionsSection(mcpClients),
+            'MCP servers connect/disconnect between turns',
+          ),
+          systemPromptSection('scratchpad', () => getScratchpadInstructions()),
+          systemPromptSection('frc', () => getFunctionResultClearingSection(model)),
+          systemPromptSection(
+            'summarize_tool_results',
+            () => SUMMARIZE_TOOL_RESULTS_SECTION,
+          ),
+          // Caveman mode - ultra-compressed communication
+          systemPromptSection('caveman_mode', () => getCavemanModeSection()),
+          // Numeric length anchors — research shows ~1.2% output token reduction vs
+          // qualitative "be concise". Ant-only to measure quality impact first.
+          ...(process.env.USER_TYPE === 'ant'
+            ? [
+                systemPromptSection(
+                  'numeric_length_anchors',
+                  () =>
+                    'Length limits: keep text between tool calls to ≤25 words. Keep final responses to ≤100 words unless the task requires more detail.',
+                ),
+              ]
+            : []),
+          ...(feature('TOKEN_BUDGET')
+            ? [
+                // Cached unconditionally — the "When the user specifies..." phrasing
+                // makes it a no-op with no token impact active. Was DANGEROUS_uncached
+                // (toggled on getCurrentTurnTokenBudget()), busting ~20K tokens per
+                // budget flip. Not moved to a tail attachment: first-response and
+                // budget-continuation paths don't see attachments (#21577).
+                systemPromptSection(
+                  'token_budget',
+                  () =>
+                    'When the user specifies a token target (e.g., "+500k", "spend 2M tokens", "use 1B tokens"), your output token count will be shown each turn. Keep working until you approach the target — plan your work to fill it productively. The target is a hard minimum, not a suggestion. If you stop early, the system will automatically continue you.',
+                ),
+              ]
+            : []),
+          ...(feature('KAIROS') || feature('KAIROS_BRIEF')
+            ? [systemPromptSection('brief', () => getBriefSection())]
+            : []),
+        ]),
   ]
 
   const resolvedDynamicSections =
     await resolveSystemPromptSections(dynamicSections)
 
+  const staticSections = leanPrompt
+    ? [
+        getLeanIntroSection(),
+        getLeanSystemSection(),
+        outputStyleConfig === null ||
+          outputStyleConfig.keepCodingInstructions === true
+          ? getLeanDoingTasksSection()
+          : null,
+        getLeanActionsSection(),
+        getUsingYourToolsSection(enabledTools, { lean: true }),
+        getLeanOutputSection(),
+      ]
+    : [
+        getSimpleIntroSection(outputStyleConfig),
+        getSimpleSystemSection(),
+        outputStyleConfig === null ||
+        outputStyleConfig.keepCodingInstructions === true
+          ? getSimpleDoingTasksSection()
+          : null,
+        getActionsSection(),
+        getUsingYourToolsSection(enabledTools),
+        getSimpleToneAndStyleSection(),
+        getOutputEfficiencySection(),
+      ]
+
   return [
-    // --- Static content (cacheable) ---
-    getSimpleIntroSection(outputStyleConfig),
-    getSimpleSystemSection(),
-    outputStyleConfig === null ||
-    outputStyleConfig.keepCodingInstructions === true
-      ? getSimpleDoingTasksSection()
-      : null,
-    getActionsSection(),
-    getUsingYourToolsSection(enabledTools),
-    getSimpleToneAndStyleSection(),
-    getOutputEfficiencySection(),
+    ...staticSections.filter(s => s !== null),
     // === BOUNDARY MARKER - DO NOT MOVE OR REMOVE ===
     ...(shouldUseGlobalCacheScope() ? [SYSTEM_PROMPT_DYNAMIC_BOUNDARY] : []),
     // --- Dynamic content (registry-managed) ---
@@ -945,3 +1082,4 @@ The user context may include a \`terminalFocus\` field indicating whether the us
 - **Unfocused**: The user is away. Lean heavily into autonomous action — make decisions, explore, commit, push. Only pause for genuinely irreversible or high-risk actions.
 - **Focused**: The user is watching. Be more collaborative — surface choices, ask before committing to large changes, and keep your output concise so it's easy to follow in real time.${BRIEF_PROACTIVE_SECTION && briefToolModule?.isBriefEnabled() ? `\n\n${BRIEF_PROACTIVE_SECTION}` : ''}`
 }
+
