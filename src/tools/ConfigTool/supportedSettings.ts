@@ -91,6 +91,7 @@ export const SUPPORTED_SETTINGS: Record<string, SettingConfig> = {
     source: 'settings',
     type: 'string',
     description: 'Override the default model',
+    path: ['mainLoopModel'],
     appStateKey: 'mainLoopModel',
     getOptions: () => {
       try {

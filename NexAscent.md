@@ -13,6 +13,42 @@ User should always know:
 
 This document turns the earlier comparison into a concrete execution plan for the next three phases, followed by a full rebrand plan.
 
+## Reference Inputs
+
+This roadmap is informed by both internal free-code architecture and external reference repos reviewed during NexAscent planning.
+
+## Progress Update — 2026-04-12
+
+### Completed or partially completed roadmap-related work
+- ✅ Phase 1 groundwork: existing `/status` surface already exists as an entrypoint and duplicate memory diagnostics were removed from it (#467, #468).
+- ✅ Phase 1 groundwork: model/provider state discovery and repair work improved correctness of status-related model display and provider synchronization (#449-#456, #469).
+- ✅ Phase 1 progress: settings status now includes `remoteConnectionStatus` and `remoteBackgroundTaskCount` in the secondary status section, closing the background-task visibility gap from task #5.
+- ✅ Phase 1 groundwork: missing status utility import and provider-aware model option export/build repair landed, keeping status/provider UI work unblocked (#462, #471, #472).
+- ✅ Planning complete: OpenSpec proposal, design, specs, and task breakdown exist under `openspec/changes/nexascent-status-memory-compaction/` (#442-#447).
+- ✅ Roadmap/documentation alignment: this roadmap and related planning docs were refined to reflect the chosen status-first approach (#432-#441).
+
+### Still not complete
+- ⏳ P1.1 is not fully done: no confirmed shared normalized status snapshot builder yet, and no evidence that `/status` already reports the full planned session/context/worktree/MCP/agent snapshot.
+- ⏳ Phase 2 remains open: resume-source persistence/reporting is planned in OpenSpec but still marked incomplete in tasks/specs.
+- ⏳ Phase 3 remains open: compaction event log and inspectable controls still appear to be planned rather than implemented.
+
+### Notes from memory search and project history
+- Observation trail indicates strong incremental progress around status architecture rather than full Phase 1 completion.
+- Most clearly completed items so far are prerequisite fixes and planning: status command discovery, status cleanup, model resolution fixes, provider synchronization, build restoration, and settings status visibility for remote/background-task state.
+- Best next execution target remains P1.1: implement the shared snapshot backend and make `/status` render the unified system view.
+
+### Internal sources
+- existing free-code commands, services, persistence paths, and compatibility surfaces
+- OpenSpec change work under `openspec/changes/nexascent-status-memory-compaction/`
+
+### External reference repos
+- `F:\code\soulforge`
+- `F:\code\opencode`
+- `F:\code\openclaude`
+- `F:\code\codex`
+
+These references are for feature ideas, UX comparison, and planning direction. Implementation should stay grounded in current free-code internals and compatibility-safe extensions rather than direct cloning.
+
 ---
 
 ## Goals for Phases 1-3

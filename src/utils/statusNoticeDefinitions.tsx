@@ -3,8 +3,6 @@ import { Box, Text } from '../ink.js';
 import * as React from 'react';
 import { getLargeMemoryFiles, MAX_MEMORY_CHARACTER_COUNT, type MemoryFileInfo } from './claudemd.js';
 import figures from 'figures';
-import { getCwd } from './cwd.js';
-import { relative } from 'path';
 import { formatNumber } from './format.js';
 import type { getGlobalConfig } from './config.js';
 import { getAnthropicApiKeyWithSource, getApiKeyFromConfigOrMacOSKeychain, getAuthTokenSource, isClaudeAISubscriber } from './auth.js';
@@ -36,11 +34,10 @@ const largeMemoryFilesNotice: StatusNoticeDefinition = {
     const largeMemoryFiles = getLargeMemoryFiles(ctx.memoryFiles);
     return <>
         {largeMemoryFiles.map(file => {
-        const displayPath = file.path.startsWith(getCwd()) ? relative(getCwd(), file.path) : file.path;
         return <Box key={file.path} flexDirection="row">
               <Text color="warning">{figures.warning}</Text>
               <Text color="warning">
-                Large <Text bold>{displayPath}</Text> will impact performance (
+                Large <Text bold>{file.displayPath}</Text> will impact performance (
                 {formatNumber(file.content.length)} chars &gt;{' '}
                 {formatNumber(MAX_MEMORY_CHARACTER_COUNT)})
                 <Text dimColor> · /memory to edit</Text>

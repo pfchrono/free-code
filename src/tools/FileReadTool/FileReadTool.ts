@@ -129,6 +129,9 @@ function isBlockedDevicePath(filePath: string): boolean {
 
 // Narrow no-break space (U+202F) used by some macOS versions in screenshot filenames
 const THIN_SPACE = String.fromCharCode(8239)
+// Process-epoch marker for dedupe safety. Restored cache entries from prior
+// runs must not produce file_unchanged stubs when earlier content may be gone.
+const READ_DEDUP_PROCESS_EPOCH = Date.now()
 
 /**
  * Resolves macOS screenshot paths that may have different space characters.
@@ -537,6 +540,8 @@ export const FileReadTool = buildTool({
       'tengu_read_dedup_killswitch',
       false,
     )
+    const isBypassPermissionsMode =
+      context.getAppState().toolPermissionContext.mode === 'bypassPermissions'
     const existingState = dedupKillswitch
       ? undefined
       : readFileState.get(fullFilePath)
@@ -547,7 +552,9 @@ export const FileReadTool = buildTool({
     if (
       existingState &&
       !existingState.isPartialView &&
-      existingState.offset !== undefined
+      existingState.offset !== undefined &&
+      !isBypassPermissionsMode &&
+      existingState.dedupeProcessEpoch === READ_DEDUP_PROCESS_EPOCH
     ) {
       const rangeMatch =
         existingState.offset === offset && existingState.limit === limit
@@ -844,6 +851,7 @@ async function callInner(
       timestamp: Math.floor(stats.mtimeMs),
       offset,
       limit,
+      dedupeProcessEpoch: READ_DEDUP_PROCESS_EPOCH,
     })
     context.nestedMemoryAttachmentTriggers?.add(fullFilePath)
 
@@ -1034,6 +1042,7 @@ async function callInner(
     timestamp: Math.floor(mtimeMs),
     offset,
     limit,
+    dedupeProcessEpoch: READ_DEDUP_PROCESS_EPOCH,
   })
   context.nestedMemoryAttachmentTriggers?.add(fullFilePath)
 

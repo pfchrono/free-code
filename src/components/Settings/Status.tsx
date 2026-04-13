@@ -9,9 +9,10 @@ import { Box, Text, useTheme } from '../../ink.js';
 import { type AppState, useAppState } from '../../state/AppState.js';
 import { getCwd } from '../../utils/cwd.js';
 import { getCurrentSessionTitle } from '../../utils/sessionStorage.js';
-import { buildAccountProperties, buildAPIProviderProperties, buildIDEProperties, buildInstallationDiagnostics, buildInstallationHealthDiagnostics, buildMcpProperties, buildMemoryDiagnostics, buildSandboxProperties, buildSettingSourcesProperties, type Diagnostic, getModelDisplayLabel, type Property } from '../../utils/status.js';
+import { buildAccountProperties, buildAPIProviderProperties, buildIDEProperties, buildInstallationDiagnostics, buildInstallationHealthDiagnostics, buildMcpProperties, buildMemoryDiagnostics, buildRemoteProperties, buildSandboxProperties, buildSettingSourcesProperties, type Diagnostic, getModelDisplayLabel, type Property } from '../../utils/status.js';
 import type { ThemeName } from '../../utils/theme.js';
 import { ConfigurableShortcutHint } from '../ConfigurableShortcutHint.js';
+import { useMainLoopModel } from '../../hooks/useMainLoopModel.js';
 type Props = {
   context: LocalJSXCommandContext;
   diagnosticsPromise: Promise<Diagnostic[]>;
@@ -38,18 +39,22 @@ function buildSecondarySection({
   mainLoopModel,
   mcp,
   theme,
-  context
+  context,
+  remoteConnectionStatus,
+  remoteBackgroundTaskCount
 }: {
   mainLoopModel: AppState['mainLoopModel'];
   mcp: AppState['mcp'];
   theme: ThemeName;
   context: LocalJSXCommandContext;
+  remoteConnectionStatus: AppState['remoteConnectionStatus'];
+  remoteBackgroundTaskCount: AppState['remoteBackgroundTaskCount'];
 }): Property[] {
   const modelLabel = getModelDisplayLabel(mainLoopModel);
   return [{
     label: 'Model',
     value: modelLabel
-  }, ...buildIDEProperties(mcp.clients, context.options.ideInstallationStatus, theme), ...buildMcpProperties(mcp.clients, theme), ...buildSandboxProperties(), ...buildSettingSourcesProperties()];
+  }, ...buildRemoteProperties(remoteConnectionStatus, remoteBackgroundTaskCount, theme), ...buildIDEProperties(mcp.clients, context.options.ideInstallationStatus, theme), ...buildMcpProperties(mcp.clients, theme), ...buildSandboxProperties(), ...buildSettingSourcesProperties()];
 }
 export async function buildDiagnostics(): Promise<Diagnostic[]> {
   return [...(await buildInstallationDiagnostics()), ...(await buildInstallationHealthDiagnostics()), ...(await buildMemoryDiagnostics())];
@@ -105,8 +110,10 @@ export function Status(t0) {
     context,
     diagnosticsPromise
   } = t0;
-  const mainLoopModel = useAppState(_temp);
+  const mainLoopModel = useMainLoopModel();
   const mcp = useAppState(_temp2);
+  const remoteConnectionStatus = useAppState(_temp4);
+  const remoteBackgroundTaskCount = useAppState(_temp5);
   const [theme] = useTheme();
   let t1;
   if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
@@ -116,20 +123,24 @@ export function Status(t0) {
     t1 = $[0];
   }
   let t2;
-  if ($[1] !== context || $[2] !== mainLoopModel || $[3] !== mcp || $[4] !== theme) {
+  if ($[1] !== context || $[2] !== mainLoopModel || $[3] !== mcp || $[4] !== theme || $[5] !== remoteConnectionStatus || $[6] !== remoteBackgroundTaskCount) {
     t2 = buildSecondarySection({
       mainLoopModel,
       mcp,
       theme,
-      context
+      context,
+      remoteConnectionStatus,
+      remoteBackgroundTaskCount
     });
     $[1] = context;
     $[2] = mainLoopModel;
     $[3] = mcp;
     $[4] = theme;
-    $[5] = t2;
+    $[5] = remoteConnectionStatus;
+    $[6] = remoteBackgroundTaskCount;
+    $[7] = t2;
   } else {
-    t2 = $[5];
+    t2 = $[7];
   }
   let t3;
   if ($[6] !== t2) {
@@ -197,6 +208,12 @@ function _temp3(t0, j) {
 }
 function _temp2(s_0) {
   return s_0.mcp;
+}
+function _temp5(s_1) {
+  return s_1.remoteBackgroundTaskCount;
+}
+function _temp4(s_2) {
+  return s_2.remoteConnectionStatus;
 }
 function _temp(s) {
   return s.mainLoopModel;

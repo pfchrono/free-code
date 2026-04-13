@@ -486,6 +486,7 @@ function OAuthStatusMessage(t0) {
                 logEvent("tengu_oauth_platform_selected", {});
                 setLoginWithCopilot(false);
                 setLoginWithCodex(false);
+                setLoginWithClaudeAi(false);
                 setOAuthStatus({
                   state: "platform_setup"
                 });

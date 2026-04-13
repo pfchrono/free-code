@@ -13,6 +13,9 @@ import { SandboxManager } from '../sandbox/sandbox-adapter.js'
 import { containsVulnerableUncPath } from '../shell/readOnlyCommandValidation.js'
 import {
   checkEditableInternalPath,
+  getProtectedSystemPathDenyDecisionReason,
+  isBypassPermissionsActive,
+  isProtectedSystemPath,
   checkPathSafetyForAutoEdit,
   checkReadableInternalPath,
   matchingRuleForInput,
@@ -146,6 +149,16 @@ export function isPathAllowed(
 ): PathCheckResult {
   // Determine which permission type to check based on operation
   const permissionType = operationType === 'read' ? 'read' : 'edit'
+
+  // Hard deny protected system paths while bypass mode is active.
+  // Return as a synthetic deny rule so higher-level callers treat this as
+  // non-overridable deny (not an ask that bypass mode would auto-allow).
+  if (isBypassPermissionsActive(context) && isProtectedSystemPath(resolvedPath)) {
+    return {
+      allowed: false,
+      decisionReason: getProtectedSystemPathDenyDecisionReason(permissionType),
+    }
+  }
 
   // 1. Check deny rules first (they take precedence)
   const denyRule = matchingRuleForInput(

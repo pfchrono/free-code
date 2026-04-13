@@ -19,6 +19,9 @@ import { containsPathTraversal, getDirectoryForPath } from '../../utils/path.js'
 import {
   allWorkingDirectories,
   checkEditableInternalPath,
+  getProtectedSystemPathDenyDecisionReason,
+  isBypassPermissionsActive,
+  isProtectedSystemPath,
   checkPathSafetyForAutoEdit,
   checkReadableInternalPath,
   matchingRuleForInput,
@@ -867,6 +870,15 @@ function isPathAllowed(
   precomputedPathsToCheck?: readonly string[],
 ): PathCheckResult {
   const permissionType = operationType === 'read' ? 'read' : 'edit'
+
+  // Hard deny protected system paths while bypass mode is active.
+  // Return as synthetic deny rule so callers surface deny (not ask).
+  if (isBypassPermissionsActive(context) && isProtectedSystemPath(resolvedPath)) {
+    return {
+      allowed: false,
+      decisionReason: getProtectedSystemPathDenyDecisionReason(permissionType),
+    }
+  }
 
   // 1. Check deny rules first
   const denyRule = matchingRuleForInput(

@@ -3,7 +3,7 @@ import figures from 'figures';
 import * as React from 'react';
 import { color, Text } from '../ink.js';
 import type { MCPServerConnection } from '../services/mcp/types.js';
-import { getAccountInformation, isClaudeAISubscriber } from './auth.js';
+import { getAccountInformation, isClaudeAISubscriber, isCopilotSubscriber } from './auth.js';
 import { getLargeMemoryFiles, getMemoryFiles, MAX_MEMORY_CHARACTER_COUNT } from './claudemd.js';
 import { getDoctorDiagnostic } from './doctorDiagnostic.js';
 import { getAWSRegion, getDefaultVertexRegion, isEnvTruthy } from './envUtils.js';
@@ -12,6 +12,7 @@ import { formatNumber } from './format.js';
 import { getIdeClientName, type IDEExtensionInstallationStatus, isJetBrainsIde, toIDEDisplayName } from './ide.js';
 import { getClaudeAiUserDefaultModelDescription, modelDisplayString } from './model/model.js';
 import { getAPIProvider } from './model/providers.js';
+import { getTheme } from './theme.js';
 import { getMTLSConfig } from './mtls.js';
 import { checkInstall } from './nativeInstaller/index.js';
 import { getProxyUrl } from './proxy.js';
@@ -113,15 +114,22 @@ export function buildMcpProperties(clients: MCPServerConnection[] = [], theme: T
     value: `${parts.join(', ')} ${color('inactive', theme)('· /mcp')}`
   }];
 }
+export function buildRemoteProperties(connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error', backgroundTaskCount: number, theme: ThemeName = getTheme()): Property[] {
+  const statusValue = connectionStatus === 'connected' ? color('success', theme)('Connected') : connectionStatus === 'connecting' ? color('warning', theme)('Connecting') : connectionStatus === 'error' ? color('error', theme)('Error') : color('inactive', theme)('Disconnected');
+  const properties: Property[] = [{
+    label: 'Remote session',
+    value: statusValue
+  }];
+  if (backgroundTaskCount > 0) {
+    properties.push({
+      label: 'Background tasks',
+      value: `${backgroundTaskCount} running`
+    });
+  }
+  return properties;
+}
 export async function buildMemoryDiagnostics(): Promise<Diagnostic[]> {
-  const files = await getMemoryFiles();
-  const largeFiles = getLargeMemoryFiles(files);
-  const diagnostics: Diagnostic[] = [];
-  largeFiles.forEach(file => {
-    const displayPath = getDisplayPath(file.path);
-    diagnostics.push(`Large ${displayPath} will impact performance (${formatNumber(file.content.length)} chars > ${formatNumber(MAX_MEMORY_CHARACTER_COUNT)})`);
-  });
-  return diagnostics;
+  return [];
 }
 export function buildSettingSourcesProperties(): Property[] {
   const enabledSources = getEnabledSettingSources();
@@ -357,9 +365,13 @@ export function buildAPIProviderProperties(): Property[] {
 }
 export function getModelDisplayLabel(mainLoopModel: string | null): string {
   let modelLabel = modelDisplayString(mainLoopModel);
-  if (mainLoopModel === null && (isClaudeAISubscriber() || isCopilotSubscriber())) {
-    const description = getClaudeAiUserDefaultModelDescription();
-    modelLabel = `${chalk.bold('Default')} ${description}`;
+  if (mainLoopModel === null) {
+    if (isClaudeAISubscriber()) {
+      const description = getClaudeAiUserDefaultModelDescription();
+      modelLabel = `${chalk.bold('Default')} ${description}`;
+    } else if (isCopilotSubscriber()) {
+      modelLabel = chalk.bold('Default');
+    }
   }
   return modelLabel;
 }

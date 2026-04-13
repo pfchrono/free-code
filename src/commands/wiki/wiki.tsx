@@ -18,10 +18,19 @@ function renderStatusLines(status: Awaited<ReturnType<typeof getWikiStatus>>): s
 
 export const call: LocalCommandCall = async (args, context) => {
   const rawArgs = args.trim()
-  const cwd = context.options.cwd
+  const cwd = context.cwd ?? process.cwd()
+
+  if (rawArgs === '') {
+    const status = await getWikiStatus(cwd)
+    return {
+      type: 'text',
+      value: renderStatusLines(status).join('\n'),
+    }
+  }
+
   const [subcommand, ...rest] = rawArgs.split(/\s+/).filter(Boolean)
 
-  if (rawArgs === '' || subcommand === 'status') {
+  if (subcommand === 'status') {
     const status = await getWikiStatus(cwd)
     return {
       type: 'text',

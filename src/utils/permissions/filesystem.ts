@@ -78,6 +78,100 @@ export const DANGEROUS_DIRECTORIES = [
   '.claude',
 ] as const
 
+const POSIX_PROTECTED_SYSTEM_PATH_PREFIXES = [
+  '/etc',
+  '/bin',
+  '/sbin',
+  '/usr',
+  '/lib',
+  '/lib64',
+  '/boot',
+  '/dev',
+  '/proc',
+  '/sys',
+  '/system',
+  '/library',
+  '/private/etc',
+  '/private/var/db',
+  '/var/db',
+] as const
+
+const WINDOWS_PROTECTED_SYSTEM_TOP_LEVEL_DIRS = new Set([
+  'windows',
+  'program files',
+  'program files (x86)',
+  'programdata',
+  '$recycle.bin',
+  'system volume information',
+  'boot',
+  'recovery',
+])
+
+const WINDOWS_DRIVE_PATH_PATTERN = /^[a-z]:(?:\/.*)?$/i
+const WINDOWS_DRIVE_ROOT_PATTERN = /^[a-z]:\/?$/i
+
+function normalizeForSystemPathCheck(path: string): string {
+  const slashNormalized = path.replace(/[\\/]+/g, '/')
+  if (slashNormalized === '/') return slashNormalized
+  return slashNormalized.replace(/\/+$/, '')
+}
+
+function hasPathPrefix(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`)
+}
+
+export function isBypassPermissionsActive(
+  toolPermissionContext: ToolPermissionContext,
+): boolean {
+  return (
+    toolPermissionContext.mode === 'bypassPermissions' ||
+    (toolPermissionContext.mode === 'plan' &&
+      toolPermissionContext.isBypassPermissionsModeAvailable)
+  )
+}
+
+export function isProtectedSystemPath(path: string): boolean {
+  const normalized = normalizeCaseForComparison(
+    normalizeForSystemPathCheck(path),
+  )
+
+  if (!normalized) return false
+  if (normalized === '/') return true
+
+  if (WINDOWS_DRIVE_ROOT_PATTERN.test(normalized)) {
+    return true
+  }
+  if (WINDOWS_DRIVE_PATH_PATTERN.test(normalized)) {
+    const topLevel = normalized.slice(3).split('/')[0]
+    return topLevel ? WINDOWS_PROTECTED_SYSTEM_TOP_LEVEL_DIRS.has(topLevel) : true
+  }
+
+  if (!normalized.startsWith('/')) {
+    return false
+  }
+
+  return POSIX_PROTECTED_SYSTEM_PATH_PREFIXES.some(prefix =>
+    hasPathPrefix(normalized, prefix),
+  )
+}
+
+export function getProtectedSystemPathDenyDecisionReason(
+  permissionType: 'read' | 'edit',
+): NonNullable<PermissionDecision['decisionReason']> {
+  return {
+    type: 'rule',
+    rule: {
+      source: 'session',
+      ruleBehavior: 'deny',
+      ruleValue: {
+        toolName:
+          permissionType === 'read' ? FILE_READ_TOOL_NAME : FILE_EDIT_TOOL_NAME,
+        ruleContent: '[protected-system-path]',
+      },
+    },
+  }
+}
+
 /**
  * Normalizes a path for case-insensitive comparison.
  * This prevents bypassing security checks using mixed-case paths on case-insensitive
@@ -1047,6 +1141,18 @@ export function checkReadPermissionForTool(
   // 6× = 30 syscalls per Read permission check).
   const pathsToCheck = getPathsForPermissionCheck(path)
 
+  // Hard deny protected system paths when bypass mode is active.
+  // This keeps --dangerously-skip-permissions fast (no prompt gating) while
+  // still preventing direct reads of critical OS paths.
+  const protectedPath = pathsToCheck.find(isProtectedSystemPath)
+  if (isBypassPermissionsActive(toolPermissionContext) && protectedPath) {
+    return {
+      behavior: 'deny',
+      message: `Access to protected system path '${protectedPath}' is denied in bypass permissions mode.`,
+      decisionReason: getProtectedSystemPathDenyDecisionReason('read'),
+    }
+  }
+
   // 1. Defense-in-depth: Block UNC paths early (before other checks)
   // This catches paths starting with \\ or // that could access network resources
   // This may catch some UNC patterns not detected by containsVulnerableUncPath
@@ -1219,6 +1325,17 @@ export function checkWritePermissionForTool<Input extends AnyObject>(
   // 1. Check for deny rules - check both the original path and resolved symlink path
   const pathsToCheck =
     precomputedPathsToCheck ?? getPathsForPermissionCheck(path)
+
+  // Hard deny protected system paths when bypass mode is active.
+  // Applies to edit/write/create so bypass cannot mutate critical OS paths.
+  const protectedPath = pathsToCheck.find(isProtectedSystemPath)
+  if (isBypassPermissionsActive(toolPermissionContext) && protectedPath) {
+    return {
+      behavior: 'deny',
+      message: `Access to protected system path '${protectedPath}' is denied in bypass permissions mode.`,
+      decisionReason: getProtectedSystemPathDenyDecisionReason('edit'),
+    }
+  }
   for (const pathToCheck of pathsToCheck) {
     const denyRule = matchingRuleForInput(
       pathToCheck,

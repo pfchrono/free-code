@@ -1141,12 +1141,15 @@ export async function checkRuleBasedPermissions(
     return toolPermissionResult
   }
 
-  // 1g. Safety checks (e.g. .git/, .claude/, .vscode/, shell configs) are
-  // bypass-immune — they must prompt even when a PreToolUse hook returned
-  // allow. checkPathSafetyForAutoEdit returns {type:'safetyCheck'} for these.
+  // 1g. Non-classifier-approvable safety checks stay bypass-immune — they must
+  // prompt even when a PreToolUse hook returned allow. This keeps hard blocks
+  // (suspicious path patterns, cross-machine bridge send) intact while still
+  // letting --dangerously-skip-permissions bypass classifier-approvable
+  // sensitive-file prompts.
   if (
     toolPermissionResult?.behavior === 'ask' &&
-    toolPermissionResult.decisionReason?.type === 'safetyCheck'
+    toolPermissionResult.decisionReason?.type === 'safetyCheck' &&
+    toolPermissionResult.decisionReason.classifierApprovable === false
   ) {
     return toolPermissionResult
   }
@@ -1249,12 +1252,15 @@ async function hasPermissionsToUseToolInner(
     return toolPermissionResult
   }
 
-  // 1g. Safety checks (e.g. .git/, .claude/, .vscode/, shell configs) are
-  // bypass-immune — they must prompt even in bypassPermissions mode.
-  // checkPathSafetyForAutoEdit returns {type:'safetyCheck'} for these paths.
+  // 1g. Non-classifier-approvable safety checks stay bypass-immune even in
+  // bypassPermissions mode. This preserves hard blocks (suspicious path
+  // patterns, cross-machine bridge send) while allowing
+  // --dangerously-skip-permissions to bypass classifier-approvable sensitive
+  // file prompts.
   if (
     toolPermissionResult?.behavior === 'ask' &&
-    toolPermissionResult.decisionReason?.type === 'safetyCheck'
+    toolPermissionResult.decisionReason?.type === 'safetyCheck' &&
+    toolPermissionResult.decisionReason.classifierApprovable === false
   ) {
     return toolPermissionResult
   }

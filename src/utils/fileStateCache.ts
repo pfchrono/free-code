@@ -6,6 +6,9 @@ export type FileState = {
   timestamp: number
   offset: number | undefined
   limit: number | undefined
+  // Marks entries created by a live Read in current process. Used to avoid
+  // returning file_unchanged stubs from stale/restored cache state.
+  dedupeProcessEpoch?: number
   // True when this entry was populated by auto-injection (e.g. CLAUDE.md) and
   // the injected content did not match disk (stripped HTML comments, stripped
   // frontmatter, truncated MEMORY.md). The model has only seen a partial view;

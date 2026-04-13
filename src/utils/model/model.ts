@@ -195,7 +195,7 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
   const apiProvider = getAPIProvider()
 
   if (apiProvider === 'codex') {
-    return getModelStrings().gpt53codex
+    return getModelStrings().gpt54
   }
 
   if (apiProvider === 'openai') {
@@ -231,7 +231,7 @@ export function getDefaultMainLoopModelSetting(): ModelName | ModelAlias {
   }
 
   if (isCodexSubscriber()) {
-    return getModelStrings().gpt53codex
+    return getModelStrings().gpt54
   }
 
   if (isCopilotSubscriber()) {

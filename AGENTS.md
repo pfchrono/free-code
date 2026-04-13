@@ -43,11 +43,29 @@ bun test -- "test name"
 bun test --coverage
 ```
 
+## Tooling Policy
+
+Use any tool available to you when it improves correctness, speed, or confidence.
+
+### Tool priority
+- Use repository-native read/search/edit tools first for direct file work.
+- Use available MCP servers for higher-level facts, repo maps, observability, docs, browser automation, or external system context.
+- Use shell only when the task needs shell-only workflows, local CLIs, builds, tests, or installers.
+- Use agents/subagents for broad exploration or multi-step validation when available.
+
+### Installation policy
+- If a required local tool is missing, you may install it when appropriate for the requested task.
+- Prefer standard package managers already available on the machine, including `winget`, `bun`, `npm`, `pnpm`, or `choco`.
+- On Windows, prefer `winget` for normal user-level CLI/tool installation when suitable.
+- Verify the install is actually needed before doing it.
+- Do not make destructive or broad system changes unless the user explicitly wants that.
+
 ## MCP Tooling
 
 - `codesight` MCP is available for repository analysis. Use it for repo scanning, hot files, routes, env vars, coverage, schema, and summary views.
 - `sentry` MCP is available for observability workflows (organizations, projects, releases, DSN, issue events).
 - Use these tools when broad analysis is needed; keep shell reads for narrow or explicit file inspection.
+- If another MCP server exposes the needed capability more directly than local inspection, prefer that MCP path.
 
 ## Code Style Guidelines
 

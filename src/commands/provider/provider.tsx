@@ -12,9 +12,9 @@ import useInput from '../../ink/hooks/use-input.js'
 import { Pane } from '../../components/design-system/Pane.js'
 import { ProviderPicker } from '../../components/ProviderPicker.js'
 import { getAPIProvider, type APIProvider } from '../../utils/model/providers.js'
-import { getDefaultMainLoopModelSetting } from '../../utils/model/model.js'
+import { getDefaultMainLoopModelSetting, parseUserSpecifiedModel } from '../../utils/model/model.js'
 import { switchProviderDirectly } from '../../hooks/useProviderSwitch.js'
-import { setMainLoopModelOverride } from '../../bootstrap/state.js'
+import { setInitialMainLoopModel, setMainLoopModelOverride } from '../../bootstrap/state.js'
 import { getFavoriteModels, getRecentModels } from '../../utils/modelPreferences.js'
 import { useRegisterKeybindingContext } from '../../keybindings/KeybindingContext.js'
 import { useExitOnCtrlCDWithKeybindings } from '../../hooks/useExitOnCtrlCDWithKeybindings.js'
@@ -185,7 +185,10 @@ export const call: LocalJSXCommandCall = async (
 
     const handleSelect = (provider: APIProvider, model?: string) => {
       switchProviderDirectly(provider)
-      const nextModel = model ?? getDefaultMainLoopModelSetting()
+      const nextModel = parseUserSpecifiedModel(
+        model ?? getDefaultMainLoopModelSetting(),
+      )
+      setInitialMainLoopModel(nextModel)
       setMainLoopModelOverride(undefined)
       context.services?.setAppState?.(state => ({
         ...state,
@@ -237,7 +240,8 @@ export const call: LocalJSXCommandCall = async (
     }
 
     switchProviderDirectly(provider)
-    const nextModel = getDefaultMainLoopModelSetting()
+    const nextModel = parseUserSpecifiedModel(getDefaultMainLoopModelSetting())
+    setInitialMainLoopModel(nextModel)
     setMainLoopModelOverride(undefined)
     context.services?.setAppState?.(state => ({
       ...state,

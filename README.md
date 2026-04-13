@@ -93,7 +93,7 @@ Claude Code ships with 88 feature flags gated behind `bun:bundle` compile-time s
 
 ## Latest Changes
 
-Recent updates added full provider workflow improvements across startup, auth, commands, installer behavior, and status UX:
+Recent updates expanded provider switching, login availability, status visibility, Windows/path handling, and local skill workflow support:
 
 - Added GitHub Copilot provider integration (OAuth/token exchange + API adapter)
 - Added repo-local provider toggles:
@@ -101,10 +101,11 @@ Recent updates added full provider workflow improvements across startup, auth, c
   - `/copilot` to set GitHub Copilot mode for this repo
   - `/openrouter` to manage repo-local OpenRouter mode and model discovery
 - Added `/copilot models` and `/openrouter models` to probe model support from cached capability data
-- Added provider-aware usage/status updates in terminal statusline and usage views
+- Fixed `/login` command availability so the command stays exposed instead of being disabled by environment gating
+- Improved provider-aware status and settings displays so active model/provider state resolves more consistently across the UI
 - Added startup provider override handling from `.claude/settings.json`
-- Added Windows install guidance and launcher flow in `install.ps1`
-- Fixed `install.ps1 -Dev` to resolve the dev binary from `dist/` only
+- Improved Windows and filesystem path validation/permission handling for file access and PowerShell workflows
+- Added local Claude skill bundles for `domore`, `domore-caveman`, and `domore-distillate`
 - Added ignore coverage for `.claude/settings.local.json`, `.claude/worktrees/`, and OpenSpec temp artifacts
 - Added OpenSpec change set for status snapshots, session memory persistence, and compaction inspectability
 

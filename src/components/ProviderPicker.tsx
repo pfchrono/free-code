@@ -13,7 +13,7 @@ import { Pane } from './design-system/Pane.js';
 import type { APIProvider } from '../utils/model/providers.js';
 import { discoverOllama } from '../services/provider/index.js';
 import { recommendOllamaModel } from '../services/provider/recommendation.js';
-import { getModelOptions, getModelPickerAvailabilitySummary } from '../utils/model/modelOptions.js';
+import { getModelOptionsForProvider } from '../utils/model/modelOptions.js';
 import { getFavoriteModels, getRecentModels, toggleFavorite, isFavorite, addToRecent } from '../utils/modelPreferences.js';
 
 export type ProviderOption = {
@@ -120,7 +120,7 @@ export function ProviderPicker({
       return ollamaModels.map(m => ({ value: m, label: m }))
     }
 
-    return getModelOptions({ provider: selectedProvider }).map(m => ({
+    return getModelOptionsForProvider(selectedProvider).map(m => ({
       value: m.value ?? '',
       label: m.label,
       description: m.description,
@@ -176,7 +176,7 @@ export function ProviderPicker({
       return
     }
 
-    const providerModels = getModelOptions({ provider: provider as APIProvider })
+    const providerModels = getModelOptionsForProvider(provider as APIProvider)
     if (providerModels.length > 0) {
       setSelectedModel(providerModels[0].value ?? '')
     }
