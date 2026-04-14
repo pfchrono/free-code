@@ -17,6 +17,7 @@ openclaw/
 benchmark-results/*
 .claude/settings.local.json
 .claude/worktrees/
+~/.claude/sessions/
 temp-uncommitted/
 .openspec/
 openspec/tmp/
