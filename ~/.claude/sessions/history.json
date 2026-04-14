@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "sessions": [
+    {
+      "sessionId": "session_1775848761029_avuuxogu4",
+      "projectPath": "F:\\code\\free-code-working",
+      "startedAt": 1775848761029,
+      "lastActivity": 1776135133942,
+      "status": "active",
+      "completedTasks": [],
+      "remainingTasks": [],
+      "workingFiles": [],
+      "conversationSummary": "User: [{\"tool_use_id\":\"call_OM0FGKE9FkfYXeNrWiqVzFbb\",\"type\":\"tool_result\",\"content\":\"Task not found\"}]\n\nAssistant: Patched 2 drift points. Both now honor `CLAUDE_CONFIG_HOME`.\n\nChanged:\n- `src/utils/env.ts`\n  - `getGlobalClaudeFile()` now derives from `getClaudeConfigHomeDir()`\n  - effect: global config path follows shared precedence, not only `CLAUDE_CONFIG_DIR`\n- `src/utils/secureStorage/macOsKeychainHelpers.ts`\n  - custom-dir detection now checks both `CLAUDE_CONFIG_DIR` and `CLAUDE_CONFIG_HOME`\n\nFiles changed:\n- `src/utils/env.ts`\n- `src/utils/secureStorage/macOsKeychainHelpers.ts`\n\nValidation:\n- grep fo",
+      "keyInsights": [],
+      "metadata": {
+        "entrypoint": "cli",
+        "sessionId": "c4114dcd-10da-409d-b26b-e4d6b7348f20"
+      }
+    }
+  ],
+  "currentSessionId": "session_1775848761029_avuuxogu4"
+}

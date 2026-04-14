@@ -8,6 +8,7 @@ import { readFile, writeFile, mkdir, stat } from 'fs/promises'
 import { join } from 'path'
 import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js'
 import { logForDebugging } from '../../utils/debug.js'
+import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
 
 // Memory Entry Schema
 const memoryEntrySchema = z.object({
@@ -59,7 +60,7 @@ class PersistentMemorySystem {
       compactionInterval: 24 * 60 * 60 * 1000, // 24 hours
       defaultTTL: 7 * 24 * 60 * 60 * 1000, // 7 days
       persistenceEnabled: true,
-      memoryDir: join(process.env.CLAUDE_CONFIG_HOME || '~/.claude', 'memory'),
+      memoryDir: join(getClaudeConfigHomeDir(), 'memory'),
       ...config,
     }
 

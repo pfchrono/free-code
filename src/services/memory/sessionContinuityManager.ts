@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { logForDebugging } from '../../utils/debug.js'
+import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
 import { getMemorySystem, type MemoryEntry } from './persistentMemorySystem.js'
 
 // Session State Schema
@@ -57,7 +58,7 @@ class SessionContinuityManager {
 
   constructor(config: Partial<SessionContinuityConfig> = {}) {
     this.config = {
-      sessionDir: join(process.env.CLAUDE_CONFIG_HOME || '~/.claude', 'sessions'),
+      sessionDir: join(getClaudeConfigHomeDir(), 'sessions'),
       autoSaveInterval: 30000, // 30 seconds
       maxSessions: 100,
       sessionTTL: 30 * 24 * 60 * 60 * 1000, // 30 days

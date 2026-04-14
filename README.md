@@ -93,7 +93,7 @@ Claude Code ships with 88 feature flags gated behind `bun:bundle` compile-time s
 
 ## Latest Changes
 
-Recent updates expanded provider switching, login availability, status visibility, Windows/path handling, and local skill workflow support:
+Recent updates expanded provider switching, login availability, status visibility, Windows/path handling, local skill workflow support, and config-home-aware persistence:
 
 - Added GitHub Copilot provider integration (OAuth/token exchange + API adapter)
 - Added repo-local provider toggles:
@@ -108,6 +108,10 @@ Recent updates expanded provider switching, login availability, status visibilit
 - Added local Claude skill bundles for `domore`, `domore-caveman`, and `domore-distillate`
 - Added ignore coverage for `.claude/settings.local.json`, `.claude/worktrees/`, and OpenSpec temp artifacts
 - Added OpenSpec change set for status snapshots, session memory persistence, and compaction inspectability
+- Updated config path resolution so `CLAUDE_CONFIG_HOME` works consistently for:
+  - global `.claude*.json` config lookup
+  - macOS keychain service naming for custom config locations
+  - persistent memory and session continuity storage directories
 
 Provider preference changes are repo-local and apply on the next launch.
 
