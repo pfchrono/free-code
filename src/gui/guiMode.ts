@@ -1,57 +1,31 @@
-import { getCommands } from '../commands.js';
-import type { Command } from '../commands.js';
-import { QueryEngine } from '../QueryEngine.js';
-import {
-  getOriginalCwd,
-  setMainLoopModelOverride,
-} from '../bootstrap/state.js';
-import type { SDKMessage, SDKResultMessage, SDKStatus } from '../entrypoints/agentSdkTypes.js';
-import type { AppState } from '../state/AppStateStore.js';
-import { getDefaultAppState } from '../state/AppStateStore.js';
-import { getTools } from '../tools.js';
-import { extractTextContent } from '../utils/messages.js';
-import {
-  getMainLoopModel,
-  parseUserSpecifiedModel,
-} from '../utils/model/model.js';
-import { getModelOptions } from '../utils/model/modelOptions.js';
-import { ensureModelStringsInitialized } from '../utils/model/modelStrings.js';
-import { getAPIProvider } from '../utils/model/providers.js';
-import { startupRawTrace } from '../utils/startupRawTrace.js';
-import {
-  createFileStateCacheWithSizeLimit,
-  READ_FILE_STATE_CACHE_SIZE,
-  type FileStateCache,
-} from '../utils/fileStateCache.js';
+import { startupRawTrace } from '../utils/startupRawTrace.js'
 import {
   writeGuiEvent,
   type GuiToCliCommand,
-} from './guiProtocol.js';
+  type CliToGuiEvent,
+  type MessageEvent,
+} from './guiProtocol.js'
+import type { Command } from '../commands.js'
+import { getCommands } from '../commands.js'
+import { getTools } from '../tools.js'
+import { getInitialSettings } from '../utils/settings/settings.js'
+import { getMainLoopModel } from '../utils/model/model.js'
+import { getAPIProvider } from '../utils/model/providers.js'
+import { getOriginalCwd } from '../bootstrap/state.js'
 
-declare const MACRO: { VERSION: string };
+declare const MACRO: { VERSION: string }
 
-type GuiHistoryMessage = {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-};
+interface Message {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+}
 
-type GuiRuntime = {
-  appState: AppState;
-  commands: Command[];
-  readFileCache: FileStateCache;
-  engine: QueryEngine;
-  toolNameByUseId: Map<string, string>;
-  isTurnInFlight: boolean;
-  interruptRequested: boolean;
-};
-
-const messageHistory: GuiHistoryMessage[] = [];
+let interrupted = false
+const messageHistory: Message[] = []
 
 export async function runGuiMode(): Promise<void> {
-  startupRawTrace('gui:runGuiMode started');
-
-  const runtime = await initializeGuiRuntime();
+  startupRawTrace('gui:runGuiMode started')
 
   writeGuiEvent({
     type: 'session_start',
@@ -60,564 +34,311 @@ export async function runGuiMode(): Promise<void> {
     provider: getAPIProvider(),
     timestamp: Date.now(),
     cwd: getOriginalCwd(),
-  });
+  })
 
   writeGuiEvent({
     type: 'status',
     message: 'GUI mode initialized',
     level: 'info',
-  });
+  })
 
-  try {
-    await processCommands(runtime);
-  } finally {
-    teardownRuntime(runtime);
-    writeGuiEvent({
-      type: 'status',
-      message: 'GUI session ended',
-      level: 'info',
-    });
-  }
+  await processCommands()
 }
 
-async function initializeGuiRuntime(): Promise<GuiRuntime> {
-  await ensureModelStringsInitialized();
+async function processCommands(): Promise<void> {
+  startupRawTrace('gui:processCommands started')
 
-  let appState = getDefaultAppState();
-  const commands = await getCommands(getOriginalCwd());
-  const readFileCache = createFileStateCacheWithSizeLimit(
-    READ_FILE_STATE_CACHE_SIZE,
-  );
+  const state = { reading: true }
 
-  const runtime: GuiRuntime = {
-    appState,
-    commands,
-    readFileCache,
-    engine: null as unknown as QueryEngine,
-    toolNameByUseId: new Map(),
-    isTurnInFlight: false,
-    interruptRequested: false,
-  };
-
-  runtime.engine = createEngine(runtime);
-
-  return runtime;
-}
-
-function createEngine(
-  runtime: GuiRuntime,
-  initialMessages = [...runtime.engine?.getMessages?.() ?? []],
-): QueryEngine {
-  return new QueryEngine({
-    cwd: getOriginalCwd(),
-    tools: getTools(runtime.appState.toolPermissionContext),
-    commands: runtime.commands,
-    mcpClients: [],
-    agents: [],
-    ...(initialMessages.length > 0 ? { initialMessages } : {}),
-    canUseTool: async (tool, _input, _context, _assistantMessage, toolUseID) => {
-      if (toolUseID) {
-        runtime.toolNameByUseId.set(toolUseID, tool.name);
+  const readLoop = async (): Promise<void> => {
+    while (state.reading) {
+      const command = await readNextCommand(() => { state.reading = false })
+      if (command === null) {
+        break
       }
-
-      return { behavior: 'allow' as const };
-    },
-    getAppState: () => runtime.appState,
-    setAppState: updater => {
-      runtime.appState = updater(runtime.appState);
-    },
-    readFileCache: runtime.readFileCache,
-    userSpecifiedModel: getMainLoopModel(),
-    fallbackModel: getMainLoopModel(),
-  });
-}
-
-function recreateEngine(runtime: GuiRuntime): void {
-  runtime.readFileCache = runtime.engine.getReadFileState();
-  runtime.engine = createEngine(runtime, [...runtime.engine.getMessages()]);
-}
-
-async function processCommands(runtime: GuiRuntime): Promise<void> {
-  startupRawTrace('gui:processCommands started');
-
-  const state = { reading: true };
-
-  while (state.reading) {
-    const command = await readNextCommand(() => {
-      state.reading = false;
-    });
-
-    if (command === null) {
-      break;
+      await handleCommand(command)
     }
-
-    await handleCommand(runtime, command);
   }
+
+  await readLoop()
+
+  writeGuiEvent({
+    type: 'status',
+    message: 'GUI session ended',
+    level: 'info',
+  })
 }
 
-async function readNextCommand(
-  stopReading: () => void,
-): Promise<GuiToCliCommand | null> {
-  return new Promise(resolve => {
-    let data = '';
+async function readNextCommand(stopReading: () => void): Promise<GuiToCliCommand | null> {
+  return new Promise((resolve) => {
+    let data = ''
 
     const handleData = (chunk: string): void => {
-      data += chunk;
-      const lines = data.split('\n');
-      data = lines.pop() || '';
+      data += chunk
+      const lines = data.split('\n')
+      data = lines.pop() || ''
 
       for (const line of lines) {
-        if (!line.trim()) {
-          continue;
-        }
-
-        try {
-          const command = JSON.parse(line) as GuiToCliCommand;
-          cleanup();
-          resolve(command);
-          return;
-        } catch {
-          cleanup();
-          resolve(null);
-          return;
+        if (line.trim()) {
+          try {
+            const cmd = JSON.parse(line) as GuiToCliCommand
+            cleanup()
+            resolve(cmd)
+            return
+          } catch {
+            resolve(null)
+            return
+          }
         }
       }
-    };
+    }
 
     const handleEnd = (): void => {
-      cleanup();
-      resolve(null);
-    };
+      cleanup()
+      resolve(null)
+    }
 
     const cleanup = (): void => {
-      stopReading();
-      process.stdin.removeListener('data', handleData);
-      process.stdin.removeListener('end', handleEnd);
-    };
+      stopReading()
+      process.stdin.removeListener('data', handleData)
+      process.stdin.removeListener('end', handleEnd)
+    }
 
-    process.stdin.on('data', handleData);
-    process.stdin.on('end', handleEnd);
-  });
+    process.stdin.on('data', handleData)
+    process.stdin.on('end', handleEnd)
+  })
 }
 
-async function handleCommand(
-  runtime: GuiRuntime,
-  command: GuiToCliCommand,
-): Promise<void> {
-  startupRawTrace(`gui:handleCommand type=${command.type}`);
+async function handleCommand(command: GuiToCliCommand): Promise<void> {
+  startupRawTrace('gui:handleCommand type=' + command.type)
 
   try {
     switch (command.type) {
       case 'user_input':
-        await handleUserInput(runtime, command.content);
-        return;
+        await handleUserInput(command.content)
+        break
+
       case 'interrupt':
-        handleInterrupt(runtime);
-        return;
+        interrupted = true
+        writeGuiEvent({
+          type: 'status',
+          message: 'Interrupted',
+          level: 'info',
+        })
+        break
+
       case 'select_model':
-        await handleSelectModel(runtime, command.provider, command.model);
-        return;
+        writeGuiEvent({
+          type: 'status',
+          message: `Model selection not yet implemented: ${command.provider}/${command.model}`,
+          level: 'warning',
+        })
+        break
+
       case 'get_models':
-        handleGetModels();
-        return;
-      case 'get_commands':
-        await handleGetCommands(runtime);
-        return;
+        handleGetModels()
+        break
+
+    case 'get_commands':
+      await handleGetCommands()
+      break
+
       case 'heartbeat':
         writeGuiEvent({
           type: 'status',
           message: 'ok',
           level: 'info',
-        });
-        return;
+        })
+        break
+
       default:
         writeGuiEvent({
           type: 'error',
-          message: 'Unknown command type',
+          message: `Unknown command type`,
           code: 'UNKNOWN_COMMAND',
-        });
+        })
     }
-  } catch (error) {
+  } catch (err) {
     writeGuiEvent({
       type: 'error',
-      message: `Error handling command: ${toErrorMessage(error)}`,
+      message: `Error handling command: ${err instanceof Error ? err.message : String(err)}`,
       code: 'HANDLER_ERROR',
-    });
+    })
   }
 }
 
-async function handleUserInput(
-  runtime: GuiRuntime,
-  content: string,
-): Promise<void> {
-  const timestamp = Date.now();
-  const startedAt = Date.now();
+async function handleUserInput(content: string): Promise<void> {
+  const timestamp = Date.now()
 
-  messageHistory.push({
-    role: 'user',
-    content,
-    timestamp,
-  });
+  // Add to history
+  messageHistory.push({ role: 'user', content, timestamp })
 
   writeGuiEvent({
     type: 'message',
     role: 'user',
     content,
     timestamp,
-  });
+  })
 
   writeGuiEvent({
     type: 'status',
     message: 'Processing...',
     level: 'info',
-  });
+  })
 
-  runtime.isTurnInFlight = true;
-  runtime.interruptRequested = false;
-
-  try {
-    for await (const message of runtime.engine.submitMessage(content)) {
-      emitGuiEventsForSdkMessage(runtime, message);
-    }
-  } catch (error) {
-    writeGuiEvent({
-      type: 'error',
-      message: `Turn failed: ${toErrorMessage(error)}`,
-      code: 'TURN_ERROR',
-    });
-    writeGuiEvent({
-      type: 'status',
-      message: 'Turn failed',
-      level: 'error',
-    });
-    writeGuiEvent({
-      type: 'completion',
-      outputTokens: 0,
-      inputTokens: Math.max(1, Math.floor(content.length / 4)),
-      durationMs: Date.now() - startedAt,
-    });
-  } finally {
-    runtime.isTurnInFlight = false;
-    runtime.readFileCache = runtime.engine.getReadFileState();
-
-    if (runtime.interruptRequested) {
-      recreateEngine(runtime);
-      runtime.interruptRequested = false;
-      writeGuiEvent({
-        type: 'status',
-        message: 'Interrupt complete',
-        level: 'info',
-      });
-    }
-  }
-}
-
-function handleInterrupt(runtime: GuiRuntime): void {
-  if (!runtime.isTurnInFlight) {
-    writeGuiEvent({
-      type: 'status',
-      message: 'No active turn to interrupt',
-      level: 'warning',
-    });
-    return;
+  // Check if this is a slash command
+  if (content.startsWith('/')) {
+    await handleSlashCommand(content)
+    return
   }
 
-  runtime.interruptRequested = true;
-  runtime.engine.interrupt();
+  const startTime = Date.now()
+
+  // TODO: Connect to actual CLI core
+  // Integration path:
+  // 1. Initialize CLI with: tools, commands, models, MCP configs
+  // 2. Create AsyncIterable from stdin for continuous input
+  // 3. Call runHeadless() with streaming input
+  // 4. Parse stream-json output, emit to GUI via writeGuiEvent()
+  // 5. Tool executions arrive as events - route to GUI
+  // 6. GUI can send tool results back via stdin
+
+  // For now, simulate realistic processing
+  await new Promise(resolve => setTimeout(resolve, 100))
+
+  // Simulate a basic response with conversation context
+  const historyLen = messageHistory.filter(m => m.role === 'user').length
+  const lowerContent = content.toLowerCase()
+
+  let responseContent: string
+  if (lowerContent.includes('help')) {
+    responseContent = `I can help with:\n- Code editing, debugging\n- Git operations\n- Running commands\n- File management\n\nType a command or question to get started.`
+  } else if (lowerContent.includes('model')) {
+    responseContent = `Current model: ${getMainLoopModel()}\nProvider: ${getAPIProvider()}\n\nTo change models, use: /model <name>`
+  } else if (historyLen === 1) {
+    responseContent = `Hello! I'm ready to help. We've had ${historyLen} exchange.\n\nThe CLI core integration (runHeadless) is stubbed - this demonstrates the event flow.`
+  } else {
+    responseContent = `Received: "${content}"\n\nThis is a stub response. GUI mode foundation is ready.\nReal CLI integration requires connecting to runHeadless() in src/cli/print.ts.`
+  }
+
+  const responseTimestamp = Date.now()
+  messageHistory.push({ role: 'assistant', content: responseContent, timestamp: responseTimestamp })
 
   writeGuiEvent({
-    type: 'status',
-    message: 'Interrupt requested',
-    level: 'info',
-  });
-}
+    type: 'message',
+    role: 'assistant',
+    content: responseContent,
+    timestamp: responseTimestamp,
+  })
 
-async function handleSelectModel(
-  runtime: GuiRuntime,
-  provider: string,
-  model: string,
-): Promise<void> {
-  const activeProvider = getAPIProvider();
-  if (provider && provider !== activeProvider) {
-    writeGuiEvent({
-      type: 'status',
-      message: `Provider switch not supported in GUI mode yet. Keeping ${activeProvider}.`,
-      level: 'warning',
-    });
-  }
-
-  const parsedModel = parseUserSpecifiedModel(model);
-  setMainLoopModelOverride(parsedModel);
-  runtime.appState = {
-    ...runtime.appState,
-    mainLoopModel: parsedModel,
-    mainLoopModelForSession: parsedModel,
-  };
-  runtime.engine.setModel(parsedModel);
-  recreateEngine(runtime);
-
-  writeGuiEvent({
-    type: 'status',
-    message: `Active model: ${getMainLoopModel()} (${getAPIProvider()})`,
-    level: 'info',
-  });
-}
-
-function handleGetModels(): void {
-  writeGuiEvent({
-    type: 'models_list',
-    models: getModelOptions().map(option => ({
-      id: String(option.value),
-      name: option.label,
-      provider: getAPIProvider(),
-    })),
-  });
-}
-
-async function handleGetCommands(runtime: GuiRuntime): Promise<void> {
-  runtime.commands = await getCommands(getOriginalCwd());
-  recreateEngine(runtime);
-
-  writeGuiEvent({
-    type: 'commands_list',
-    commands: runtime.commands
-      .filter(command => command.type === 'prompt' || command.type === 'local')
-      .map(command => ({
-        name: command.name,
-        description: command.description || '',
-        aliases: Array.isArray(command.aliases) ? command.aliases : undefined,
-      })),
-  });
-}
-
-function emitGuiEventsForSdkMessage(
-  runtime: GuiRuntime,
-  message: SDKMessage,
-): void {
-  switch (message.type) {
-    case 'assistant': {
-      const content = Array.isArray(message.message?.content)
-        ? message.message.content
-        : [];
-
-      for (const block of content) {
-        if (block.type === 'tool_use') {
-          runtime.toolNameByUseId.set(block.id, block.name);
-          writeGuiEvent({
-            type: 'tool_use',
-            tool: block.name,
-            input: isRecord(block.input) ? block.input : {},
-            timestamp: Date.now(),
-          });
-        }
-      }
-
-      const text = extractTextContent(
-        content.filter(
-          block =>
-            block.type === 'text' ||
-            block.type === 'thinking' ||
-            block.type === 'redacted_thinking',
-        ) as Array<{ type: string; text: string }>,
-        '\n',
-      ).trim();
-
-      if (text) {
-        messageHistory.push({
-          role: 'assistant',
-          content: text,
-          timestamp: Date.now(),
-        });
-
-        writeGuiEvent({
-          type: 'message',
-          role: 'assistant',
-          content: text,
-          timestamp: Date.now(),
-        });
-      }
-      return;
-    }
-    case 'user': {
-      const content = message.message?.content;
-      if (!Array.isArray(content)) {
-        return;
-      }
-
-      for (const block of content) {
-        if (block.type !== 'tool_result') {
-          continue;
-        }
-
-        writeGuiEvent({
-          type: 'tool_result',
-          tool: runtime.toolNameByUseId.get(block.tool_use_id) ?? block.tool_use_id,
-          output: getToolResultOutput(block.content),
-          success: !Boolean(block.is_error),
-          timestamp: Date.now(),
-        });
-      }
-      return;
-    }
-    case 'status':
-      writeGuiEvent({
-        type: 'status',
-        message: formatSdkStatus(message.status),
-        level: 'info',
-      });
-      return;
-    case 'system':
-      if (message.subtype === 'compact_boundary') {
-        writeGuiEvent({
-          type: 'status',
-          message: 'Conversation compacted',
-          level: 'info',
-        });
-      } else if (message.subtype === 'api_retry') {
-        writeGuiEvent({
-          type: 'status',
-          message: 'API retry in progress',
-          level: 'warning',
-        });
-      } else if (typeof message.content === 'string' && message.content.trim()) {
-        writeGuiEvent({
-          type: 'status',
-          message: message.content,
-          level: 'info',
-        });
-      }
-      return;
-    case 'assistant_error':
-      writeGuiEvent({
-        type: 'error',
-        message: message.message || 'Assistant error',
-        code: 'ASSISTANT_ERROR',
-      });
-      return;
-    case 'assistant_partial':
-      if (message.delta?.trim()) {
-        writeGuiEvent({
-          type: 'status',
-          message: 'Streaming response...',
-          level: 'info',
-        });
-      }
-      return;
-    case 'tool_progress':
-      writeGuiEvent({
-        type: 'status',
-        message: 'Tool running...',
-        level: 'info',
-      });
-      return;
-    case 'permission_denial':
-      writeGuiEvent({
-        type: 'status',
-        message: `Tool denied: ${message.toolName ?? 'unknown'}`,
-        level: 'warning',
-      });
-      return;
-    case 'result':
-      emitResultEvents(message);
-      return;
-    default:
-      return;
-  }
-}
-
-function emitResultEvents(message: SDKResultMessage): void {
-  if (message.subtype !== 'success') {
-    writeGuiEvent({
-      type: 'error',
-      message: message.errors.join('\n') || 'Turn failed',
-      code: message.subtype,
-    });
-    writeGuiEvent({
-      type: 'status',
-      message: 'Turn failed',
-      level: 'error',
-    });
-  }
+  const durationMs = Date.now() - startTime
 
   writeGuiEvent({
     type: 'completion',
-    outputTokens: getUsageNumber(message.usage, 'output'),
-    inputTokens: getUsageNumber(message.usage, 'input'),
-    durationMs: message.duration_ms,
-  });
+    outputTokens: Math.floor(responseContent.length / 4),
+    inputTokens: Math.floor(content.length / 4),
+    durationMs,
+  })
 }
 
-function getUsageNumber(
-  usage: Record<string, unknown> | undefined,
-  kind: 'input' | 'output',
-): number {
-  if (!usage) {
-    return 0;
+async function handleSlashCommand(content: string): Promise<void> {
+  const parts = content.slice(1).split(/\s+/)
+  const commandName = parts[0]
+  const args = parts.slice(1).join(' ')
+
+  const commands = await getCommands(getOriginalCwd())
+  const command = commands.find(cmd =>
+    cmd.name === commandName ||
+    (Array.isArray(cmd.aliases) && cmd.aliases.includes(commandName))
+  )
+
+  if (!command) {
+    writeGuiEvent({
+      type: 'error',
+      message: `Unknown command: /${commandName}`,
+      code: 'UNKNOWN_COMMAND',
+    })
+    writeGuiEvent({
+      type: 'completion',
+      outputTokens: 0,
+      inputTokens: 0,
+      durationMs: 0,
+    })
+    return
   }
 
-  const candidates =
-    kind === 'input'
-      ? ['input_tokens', 'inputTokens']
-      : ['output_tokens', 'outputTokens'];
+  // TODO: Execute actual CLI command via runHeadless
+  // For now, return helpful stub response
+  const response = getCommandHelpResponse(command.name, command.description, args)
 
-  for (const key of candidates) {
-    const value = usage[key];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-  }
+  writeGuiEvent({
+    type: 'message',
+    role: 'assistant',
+    content: response,
+    timestamp: Date.now(),
+  })
 
-  return 0;
+  writeGuiEvent({
+    type: 'completion',
+    outputTokens: Math.floor(response.length / 4),
+    inputTokens: Math.floor(content.length / 4),
+    durationMs: 0,
+  })
 }
 
-function getToolResultOutput(content: unknown): string {
-  if (typeof content === 'string') {
-    return content;
+function getCommandHelpResponse(name: string, description: string, args: string): string {
+  const helpTexts: Record<string, string> = {
+    'init': 'Creates a CLAUDE.md file in your project with documentation.\n\nUsage: /init',
+    'compact': 'Summarizes conversation history to save context.\n\nUsage: /compact [instructions]',
+    'clear': 'Clears conversation history.\n\nUsage: /clear',
+    'status': `Current status:\n- Model: ${getMainLoopModel()}\n- Provider: ${getAPIProvider()}\n- Messages: ${messageHistory.length}`,
+    'cost': 'Shows token usage and cost estimates for this session.\n\nUsage: /cost',
+    'review': 'Reviews a pull request.\n\nUsage: /review [pr-number]',
+    'help': `Available commands: /init, /compact, /clear, /status, /cost, /review, /model\n\nType /<command> to use.`,
+    'model': `Change the active model.\n\nUsage: /model <model-name>\n\nCurrent: ${getMainLoopModel()}`,
+    'compact': `Summarizes conversation to save context.\n\nUsage: /compact [optional summarization instructions]`,
+    'context': `Shows current context window usage.\n\nUsage: /context`,
+    'undo': `Restores previous checkpoint.\n\nUsage: /undo`,
+    'rewind': `Restores code and/or conversation to previous point.\n\nUsage: /rewind [checkpoint-name]`,
   }
 
-  if (Array.isArray(content)) {
-    const text = extractTextContent(
-      content.filter(
-        block => isRecord(block) && block.type === 'text' && typeof block.text === 'string',
-      ) as Array<{ type: string; text: string }>,
-      '\n',
-    ).trim();
-
-    if (text) {
-      return text;
-    }
+  if (helpTexts[name]) {
+    return helpTexts[name]
   }
 
-  try {
-    return JSON.stringify(content);
-  } catch {
-    return String(content);
-  }
+  return `Command: /${name}\n${description || 'No description available.'}\n\nExecution via CLI core not yet implemented.`
 }
 
-function formatSdkStatus(status: SDKStatus): string {
-  if (status === null) {
-    return 'Ready';
-  }
+function handleGetModels(): void {
+  const settings = getInitialSettings()
+  const currentModel = getMainLoopModel()
+  const provider = getAPIProvider()
 
-  if (status === 'compacting') {
-    return 'Compacting conversation...';
-  }
+  writeGuiEvent({
+    type: 'models_list',
+    models: [
+      {
+        id: currentModel,
+        name: currentModel,
+        provider,
+      },
+    ],
+  })
 
-  return String(status);
+  void settings
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+async function handleGetCommands(): Promise<void> {
+  const commands = await getCommands(getOriginalCwd())
 
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function teardownRuntime(runtime: GuiRuntime): void {
-  if (runtime.isTurnInFlight) {
-    runtime.interruptRequested = true;
-    runtime.engine.interrupt();
-  }
+  writeGuiEvent({
+    type: 'commands_list',
+    commands: commands
+      .filter((cmd: Command) => cmd.type === 'prompt' || cmd.type === 'local')
+      .map((cmd: Command) => ({
+        name: cmd.name,
+        description: cmd.description || '',
+        aliases: cmd.aliases,
+      })),
+  })
 }

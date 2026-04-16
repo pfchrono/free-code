@@ -163,18 +163,6 @@ export const GPT_5_3_CODEX_CONFIG = {
   lmstudio: 'gpt-5.3-codex',
 } as const satisfies ModelConfig
 
-export const GPT_5_3_CODEX_SPARK_CONFIG = {
-  firstParty: 'gpt-5.3-codex-spark',
-  bedrock: 'gpt-5.3-codex-spark',
-  vertex: 'gpt-5.3-codex-spark',
-  foundry: 'gpt-5.3-codex-spark',
-  codex: 'gpt-5.3-codex-spark',
-  openai: 'gpt-5.3-codex-spark',
-  openrouter: 'gpt-5.3-codex-spark',
-  copilot: 'gpt-5',
-  lmstudio: 'gpt-5.3-codex-spark',
-} as const satisfies ModelConfig
-
 export const GPT_5_4_MINI_CONFIG = {
   firstParty: 'gpt-5.4-mini',
   bedrock: 'gpt-5.4-mini',
@@ -203,7 +191,6 @@ export const ALL_MODEL_CONFIGS = {
   // OpenAI Codex models
   gpt54: GPT_5_4_CONFIG,
   gpt53codex: GPT_5_3_CODEX_CONFIG,
-  gpt53codexspark: GPT_5_3_CODEX_SPARK_CONFIG,
   gpt54mini: GPT_5_4_MINI_CONFIG,
 } as const satisfies Record<string, ModelConfig>
 

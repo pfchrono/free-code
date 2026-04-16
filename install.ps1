@@ -43,14 +43,13 @@ function Assert-LastExitCode([string]$Message) {
 
 function Header {
   Write-Host ''
-  Write-Host '  ______                    ______          __' -ForegroundColor Cyan
-  Write-Host ' / ____/_______  ___  ___  / ____/___  ____/ /__' -ForegroundColor Cyan
-  Write-Host '/ /_  / ___/ _ \/ _ \/ _ \/ /   / __ \/ __  / _ \' -ForegroundColor Cyan
-  Write-Host '/ __/ / /  /  __/  __/  __/ /___/ /_/ / /_/ /  __/' -ForegroundColor Cyan
-  Write-Host '/_/   /_/   \___/\___/\___/\____/\____/\__,_/\___/' -ForegroundColor Cyan
+  Write-Host '   ___                            _' -ForegroundColor Cyan
+  Write-Host '  / _|_ __ ___  ___        ___ __| | ___' -ForegroundColor Cyan
+  Write-Host ' | |_| ''__/ _ \/ _ \_____ / __/ _` |/ _ \' -ForegroundColor Cyan
+  Write-Host ' |  _| | |  __/  __/_____| (_| (_| |  __/' -ForegroundColor Cyan
+  Write-Host ' |_| |_|  \___|\___|      \___\__,_|\___|' -ForegroundColor Cyan
   Write-Host ''
-  Write-Host '  free-code installer for Windows' -ForegroundColor DarkGray
-  Write-Host '  telemetry stripped | multi-provider | local-first' -ForegroundColor DarkGray
+  Write-Host '  The free build of Claude Code' -ForegroundColor DarkGray
   Write-Host ''
 }
 
@@ -410,37 +409,36 @@ Write-Host '    free-code                         # interactive REPL (standard b
 }
 Write-Host '    free-code -p "your prompt"        # one-shot mode' -ForegroundColor Cyan
 Write-Host ''
-Write-Host '  Provider bootstrap:'
-Write-Host '    bun run profile:init             # initialize repo-local provider profile' -ForegroundColor Cyan
-Write-Host '    bun run profile:auto             # auto-detect recommended provider' -ForegroundColor Cyan
-Write-Host '    bun run doctor:provider          # validate provider wiring and auth' -ForegroundColor Cyan
+Write-Host '  Recommended first-party setup (Anthropic / Claude.ai):'
+Write-Host '    free-code /login' -ForegroundColor Cyan
 Write-Host ''
-Write-Host '  Launch from selected profile:'
-Write-Host '    bun run dev:profile              # start using current repo profile' -ForegroundColor Cyan
-Write-Host '    bun run dev:profile:auto         # auto-pick launch profile' -ForegroundColor Cyan
-Write-Host ''
-Write-Host '  Pick provider directly:'
-Write-Host '    bun run profile:codex' -ForegroundColor Cyan
-Write-Host '    bun run profile:openai' -ForegroundColor Cyan
-Write-Host '    bun run profile:copilot' -ForegroundColor Cyan
-Write-Host '    bun run profile:openrouter' -ForegroundColor Cyan
-Write-Host '    bun run profile:lmstudio' -ForegroundColor Cyan
-Write-Host '    bun run profile:zen' -ForegroundColor Cyan
-Write-Host '    bun run profile:minimax' -ForegroundColor Cyan
-Write-Host '    bun run profile:firstparty' -ForegroundColor Cyan
-Write-Host ''
-Write-Host '  gRPC dev helpers:'
-Write-Host '    bun run dev:grpc' -ForegroundColor Cyan
-Write-Host '    bun run dev:grpc:cli' -ForegroundColor Cyan
-Write-Host ''
-Write-Host '  Provider notes:' -ForegroundColor DarkGray
-Write-Host '    Profiles stay repo-local and avoid redoing shell env setup each launch.' -ForegroundColor DarkGray
-Write-Host '    Use doctor:provider after switching auth, env, or provider targets.' -ForegroundColor DarkGray
-Write-Host '    Use dev:profile for normal startup; use dev:grpc or dev:grpc:cli for transport testing.' -ForegroundColor DarkGray
-Write-Host ''
-Write-Host '  Manual API key setup if needed:'
+Write-Host '  Native OpenAI API setup:'
 Write-Host '    $env:OPENAI_API_KEY="sk-..."' -ForegroundColor Cyan
 Write-Host '    setx OPENAI_API_KEY "sk-..."     # persist across sessions' -ForegroundColor Cyan
+Write-Host '    free-code /openai on             # store native OpenAI provider preference for this repo' -ForegroundColor Cyan
+Write-Host '    free-code /openai status         # show stored preference and current provider' -ForegroundColor Cyan
+Write-Host '    free-code /openai models         # list discovered OpenAI models' -ForegroundColor Cyan
+Write-Host '    free-code /openai capabilities gpt-5.4' -ForegroundColor Cyan
+Write-Host ''
+Write-Host '  ChatGPT Codex setup:'
+Write-Host '    free-code /login                 # choose the ChatGPT Codex account option in the login flow' -ForegroundColor Cyan
+Write-Host '    free-code /codex on              # store ChatGPT Codex provider preference for this repo' -ForegroundColor Cyan
+Write-Host '    free-code /codex status          # show stored preference and current provider' -ForegroundColor Cyan
+Write-Host '    free-code /codex models          # list curated Codex models' -ForegroundColor Cyan
+Write-Host ''
+Write-Host '  GitHub Copilot setup:'
+Write-Host '    free-code /login                 # choose the GitHub Copilot account option in the login flow' -ForegroundColor Cyan
+Write-Host '    free-code /copilot on            # store Copilot provider preference for this repo' -ForegroundColor Cyan
+Write-Host '    free-code /copilot status        # show stored preference and current provider' -ForegroundColor Cyan
+Write-Host '    free-code /copilot models        # list discovered models, usable models, and compatibility reasons' -ForegroundColor Cyan
+Write-Host ''
+Write-Host '  Provider notes:' -ForegroundColor DarkGray
+Write-Host '    /openai uses the native OpenAI API and requires OPENAI_API_KEY.' -ForegroundColor DarkGray
+Write-Host '    /codex uses ChatGPT Codex OAuth, not the native OpenAI API.' -ForegroundColor DarkGray
+Write-Host '    /copilot uses GitHub Copilot OAuth and probes model compatibility on /chat/completions.' -ForegroundColor DarkGray
+Write-Host '    /openai, /codex, and /copilot store repo-local preferences in .claude/settings.json and apply after restart.' -ForegroundColor DarkGray
+Write-Host ''
+Write-Host '  Anthropic API key setup (optional alternative to /login):'
 Write-Host '    $env:ANTHROPIC_API_KEY="sk-ant-..."' -ForegroundColor Cyan
 Write-Host '    setx ANTHROPIC_API_KEY "sk-ant-..."   # persist across sessions' -ForegroundColor Cyan
 Write-Host ''

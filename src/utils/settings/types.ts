@@ -983,12 +983,6 @@ export const SettingsSchema = lazySchema(() =>
         .describe(
           'Enable caveman mode - ultra-compressed communication. Drop articles, filler, pleasantries. Keep technical accuracy. ~75% fewer tokens.',
         ),
-      deadpoolModeEnabled: z
-        .boolean()
-        .optional()
-        .describe(
-          'Enable deadpool mode - witty antihero personality in plain-language replies only. Does not change code or structured output.',
-        ),
       skipDangerousModePermissionPrompt: z
         .boolean()
         .optional()

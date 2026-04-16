@@ -43,7 +43,7 @@ export function createWhatsNewFeed(releaseNotes: string[]): FeedConfig {
   return {
     title: process.env.USER_TYPE === 'ant' ? "What's new [ANT-ONLY: Latest CC commits]" : "What's new",
     lines,
-    footer: lines.length > 0 ? 'GitHub changes.md for full list' : undefined,
+    footer: lines.length > 0 ? '/release-notes for more' : undefined,
     emptyMessage
   };
 }

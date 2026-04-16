@@ -1,4 +1,5 @@
 import { c as _c } from "react/compiler-runtime";
+import { feature } from 'bun:bundle';
 import figures from 'figures';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTerminalSize } from '../hooks/useTerminalSize.js';
@@ -10,7 +11,6 @@ import { getGlobalConfig } from '../utils/config.js';
 import { isFullscreenActive } from '../utils/fullscreen.js';
 import type { Theme } from '../utils/theme.js';
 import { getCompanion } from './companion.js';
-import { isBuddyEnabled } from './feature.js';
 import { renderFace, renderSprite, spriteFrameCount } from './sprites.js';
 import { RARITY_COLORS } from './types.js';
 const TICK_MS = 500;
@@ -165,10 +165,9 @@ function spriteColWidth(nameWidth: number): number {
 // Narrow terminals: 0 — REPL.tsx stacks the one-liner on its own row
 // (above input in fullscreen, below in scrollback), so no reservation.
 export function companionReservedColumns(terminalColumns: number, speaking: boolean): number {
-  if (!isBuddyEnabled()) return 0;
+  if (!feature('BUDDY')) return 0;
   const companion = getCompanion();
-  const muted = getGlobalConfig().companionMuted;
-  if (!companion || muted) return 0;
+  if (!companion || getGlobalConfig().companionMuted) return 0;
   if (terminalColumns < MIN_COLS_FOR_FULL_SPRITE) return 0;
   const nameWidth = stringWidth(companion.name);
   const bubble = speaking && !isFullscreenActive() ? BUBBLE_WIDTH : 0;
@@ -177,7 +176,6 @@ export function companionReservedColumns(terminalColumns: number, speaking: bool
 export function CompanionSprite(): React.ReactNode {
   const reaction = useAppState(s => s.companionReaction);
   const petAt = useAppState(s => s.companionPetAt);
-  const muted = useAppState(s => s.companionMuted ?? false);
   const focused = useAppState(s => s.footerSelection === 'companion');
   const setAppState = useSetAppState();
   const {
@@ -214,9 +212,9 @@ export function CompanionSprite(): React.ReactNode {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tick intentionally captured at reaction-change, not tracked
   }, [reaction, setAppState]);
-  if (!isBuddyEnabled()) return null;
+  if (!feature('BUDDY')) return null;
   const companion = getCompanion();
-  if (!companion || muted) return null;
+  if (!companion || getGlobalConfig().companionMuted) return null;
   const color = RARITY_COLORS[companion.rarity];
   const colWidth = spriteColWidth(stringWidth(companion.name));
   const bubbleAge = reaction ? tick - lastSpokeTick.current : 0;
@@ -298,7 +296,6 @@ export function CompanionSprite(): React.ReactNode {
 export function CompanionFloatingBubble() {
   const $ = _c(8);
   const reaction = useAppState(_temp);
-  const muted = useAppState(s => s.companionMuted ?? false);
   let t0;
   if ($[0] !== reaction) {
     t0 = {
@@ -340,11 +337,11 @@ export function CompanionFloatingBubble() {
     t3 = $[4];
   }
   useEffect(t2, t3);
-  if (!isBuddyEnabled() || !reaction) {
+  if (!feature("BUDDY") || !reaction) {
     return null;
   }
   const companion = getCompanion();
-  if (!companion || muted) {
+  if (!companion || getGlobalConfig().companionMuted) {
     return null;
   }
   const t4 = tick >= BUBBLE_SHOW - FADE_WINDOW;

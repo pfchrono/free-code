@@ -5,10 +5,7 @@ __pycache__/
 bun.lock
 .claude/worktrees/
 .claude/plugins/
-.claude/agents/
-killbunfreecode.ps1
 .openspec/
-openspec/
 openspec/tmp/
 @openspec*/
 

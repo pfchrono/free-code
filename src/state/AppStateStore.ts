@@ -33,7 +33,6 @@ import type { SessionHooksState } from '../utils/hooks/sessionHooks.js'
 import type { ModelSetting } from '../utils/model/model.js'
 import type { DenialTrackingState } from '../utils/permissions/denialTracking.js'
 import type { PermissionMode } from '../utils/permissions/PermissionMode.js'
-import { getGlobalConfig } from '../utils/config.js'
 import { getInitialSettings } from '../utils/settings/settings.js'
 import type { SettingsJson } from '../utils/settings/types.js'
 import { shouldEnableThinkingByDefault } from '../utils/thinking.js'
@@ -170,8 +169,6 @@ export type AppState = DeepImmutable<{
   companionReaction?: string
   // Timestamp of last /buddy pet — CompanionSprite renders hearts while recent
   companionPetAt?: number
-  // Reactive mirror of config.companionMuted so buddy UI updates immediately.
-  companionMuted?: boolean
   // TODO (ashwin): see if we can use utility-types DeepReadonly for this
   mcp: {
     clients: MCPServerConnection[]
@@ -497,7 +494,6 @@ export function getDefaultAppState(): AppState {
     replBridgeError: undefined,
     replBridgeInitialName: undefined,
     showRemoteCallout: false,
-    companionMuted: !!getGlobalConfig().companionMuted,
     toolPermissionContext: {
       ...getEmptyToolPermissionContext(),
       mode: initialMode,

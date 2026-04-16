@@ -8,7 +8,6 @@ import type { LogOption } from '../types/logs.js';
 import { formatRelativeTimeAgo } from '../utils/format.js';
 import { getSessionIdFromLog, isLiteLog, loadFullLog } from '../utils/sessionStorage.js';
 import { ConfigurableShortcutHint } from './ConfigurableShortcutHint.js';
-import { Divider } from './design-system/Divider.js';
 import { Byline } from './design-system/Byline.js';
 import { KeyboardShortcutHint } from './design-system/KeyboardShortcutHint.js';
 import { LoadingState } from './design-system/LoadingState.js';
@@ -175,7 +174,7 @@ export function SessionPreview(t0) {
   }
   let t17;
   if ($[28] !== t15) {
-    t17 = <Box flexShrink={0} flexDirection="column"><Divider animated /><Box paddingLeft={2}>{t15}{t16}</Box></Box>;
+    t17 = <Box flexShrink={0} flexDirection="column" borderTopDimColor={true} borderBottom={false} borderLeft={false} borderRight={false} borderStyle="single" paddingLeft={2}>{t15}{t16}</Box>;
     $[28] = t15;
     $[29] = t17;
   } else {

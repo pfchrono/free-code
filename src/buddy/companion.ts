@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js'
 import {
   type Companion,
@@ -87,11 +86,6 @@ const SALT = 'friend-2026-401'
 export type Roll = {
   bones: CompanionBones
   inspirationSeed: number
-}
-
-export type StoredCompanionState = import('./types.js').StoredCompanion & {
-  hatchSeed: string
-  bones: CompanionBones
 }
 
 const NAME_PREFIXES = [
@@ -183,7 +177,7 @@ function soulFromRoll(
   userId: string,
   bones: CompanionBones,
   inspirationSeed: number,
-): StoredCompanionState {
+): import('./types.js').StoredCompanion {
   const rng = mulberry32(hashString(`${userId}:${inspirationSeed}:soul`))
   const prefix = pick(rng, NAME_PREFIXES)
   const suffix = pick(rng, NAME_SUFFIXES)
@@ -192,41 +186,23 @@ function soulFromRoll(
   const closer = pick(rng, PERSONALITY_CLOSERS)
 
   return {
-    hatchSeed: '',
-    bones,
     name: `${prefix}${suffix}`,
     personality: `${opener}, with a bias toward ${topStat}. ${closer}`,
     hatchedAt: Date.now(),
   }
 }
 
-function createCompanionState(): StoredCompanionState {
-  const userId = companionUserId()
-  const hatchSeed = `${userId}:${randomUUID()}:${Date.now()}`
-  const { bones, inspirationSeed } = rollWithSeed(hatchSeed)
-  const soul = soulFromRoll(userId, bones, inspirationSeed)
-  return { ...soul, hatchSeed }
-}
-
-export function hatchCompanion(): Companion {
-  const soul = createCompanionState()
-  saveGlobalConfig(current => ({
-    ...current,
-    companion: soul,
-    companionMuted: false,
-  }))
-  return { ...soul, ...soul.bones }
-}
-
 export function ensureCompanion(): Companion {
   const existing = getCompanion()
   if (existing) return existing
 
-  const soul = createCompanionState()
+  const userId = companionUserId()
+  const { bones, inspirationSeed } = roll(userId)
+  const soul = soulFromRoll(userId, bones, inspirationSeed)
   saveGlobalConfig(current =>
     current.companion ? current : { ...current, companion: soul },
   )
-  return { ...soul, ...soul.bones }
+  return { ...soul, ...bones }
 }
 
 export function getPetReaction(companion: Companion): string {
@@ -242,11 +218,7 @@ export function getPetReaction(companion: Companion): string {
 export function getCompanion(): Companion | undefined {
   const stored = getGlobalConfig().companion
   if (!stored) return undefined
-  const maybeStored = stored as Partial<StoredCompanionState>
-  const bones =
-    maybeStored.bones ??
-    (maybeStored.hatchSeed
-      ? rollWithSeed(maybeStored.hatchSeed).bones
-      : roll(companionUserId()).bones)
+  const { bones } = roll(companionUserId())
+  // bones last so stale bones fields in old-format configs get overridden
   return { ...stored, ...bones }
 }

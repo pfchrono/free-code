@@ -8,16 +8,14 @@ Build cross-platform Windows GUI app that integrates free-code CLI, similar to O
 
 ---
 
-## Current Status (Updated: 2026-04-16)
+## Current Status (Updated: 2026-04-10)
 
-### ✅ Phase 1: Subprocess Bridge - COMPLETE
-
-### ✅ Phase 2: CLI Core Integration - COMPLETE
+### ✅ Phase 1: Subprocess Bridge - FUNCTIONAL
 
 **Completed:**
 - [x] `--gui` flag in CLI (`src/entrypoints/cli.tsx`)
 - [x] GUI mode protocol types (`src/gui/guiProtocol.ts`)
-- [x] GUI mode handler (`src/gui/guiMode.ts`)
+- [x] GUI mode handler with stub responses (`src/gui/guiMode.ts`)
 - [x] Working event/command flow over stdio
 - [x] Message history tracking
 - [x] Slash command detection and routing
@@ -26,20 +24,13 @@ Build cross-platform Windows GUI app that integrates free-code CLI, similar to O
 - [x] React frontend with auto-connect hook
 - [x] App binary built: `gui/src-tauri/target/release/free-code-gui.exe` (10.3 MB)
 - [x] NSIS installer built: `gui/src-tauri/target/release/bundle/nsis/Free-Code GUI_0.1.0_x64-setup.exe` (2.4 MB)
-- [x] Persistent `QueryEngine` runtime in GUI mode
-- [x] Real `user_input` execution through `QueryEngine.submitMessage()`
-- [x] Real `message`, `tool_use`, `tool_result`, `status`, and `completion` event emission
-- [x] Runtime-backed `get_models`, `get_commands`, and `select_model`
-- [x] Best-effort `interrupt` handling and GUI runtime teardown
 
-**Working commands (live runtime):**
+**Working commands (stubbed responses):**
 - `heartbeat` → `status: ok`
 - `get_models` → `models_list` with current model info
 - `get_commands` → `commands_list` with all commands
-- `user_input` → real multi-turn execution + `completion`
-- `/slash commands` → routed through real command/query handling
-- `interrupt` → best-effort cancel + engine recreation
-- `select_model` → runtime override update
+- `user_input` → stub response + `completion`
+- `/slash commands` → Detected and routed (execution stub)
 
 **Test output:**
 ```bash
@@ -48,10 +39,6 @@ $ echo '{"type":"heartbeat"}' | ./dist/cli.exe --gui
 {"type":"status","message":"GUI mode initialized","level":"info"}
 {"type":"status","message":"ok","level":"info"}
 ```
-
-**Known residual risks:**
-- Provider switching is not fully dynamic. `select_model` updates model override, but mismatched provider requests warn and keep current provider.
-- Direct CLI smoke through `bun run ./cli --gui` can still hit existing runtime guard `"Config accessed before allowed"` depending on startup path.
 
 ---
 
@@ -70,9 +57,9 @@ The CLI has two main execution paths:
 - `QueryEngine` (QueryEngine.ts:193) - Core query logic, maintains `mutableMessages` for multi-turn
 - `QueryEngine.submitMessage()` (QueryEngine.ts:218) - Processes one user turn, yields SDK messages
 
-### Core Challenge Solved
+### The Core Challenge
 
-`runHeadless()` is designed for single-turn batch processing:
+**Problem:** `runHeadless()` is designed for single-turn batch processing:
 ```
 Input: One prompt via stdin or argument
 ↓
@@ -83,7 +70,7 @@ Output: Stream JSON to stdout
 Exit: Process terminates
 ```
 
-GUI needed:
+**For GUI, we need:**
 ```
 Input: Multiple prompts over time (stdin stays open)
 ↓
@@ -94,7 +81,7 @@ Output: Stream JSON to stdout for each turn
 Exit: Only when GUI closes or /exit command
 ```
 
-**Key insight:** `QueryEngine` maintains state via `mutableMessages`, so GUI could keep one engine alive and submit turns directly without reworking `runHeadlessStreaming`.
+**Key insight:** `QueryEngine` maintains state via `mutableMessages` - this enables multi-turn conversations. The issue is `runHeadlessStreaming` is not designed to loop.
 
 ### Integration Options
 
@@ -117,11 +104,12 @@ Exit: Only when GUI closes or /exit command
 - **Problem:** `-p` mode exits after processing stdin content
 - **Workaround:** Would need to keep stdin open with dummy content
 
-**Option 4: Direct QueryEngine integration (Implemented)**
+**Option 4: Direct QueryEngine integration (Recommended)**
 - In `--gui` mode, initialize `QueryEngine` once
 - Call `engine.submitMessage()` for each user input turn
 - Stream results via `writeGuiEvent()`
-- **Result:** Chosen and shipped via archived OpenSpec change `gui-core-integration`
+- **Pros:** True multi-turn, shares all CLI infrastructure
+- **Cons:** Need to replicate complex `runHeadless()` initialization
 
 ---
 
@@ -133,13 +121,8 @@ Exit: Only when GUI closes or /exit command
 & "F:\code\free-code-working\gui\src-tauri\target\release\dist\cli.exe" --gui
 {"type":"session_start","version":"0.3.1","model":"MiniMax-M2.7","provider":"minimax",...}
 {"type":"status","message":"GUI mode initialized","level":"info"}
+{"type":"status","message":"GUI session ended","level":"info"}
 ```
-
-### Live Runtime Behavior
-- Real assistant output streams through GUI protocol events
-- Tool calls map into `tool_use` and `tool_result`
-- Session context persists across turns inside one `QueryEngine`
-- Runtime command/model inventory comes from active state, not stubs
 
 ### Tauri App
 - Builds successfully with `cargo build --release`
@@ -176,20 +159,58 @@ Exit: Only when GUI closes or /exit command
 
 ## Next Steps (Priority Order)
 
-### 🔴 HIGH PRIORITY: Frontend Usability Pass
+### 🔴 HIGH PRIORITY: Connect CLI Core
 
-1. [ ] Command palette UI for slash commands and command discovery
-2. [ ] Rich message rendering with markdown, code fences, and copy affordances
-3. [ ] Better tool progress UI instead of generic status lines
-4. [ ] Session-level error and permission UX for denied/failed tool calls
-5. [ ] Decide provider-switch strategy for full `select_model` parity
+**Option A: Create `runGuiStreaming()` (Preferred)**
+1. Copy `runHeadless()` initialization code to `guiMode.ts`
+2. Create `StructuredIO` with stdin as input
+3. Initialize `QueryEngine` once
+4. In command loop, call `queryEngine.submitMessage()` for each user input
+5. Stream results via `writeGuiEvent()`
+
+**Steps:**
+1. [ ] Import required modules into `guiMode.ts`:
+   - `QueryEngine`, `Tools`, `Command` types
+   - `StructuredIO` from `src/cli/structuredIO.ts`
+   - `MCPServerConnection` types
+   - Settings, model, tool initialization functions
+
+2. [ ] Initialize CLI infrastructure once at startup:
+   ```typescript
+   // In runGuiMode():
+   const tools = await getTools()
+   const commands = await getCommands(cwd)
+   const mcpClients = [] // MCP initialization
+   const queryEngine = new QueryEngine({
+     cwd,
+     tools,
+     commands,
+     mcpClients,
+     // ... other config
+   })
+   ```
+
+3. [ ] Process user inputs via submitMessage:
+   ```typescript
+   // In handleUserInput():
+   for await (const msg of queryEngine.submitMessage(content)) {
+     writeGuiEvent(convertSdkToGuiEvent(msg))
+   }
+   ```
+
+4. [ ] Handle tool permissions, MCP, and other callbacks
+
+**Option B: Modify `runHeadlessStreaming()` to loop**
+- Add `while (!inputClosed)` around the for-await
+- Add way to signal "turn complete, waiting for next input"
+- Challenges: stdin EOF detection, exit conditions
 
 ### 🟡 MEDIUM PRIORITY: Frontend Improvements
 
-1. [ ] Model picker dropdown with active-provider clarity
-2. [ ] Conversation transcript polish and streaming UX
-3. [ ] Session resume and tab/history UI
-4. [ ] Permission surface for tool approvals
+1. [ ] Command palette UI (type `/` for autocomplete)
+2. [ ] Better message display with markdown/code rendering
+3. [ ] Model picker dropdown
+4. [ ] Tool use/progress display
 
 ### 🟢 LOW PRIORITY: Nice to Have
 
@@ -254,21 +275,21 @@ cargo build --release --bundles nsis
 |-------|------|--------|--------|
 | 1 | `--gui` flag + protocol | ✅ Done | 1 day |
 | 1 | Tauri scaffold + build | ✅ Done | 1 day |
-| 2 | CLI core integration | ✅ Done | 3-5 days |
-| 3 | Command palette + rich transcript | 🔲 Pending | 3-4 days |
-| 3 | Tool progress + permission UX | 🔲 Pending | 2-3 days |
-| 4 | Model/provider picker polish | 🔲 Pending | 1-2 days |
-| 5 | Git diff sidebar | 🔲 Pending | 2-3 days |
-| 5 | Project tree | 🔲 Pending | 2-3 days |
+| 1 | CLI core integration | ⏳ In Progress | 3-5 days |
+| 2 | Command palette | 🔲 Pending | 2-3 days |
+| 2 | Better message display | 🔲 Pending | 2 days |
+| 3 | Model picker | 🔲 Pending | 1-2 days |
+| 4 | Git diff sidebar | 🔲 Pending | 2-3 days |
+| 4 | Project tree | 🔲 Pending | 2-3 days |
 
 ---
 
 ## Open Questions
 
-1. **Provider switching parity?** Current model override works, full provider switch still unresolved
-2. **Permission handling?** Auto-allow remains initial behavior; GUI prompt flow still needed
-3. **MCP support in GUI?** Runtime currently uses empty MCP client set in GUI mode
-4. **Settings sync?** Share settings.json with CLI, but expose GUI-safe subset
+1. **Which integration approach?** Option A (direct QueryEngine) preferred
+2. **MCP support in GUI?** Initial implementation can skip, add later
+3. **Permission handling?** Auto-allow for now, add UI later
+4. **Settings sync?** Share settings.json with CLI
 
 ---
 

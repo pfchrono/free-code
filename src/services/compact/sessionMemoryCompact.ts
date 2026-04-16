@@ -4,7 +4,6 @@
 
 import type { AgentId } from '../../types/ids.js'
 import type { HookResultMessage, Message } from '../../types/message.js'
-import { getSessionId } from '../../bootstrap/state.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { isEnvTruthy } from '../../utils/envUtils.js'
 import { errorMessage } from '../../utils/errors.js'
@@ -17,7 +16,6 @@ import { getMainLoopModel } from '../../utils/model/model.js'
 import { getSessionMemoryPath } from '../../utils/permissions/filesystem.js'
 import { processSessionStartHooks } from '../../utils/sessionStart.js'
 import { getTranscriptPath } from '../../utils/sessionStorage.js'
-import { persistCompactedSessionState } from '../../utils/persistedSessionState.js'
 import { tokenCountFromLastAPIResponse } from '../../utils/tokens.js'
 import { extractDiscoveredToolNames } from '../../utils/toolSearch.js'
 import {
@@ -615,38 +613,11 @@ export async function trySessionMemoryCompaction(
       return null
     }
 
-    const finalResult = {
+    return {
       ...compactionResult,
       postCompactTokenCount,
       truePostCompactTokenCount: postCompactTokenCount,
-    } satisfies CompactionResult
-
-    void persistCompactedSessionState(getSessionId(), {
-      visibleMessages: buildPostCompactMessages(finalResult),
-      coreMessages: buildPostCompactMessages(finalResult),
-      checkpointMetadata: {
-        strategy: 'session_memory',
-        lastSummarizedMessageId,
-        transcriptPath,
-      },
-      event: {
-        trigger: autoCompactThreshold !== undefined ? 'auto' : 'manual',
-        strategy: 'session_memory',
-        occurredAt: new Date().toISOString(),
-        beforeTokens: compactionResult.preCompactTokenCount,
-        afterTokens: postCompactTokenCount,
-        beforeMessages: messages.length,
-        afterMessages: buildPostCompactMessages(finalResult).length,
-        retainedSummary:
-          messagesToKeep.length > 0
-            ? `${messagesToKeep.length} messages kept after session memory summary`
-            : 'session memory summary only',
-        droppedSummary: `${Math.max(messages.length - buildPostCompactMessages(finalResult).length, 0)} messages summarized`,
-      },
-      transcriptPath,
-    }).catch(() => {})
-
-    return finalResult
+    }
   } catch (error) {
     // Use logEvent instead of logError since errors here are expected
     // (e.g., file not found, path issues) and shouldn't go to error logs

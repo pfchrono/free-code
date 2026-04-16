@@ -95,10 +95,6 @@ export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS
   return getAPIProvider() as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
 }
 
-export function getCurrentAPIAdapterName(): string {
-  return process.env.CLAUDE_CODE_API_PROVIDER ?? `${getAPIProvider()}-adapter`
-}
-
 /**
  * Check if ANTHROPIC_BASE_URL is a first-party Anthropic API URL.
  * Returns true if not set (default API) or points to api.anthropic.com

@@ -89,10 +89,6 @@ import {
   readTranscriptForLoad,
   SKIP_PRECOMPACT_THRESHOLD,
 } from './sessionStoragePortable.js'
-import {
-  loadPersistedSessionState,
-  savePersistedSessionState,
-} from './persistedSessionState.js'
 import { getSettings_DEPRECATED } from './settings/settings.js'
 import { jsonParse, jsonStringify } from './slowOperations.js'
 import type { ContentReplacementRecord } from './toolResultStorage.js'
@@ -1442,19 +1438,6 @@ export async function recordTranscript(
       teamInfo,
     )
   }
-  const visibleMessages = cleanMessagesForLogging(allMessages ?? messages, allMessages)
-  void loadPersistedSessionState(sessionId)
-    .then(existing =>
-      savePersistedSessionState(sessionId, {
-        version: 1,
-        visibleMessages,
-        coreMessages: existing?.coreMessages,
-        checkpointMetadata: existing?.checkpointMetadata,
-        resumeMetadata: existing?.resumeMetadata,
-        compactionHistory: existing?.compactionHistory,
-      }),
-    )
-    .catch(() => {})
   // Return the last ACTUALLY recorded chain-participant's UUID, OR the
   // prefix-tracked UUID if no new chain participants were recorded. This lets
   // callers (useLogMessages) maintain the correct parent chain even when the

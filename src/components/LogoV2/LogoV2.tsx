@@ -74,7 +74,7 @@ export function LogoV2() {
   const config = getGlobalConfig();
   let changelog;
   try {
-    changelog = getRecentReleaseNotesSync(5, MACRO.VERSION, config.lastReleaseNotesSeen);
+    changelog = getRecentReleaseNotesSync(3, MACRO.VERSION, config.lastReleaseNotesSeen);
   } catch {
     changelog = [];
   }

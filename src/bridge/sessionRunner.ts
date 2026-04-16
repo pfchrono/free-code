@@ -3,8 +3,6 @@ import { createWriteStream, type WriteStream } from 'fs'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { createInterface } from 'readline'
-import { registerCleanup } from '../utils/cleanupRegistry.js'
-import { terminateProcessTree } from '../utils/genericProcessUtils.js'
 import { jsonParse, jsonStringify } from '../utils/slowOperations.js'
 import { debugTruncate } from './debugUtils.js'
 import type {
@@ -348,19 +346,8 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       const activities: SessionActivity[] = []
       let currentActivity: SessionActivity | null = null
       const lastStderr: string[] = []
-      let sigtermSent = false
       let sigkillSent = false
       let firstUserMessageSeen = false
-      let unregisterCleanup: (() => void) | undefined
-
-      if (child.pid) {
-        unregisterCleanup = registerCleanup(async () => {
-          deps.onDebug(
-            `[bridge:session] Cleanup terminating process tree for sessionId=${opts.sessionId} pid=${child.pid}`,
-          )
-          await terminateProcessTree(child.pid, { force: true })
-        })
-      }
 
       // Buffer stderr for error diagnostics
       if (child.stderr) {
@@ -460,8 +447,6 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
 
       const done = new Promise<SessionDoneStatus>(resolve => {
         child.on('close', (code, signal) => {
-          unregisterCleanup?.()
-          unregisterCleanup = undefined
           // Close transcript stream on exit
           if (transcriptStream) {
             transcriptStream.end()
@@ -504,21 +489,31 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
           return currentActivity
         },
         kill(): void {
-          if (!sigtermSent && child.pid) {
-            sigtermSent = true
+          if (!child.killed) {
             deps.onDebug(
               `[bridge:session] Sending SIGTERM to sessionId=${opts.sessionId} pid=${child.pid}`,
             )
-            void terminateProcessTree(child.pid, { force: false })
+            // On Windows, child.kill('SIGTERM') throws; use default signal.
+            if (process.platform === 'win32') {
+              child.kill()
+            } else {
+              child.kill('SIGTERM')
+            }
           }
         },
         forceKill(): void {
+          // Use separate flag because child.killed is set when kill() is called,
+          // not when the process exits. We need to send SIGKILL even after SIGTERM.
           if (!sigkillSent && child.pid) {
             sigkillSent = true
             deps.onDebug(
               `[bridge:session] Sending SIGKILL to sessionId=${opts.sessionId} pid=${child.pid}`,
             )
-            void terminateProcessTree(child.pid, { force: true })
+            if (process.platform === 'win32') {
+              child.kill()
+            } else {
+              child.kill('SIGKILL')
+            }
           }
         },
         writeStdin(data: string): void {

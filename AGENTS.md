@@ -41,34 +41,7 @@ bun test -- "test name"
 
 # Run with coverage
 bun test --coverage
-
-# Smoke-test headless slash-command transport
-bun run test:headless-transport
-
-# Start headless slash-command transport server
-bun run dev:headless-transport
-
-# Start gRPC transport server
-bun run dev:grpc
-
-# Force-stop gRPC transport server and child process tree
-bun run dev:grpc:stop
 ```
-
-### Transport testing guidance
-
-- Prefer headless transport for automation around local slash commands.
-- Headless transport is line-delimited JSON over stdin/stdout, backed by real local command execution.
-- Primary files:
-  - `scripts/headless-transport-server.ts`
-  - `scripts/headless-transport-smoke.ts`
-  - `src/utils/headlessLocalCommandRunner.ts`
-- Current known-good use case: `/deadpoolmode` and `/caveman-mode` regression checks.
-- Use `bun run test:headless-transport` before trying broader transport experiments.
-- gRPC transport (`bun run dev:grpc`, `bun run dev:grpc:cli`) is not current source of truth for smoke automation; Bun-hosted gRPC has shown connection/protocol instability in this repo.
-- Always stop long-lived transport processes when finished.
-- For gRPC runs, use `bun run dev:grpc:stop` after testing.
-- `dev:grpc:stop` reads `.tmp/grpc-server.pid` and force-kills whole process tree on Windows, preventing rogue `bun` / `free-code.exe` children from lingering and eating RAM.
 
 ## Tooling Policy
 
@@ -249,19 +222,18 @@ describe('createCopilotFetch', () => {
 ## GUI Development (Tauri + React)
 
 ### Current Status
-- GUI `--gui` mode functional with real core runtime
+- GUI `--gui` mode functional with stub responses
 - Tauri app scaffolded and builds
 - Binary: `gui/src-tauri/target/release/free-code-gui.exe`
 - Installer: `gui/src-tauri/target/release/bundle/nsis/`
 
 ### Key Challenge
-Main remaining work is frontend/interaction parity and transport polish, not core query wiring. See `GUI.md` for current architecture and next steps.
+The CLI `--gui` mode uses stub responses. The challenge is integrating the CLI core (`QueryEngine.submitMessage()`) to process real user inputs. See `GUI.md` for detailed architecture analysis.
 
 ### Integration Path
 1. Initialize `QueryEngine` in `--gui` mode once at startup
-2. Keep runtime and `QueryEngine` persistent across turns
-3. Call `queryEngine.submitMessage()` for each user input turn
-4. Stream `SDKMessage` results via GUI event bridge
+2. Call `queryEngine.submitMessage()` for each user input turn
+3. Stream `SDKMessage` results via `writeGuiEvent()`
 
 ### Key Files
 

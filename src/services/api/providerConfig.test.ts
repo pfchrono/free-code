@@ -39,8 +39,6 @@ describe('providerConfig', () => {
 
   it('detects Codex transport from aliases when no explicit base URL is set', () => {
     expect(shouldUseCodexTransport('codexplan', undefined)).toBe(true);
-    expect(shouldUseCodexTransport('chatgpt-5.3-codex-spark', undefined)).toBe(true);
-    expect(shouldUseCodexTransport('gpt-5.3-codex-spark', undefined)).toBe(true);
     expect(shouldUseCodexTransport('gpt-4o', undefined)).toBe(false);
   });
 

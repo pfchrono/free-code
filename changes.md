@@ -2,10 +2,11 @@
 
 All notable changes to free-code are documented here.
 
-## [0.6.1] - 2026-04-16
+## [0.6.2] - 2026-04-16
 
 <!-- GENERATED_RECENT_COMMITS_START -->
 ### Recent commits
+- 2026-04-16 chore: remove obsolete openspec change set
 - 2026-04-16 docs: update agent and project instructions
 - 2026-04-16 feat: add headless transport automation and grpc cleanup
 - 2026-04-16 retry commit after hook fix
@@ -25,7 +26,6 @@ All notable changes to free-code are documented here.
 - 2026-04-08 feat: add aggressive message pruning to reduce token bloat
 - 2026-04-08 feat: refine caveman compaction and provider workflow
 - 2026-04-08 fix: update attribution branding and document token reduction work
-- 2026-04-08 fix: remove anthropic email from default attribution
 <!-- GENERATED_RECENT_COMMITS_END -->
 
 

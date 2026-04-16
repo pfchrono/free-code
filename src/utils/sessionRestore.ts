@@ -3,7 +3,6 @@ import type { UUID } from 'crypto'
 import { dirname } from 'path'
 import {
   getMainLoopModelOverride,
-  setCurrentResumeSource,
   getSessionId,
   setMainLoopModelOverride,
   setMainThreadAgentType,
@@ -57,10 +56,6 @@ import { isTodoV2Enabled } from './tasks.js'
 import type { TodoList } from './todo/types.js'
 import { TodoListSchema } from './todo/types.js'
 import type { ContentReplacementRecord } from './toolResultStorage.js'
-import {
-  recordPersistedResumeMetadata,
-  type SessionResumeSource,
-} from './persistedSessionState.js'
 import {
   getCurrentWorktreeSession,
   restoreWorktreeSession,
@@ -317,8 +312,6 @@ type ResumeLoadResult = {
   prNumber?: number
   prUrl?: string
   prRepository?: string
-  resumeSource: SessionResumeSource
-  resumeDetail?: string
 }
 
 /**
@@ -430,16 +423,6 @@ export async function processResumedConversation(
     initialState: AppState
   },
 ): Promise<ProcessedResume> {
-  setCurrentResumeSource(result.resumeSource, result.resumeDetail)
-  if (result.sessionId) {
-    void recordPersistedResumeMetadata(
-      result.sessionId,
-      result.resumeSource,
-      result.resumeDetail,
-      { transcriptPath: opts.transcriptPath },
-    )
-  }
-
   // Match coordinator/normal mode to the resumed session
   let modeWarning: string | undefined
   if (feature('COORDINATOR_MODE')) {

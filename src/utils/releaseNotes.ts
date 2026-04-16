@@ -1,8 +1,6 @@
 import axios from 'axios'
-import { existsSync, readFileSync } from 'fs'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
-import { fileURLToPath } from 'url'
 import { coerce } from 'semver'
 import { getIsNonInteractiveSession } from '../bootstrap/state.js'
 import { getGlobalConfig, saveGlobalConfig } from './config.js'
@@ -28,9 +26,9 @@ const MAX_RELEASE_NOTES_SHOWN = 5
  * 3. Next time the user starts Claude, the cached changelog is available immediately
  */
 export const CHANGELOG_URL =
-  'https://github.com/pfchrono/free-code/blob/main/changes.md'
+  'https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md'
 const RAW_CHANGELOG_URL =
-  'https://raw.githubusercontent.com/pfchrono/free-code/refs/heads/main/changes.md'
+  'https://raw.githubusercontent.com/anthropics/claude-code/refs/heads/main/CHANGELOG.md'
 
 /**
  * Get the path for the cached changelog file.
@@ -38,10 +36,6 @@ const RAW_CHANGELOG_URL =
  */
 function getChangelogCachePath(): string {
   return join(getClaudeConfigHomeDir(), 'cache', 'changelog.md')
-}
-
-function getBundledChangelogPath(): string {
-  return fileURLToPath(new URL('../../changes.md', import.meta.url))
 }
 
 // In-memory cache populated by async reads. Sync callers (React render, sync
@@ -133,18 +127,6 @@ export async function getStoredChangelog(): Promise<string> {
   if (changelogMemoryCache !== null) {
     return changelogMemoryCache
   }
-
-  const bundledPath = getBundledChangelogPath()
-  if (existsSync(bundledPath)) {
-    try {
-      const content = readFileSync(bundledPath, 'utf-8')
-      changelogMemoryCache = content
-      return content
-    } catch {
-      // Fall through to cache file
-    }
-  }
-
   const cachePath = getChangelogCachePath()
   try {
     const content = await readFile(cachePath, 'utf-8')
@@ -191,11 +173,7 @@ export function parseChangelog(content: string): Record<string, string[]> {
       if (!versionLine) continue
 
       // First part before any dash is the version
-      const version =
-        versionLine
-          .split(' - ')[0]
-          ?.trim()
-          .replace(/^\[(.+)\]$/, '$1') || ''
+      const version = versionLine.split(' - ')[0]?.trim() || ''
       if (!version) continue
 
       // Extract bullet points

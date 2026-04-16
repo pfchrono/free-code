@@ -21,8 +21,5 @@ benchmark-results/*
 temp-uncommitted/
 .openspec/
 openspec/tmp/
-openspec/
 @openspec*/
-.claude/agents/
-killbunfreecode.ps1
 gui/src-tauri/target/

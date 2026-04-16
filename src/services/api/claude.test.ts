@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test'
 
+import { getSystemPrompt } from '../../constants/prompts.js'
 import type { MCPServerConnection } from '../../context.js'
 import { getPromptCachingEnabled } from './claude.js'
 
@@ -52,48 +53,43 @@ describe('getPromptCachingEnabled', () => {
 })
 
 describe('getSystemPrompt', () => {
-  async function buildPrompt(options?: {
-    lean?: boolean
-    cavemanModeEnabled?: boolean
-    deadpoolModeEnabled?: boolean
-  }) {
+  async function buildPrompt(options?: { lean?: boolean }) {
     const mcpClients: MCPServerConnection[] = []
     process.env.ANTHROPIC_API_KEY = 'test-key'
 
-    mock.module('src/commands.js', () => ({
+    mock.module('../../utils/agent/skillToolCommands.js', () => ({
       getSkillToolCommands: async () => [],
     }))
-    mock.module('../../constants/outputStyles.js', () => ({
+    mock.module('../../utils/outputStyle.js', () => ({
       getOutputStyleConfig: async () => null,
     }))
-    mock.module('../../memdir/memdir.js', () => ({
+    mock.module('../../services/memory/persistentMemorySystem.js', () => ({
       loadMemoryPrompt: async () => 'MEMORY SECTION',
     }))
-    mock.module('../../utils/settings/settings.js', () => ({
-      getInitialSettings: () => ({
-        cavemanModeEnabled: options?.cavemanModeEnabled === true,
-        deadpoolModeEnabled: options?.deadpoolModeEnabled === true,
-      }),
-    }))
-    mock.module('../../constants/systemPromptSections.js', () => ({
-      systemPromptSection: (_id: string, compute: () => unknown) => ({ compute }),
-      DANGEROUS_uncachedSystemPromptSection: (
-        _id: string,
-        compute: () => unknown,
-      ) => ({ compute }),
-      resolveSystemPromptSections: async (sections: unknown[]) => {
-        const resolved: string[] = []
-        for (const section of sections as Array<{ compute: () => unknown }>) {
-          const value = await section.compute()
-          if (value !== null) {
-            resolved.push(value as string)
+    mock.module('../../constants/prompts.js', async () => {
+      const actual = await import('../../constants/prompts.js')
+      return {
+        ...actual,
+        getBasePrompt: () => 'Base prompt\nTo give feedback, users should open issue',
+      }
+    })
+    mock.module('../../utils/systemPromptRegistry.js', async () => {
+      const actual = await import('../../utils/systemPromptRegistry.js')
+      return {
+        ...actual,
+        resolveSystemPromptSections: async (sections: unknown[]) => {
+          const resolved: string[] = []
+          for (const section of sections as Array<{ compute: () => unknown }>) {
+            const value = await section.compute()
+            if (value !== null) {
+              resolved.push(value as string)
+            }
           }
-        }
-        return resolved
-      },
-    }))
+          return resolved
+        },
+      }
+    })
 
-    const { getSystemPrompt } = await import('../../constants/prompts.js')
     const prompt = await getSystemPrompt([noopTool], 'claude-sonnet-4', [], mcpClients, options)
     return prompt.concat('MEMORY SECTION')
   }
@@ -106,49 +102,16 @@ describe('getSystemPrompt', () => {
     expect(joined).toContain('# Doing tasks')
     expect(joined).toContain('MEMORY SECTION')
     expect(joined).toContain('# Output')
-    expect(joined).toContain('Give a brief pre-tool update before substantial work.')
+    expect(joined).not.toContain('# Output style')
     expect(joined).not.toContain('Caveman Mode')
   })
 
-  it('adds non-lean codex-style sections', async () => {
+  it('adds non-lean sections including output style and caveman mode', async () => {
     const prompt = await buildPrompt()
     const joined = prompt.join('\n\n')
 
-    expect(joined).toContain('# Responsiveness')
-    expect(joined).toContain('AGENTS.md files provide repository instructions.')
-    expect(joined).toContain('# Final responses')
-    expect(joined).toContain('# Free-code guidance')
-    expect(joined).not.toContain('# Tone and style')
-    expect(joined).not.toContain('# Output efficiency')
-  })
-
-  it('keeps caveman and deadpool guidance together when both modes are enabled', async () => {
-    const prompt = await buildPrompt({
-      cavemanModeEnabled: true,
-      deadpoolModeEnabled: true,
-    })
-    const joined = prompt.join('\n\n')
-
-    expect(joined).toContain('# Communication Style: Caveman Mode')
-    expect(joined).toContain('# Communication Style: Deadpool Mode')
-    expect(joined).toContain('keep the antihero voice but compress it hard and keep jokes terse')
-    expect(joined).toContain('keep jokes short, compressed, and secondary to technical clarity')
-  })
-
-  it('makes deadpool mode override plain-language tone guidance', async () => {
-    const prompt = await buildPrompt({
-      deadpoolModeEnabled: true,
-    })
-    const joined = prompt.join('\n\n')
-
-    expect(joined).toContain(
-      'This mode overrides the default plain-language tone guidance for all user-visible prose.',
-    )
-    expect(joined).toContain(
-      'it MUST sound recognizably Deadpool-flavored unless the task is serious enough to reduce joke density',
-    )
-    expect(joined).toContain(
-      'Deadpool mode: "Parser had a null-check faceplant. I patched it and chained a regression test to the radiator."',
-    )
+    expect(joined).toContain('# Tone and style')
+    expect(joined).toContain('# Output efficiency')
+    expect(joined).toContain('Caveman Mode')
   })
 })

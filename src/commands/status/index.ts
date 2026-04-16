@@ -1,11 +1,11 @@
 import type { Command } from '../../commands.js'
 
 const status = {
-  type: 'local',
+  type: 'local-jsx',
   name: 'status',
   description:
-    'Show current session, model, context, worktree, MCP, and agent policy status',
-  supportsNonInteractive: true,
+    'Show Claude Code status including version, model, account, API connectivity, and tool statuses',
+  immediate: true,
   load: () => import('./status.js'),
 } satisfies Command
 

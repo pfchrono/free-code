@@ -49,7 +49,6 @@ import {
   permissionRuleValueFromString,
   permissionRuleValueToString,
 } from './permissionRuleParser.js'
-import { isBypassPermissionsActive } from './filesystem.js'
 import {
   deletePermissionRuleFromSettings,
   type PermissionRuleFromEditableSettings,
@@ -1134,11 +1133,7 @@ export async function checkRuleBasedPermissions(
 
   // 1f. Content-specific ask rules from tool.checkPermissions
   // (e.g. Bash(npm publish:*) → {ask, type:'rule', ruleBehavior:'ask'})
-  // In bypassPermissions mode, these no longer override the explicit bypass.
-  // Hard denies still win above, and protected-system-path denies are enforced
-  // inside the filesystem/path validators.
   if (
-    !isBypassPermissionsActive(appState.toolPermissionContext) &&
     toolPermissionResult?.behavior === 'ask' &&
     toolPermissionResult.decisionReason?.type === 'rule' &&
     toolPermissionResult.decisionReason.rule.ruleBehavior === 'ask'
@@ -1152,7 +1147,6 @@ export async function checkRuleBasedPermissions(
   // letting --dangerously-skip-permissions bypass classifier-approvable
   // sensitive-file prompts.
   if (
-    !isBypassPermissionsActive(appState.toolPermissionContext) &&
     toolPermissionResult?.behavior === 'ask' &&
     toolPermissionResult.decisionReason?.type === 'safetyCheck' &&
     toolPermissionResult.decisionReason.classifierApprovable === false
@@ -1245,11 +1239,12 @@ async function hasPermissionsToUseToolInner(
   }
 
   // 1f. Content-specific ask rules from tool.checkPermissions take precedence
-  // unless bypassPermissions mode is active. Hard denies still take
-  // precedence at step 1d, and protected-system-path denies are enforced in
-  // filesystem/path validators.
+  // over bypassPermissions mode. When a user explicitly configures a
+  // content-specific ask rule (e.g. Bash(npm publish:*)), the tool's
+  // checkPermissions returns {behavior:'ask', decisionReason:{type:'rule',
+  // rule:{ruleBehavior:'ask'}}}. This must be respected even in bypass mode,
+  // just as deny rules are respected at step 1d.
   if (
-    !isBypassPermissionsActive(appState.toolPermissionContext) &&
     toolPermissionResult?.behavior === 'ask' &&
     toolPermissionResult.decisionReason?.type === 'rule' &&
     toolPermissionResult.decisionReason.rule.ruleBehavior === 'ask'
@@ -1257,11 +1252,12 @@ async function hasPermissionsToUseToolInner(
     return toolPermissionResult
   }
 
-  // 1g. In bypassPermissions mode, non-deny safety prompts no longer block.
-  // Protected-system-path mutations remain hard-denied inside filesystem/path
-  // validators, which return behavior:'deny' and were handled at step 1d.
+  // 1g. Non-classifier-approvable safety checks stay bypass-immune even in
+  // bypassPermissions mode. This preserves hard blocks (suspicious path
+  // patterns, cross-machine bridge send) while allowing
+  // --dangerously-skip-permissions to bypass classifier-approvable sensitive
+  // file prompts.
   if (
-    !isBypassPermissionsActive(appState.toolPermissionContext) &&
     toolPermissionResult?.behavior === 'ask' &&
     toolPermissionResult.decisionReason?.type === 'safetyCheck' &&
     toolPermissionResult.decisionReason.classifierApprovable === false

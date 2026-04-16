@@ -7,7 +7,7 @@ import type { Command } from '../../commands.js';
 import { BLACK_CIRCLE } from '../../constants/figures.js';
 import { getCurrentTurnToolSavedInputTokens, getCurrentTurnToolSavedOutputTokens } from '../../bootstrap/state.js';
 import { stringWidth } from '../../ink/stringWidth.js';
-import { Box, Text, useAnimationFrame, useTheme } from '../../ink.js';
+import { Box, Text, useTheme } from '../../ink.js';
 import { useAppStateMaybeOutsideOfProvider } from '../../state/AppState.js';
 import { findToolByName, type Tool, type ToolProgressData, type Tools } from '../../Tool.js';
 import type { ProgressMessage } from '../../types/message.js';
@@ -15,7 +15,6 @@ import { useIsClassifierChecking } from '../../utils/classifierApprovalsHook.js'
 import { formatNumber } from '../../utils/format.js';
 import { logError } from '../../utils/log.js';
 import type { buildMessageLookups } from '../../utils/messages.js';
-import { getRainbowColor } from '../../utils/thinking.js';
 import { MessageResponse } from '../MessageResponse.js';
 import { useSelectedMessageBg } from '../messageActions.js';
 import { SentryErrorBoundary } from '../SentryErrorBoundary.js';
@@ -35,19 +34,6 @@ type Props = {
   lookups: ReturnType<typeof buildMessageLookups>;
   isTranscriptMode?: boolean;
 };
-const THINKING_TICK_MS = 80;
-function ThinkingProcessLabel({
-  detail
-}: {
-  detail: string;
-}): React.ReactNode {
-  const [, time] = useAnimationFrame(THINKING_TICK_MS);
-  const phase = Math.floor(time / (THINKING_TICK_MS * 3)) % 7;
-  return <MessageResponse height={1}>
-      {[...'thinking'].map((ch, i) => <Text key={i} color={getRainbowColor(i + phase, true)}>{ch}</Text>)}
-      <Text dimColor> · {detail}</Text>
-    </MessageResponse>;
-}
 export function AssistantToolUseMessage(t0) {
   const $ = _c(81);
   const {
@@ -198,14 +184,7 @@ export function AssistantToolUseMessage(t0) {
   const toolSavedOutputTokens = getCurrentTurnToolSavedOutputTokens();
   const toolSavedInputTokens = getCurrentTurnToolSavedInputTokens();
   const hasToolTokenUsage = !isResolved && (toolSavedOutputTokens > 0 || toolSavedInputTokens > 0);
-  const toolTokenUsageNode = hasToolTokenUsage ? <Text>
-      <Text dimColor>{'('}</Text>
-      <Text color="info">↑ {formatNumber(toolSavedOutputTokens)}</Text>
-      <Text dimColor>{' / '}</Text>
-      <Text color="info">↓ {formatNumber(toolSavedInputTokens)}</Text>
-      <Text dimColor>{' Tools)'}</Text>
-    </Text> : null;
-  const processingLabel = !isResolved && !isQueued ? <ThinkingProcessLabel detail="processing tool input/results…" /> : null;
+  const toolTokenUsageText = hasToolTokenUsage ? ` (↑ ${formatNumber(toolSavedOutputTokens)} / ↓ ${formatNumber(toolSavedInputTokens)} Tools)` : null;
   const t5 = addMargin ? 1 : 0;
   const t6 = stringWidth(userFacingToolName) + (shouldShowDot ? 2 : 0);
   let t7;
@@ -297,15 +276,14 @@ export function AssistantToolUseMessage(t0) {
   } else {
     t14 = $[72];
   }
-    const t15 = <Box flexDirection="column">
-        {t12}
-      {toolTokenUsageNode && <MessageResponse height={1}>
-          {toolTokenUsageNode}
+  const t15 = <Box flexDirection="column">
+      {t12}
+      {toolTokenUsageText && <MessageResponse height={1}>
+          <Text dimColor>{toolTokenUsageText}</Text>
         </MessageResponse>}
-        {processingLabel}
-        {t13}
-        {t14}
-      </Box>;
+      {t13}
+      {t14}
+    </Box>;
   let t16;
   if ($[77] !== bg || $[78] !== t15 || $[79] !== t5) {
     t16 = <Box flexDirection="row" justifyContent="space-between" marginTop={t5} width="100%" backgroundColor={bg}>{t15}</Box>;

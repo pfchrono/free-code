@@ -29,14 +29,6 @@ import { setCodexUsage, type CodexRateLimit } from './codexUsage.js'
 // ── Available Codex models ──────────────────────────────────────────
 export const CODEX_MODELS = [
   {
-    id: 'gpt-5.3-codex-spark',
-    label: 'GPT-5.3 Codex Spark',
-    description: 'Ultra-fast Codex model for quick coding turns',
-    family: 'codex',
-    supportsVision: false,
-    supportsTools: true,
-  },
-  {
     id: 'gpt-5.4',
     label: 'GPT-5.4',
     description: 'Latest general Codex-compatible GPT model',
@@ -96,14 +88,6 @@ export const CODEX_MODELS = [
 
 export const DEFAULT_CODEX_MODEL = 'gpt-5.4'
 
-function normalizeCodexModel(model: string): string {
-  const normalized = model.trim().toLowerCase()
-  if (normalized === 'chatgpt-5.3-codex-spark') {
-    return 'gpt-5.3-codex-spark'
-  }
-  return model
-}
-
 /**
  * Maps Claude model names to corresponding Codex model names.
  * @param claudeModel - The Claude model name to map
@@ -111,8 +95,7 @@ function normalizeCodexModel(model: string): string {
  */
 export function mapClaudeModelToCodex(claudeModel: string | null): string {
   if (!claudeModel) return DEFAULT_CODEX_MODEL
-  const normalizedModel = normalizeCodexModel(claudeModel)
-  if (isCodexModel(normalizedModel)) return normalizedModel
+  if (isCodexModel(claudeModel)) return claudeModel
   const lower = claudeModel.toLowerCase()
   if (lower.includes('opus')) return 'gpt-5.1-codex-max'
   if (lower.includes('haiku')) return 'gpt-5.4-mini'
@@ -126,7 +109,7 @@ export function mapClaudeModelToCodex(claudeModel: string | null): string {
  * @returns True if the model is a Codex model, false otherwise
  */
 export function isCodexModel(model: string): boolean {
-  return CODEX_MODELS.some(m => m.id === normalizeCodexModel(model))
+  return CODEX_MODELS.some(m => m.id === model)
 }
 
 function parseOptionalNumber(value: string | null): number | null {

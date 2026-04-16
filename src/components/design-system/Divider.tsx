@@ -3,7 +3,6 @@ import React from 'react';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { stringWidth } from '../../ink/stringWidth.js';
 import { Ansi, Text } from '../../ink.js';
-import { AnimatedDivider } from './AnimatedDivider.js';
 import type { Theme } from '../../utils/theme.js';
 type DividerProps = {
   /**
@@ -39,7 +38,6 @@ type DividerProps = {
    * <Divider title="Title" />
    */
   title?: string;
-  animated?: boolean;
 };
 
 /**
@@ -72,8 +70,7 @@ export function Divider(t0) {
     color,
     char: t1,
     padding: t2,
-    title,
-    animated
+    title
   } = t0;
   const char = t1 === undefined ? "\u2500" : t1;
   const padding = t2 === undefined ? 0 : t2;
@@ -115,7 +112,7 @@ export function Divider(t0) {
     }
     let t7;
     if ($[8] !== color || $[9] !== t3 || $[10] !== t4 || $[11] !== t5 || $[12] !== t6) {
-      t7 = <Text color={color} dimColor={t3}>{animated ? <AnimatedDivider width={leftWidth} color={color} char={char} /> : t4}{" "}{t5}{" "}{animated ? <AnimatedDivider width={rightWidth} color={color} char={char} /> : t6}</Text>;
+      t7 = <Text color={color} dimColor={t3}>{t4}{" "}{t5}{" "}{t6}</Text>;
       $[8] = color;
       $[9] = t3;
       $[10] = t4;
@@ -139,7 +136,7 @@ export function Divider(t0) {
   }
   let t5;
   if ($[17] !== color || $[18] !== t3 || $[19] !== t4) {
-    t5 = <Text color={color} dimColor={t3}>{animated ? <AnimatedDivider width={effectiveWidth} color={color} char={char} /> : t4}</Text>;
+    t5 = <Text color={color} dimColor={t3}>{t4}</Text>;
     $[17] = color;
     $[18] = t3;
     $[19] = t4;

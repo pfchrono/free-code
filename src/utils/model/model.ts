@@ -32,7 +32,6 @@ import { LIGHTNING_BOLT } from '../../constants/figures.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import { type ModelAlias, isModelAlias } from './aliases.js'
 import { capitalize } from '../stringUtils.js'
-import { getLMStudioModelCapabilities } from './lmstudioCapabilities.js'
 
 export type ModelShortName = string
 export type ModelName = string
@@ -106,125 +105,6 @@ export function getBestModel(): ModelName {
   return getDefaultOpusModel()
 }
 
-type ModelFamilyTier = 'haiku' | 'sonnet' | 'opus'
-
-function getOpenAIProviderEquivalentModel(family: ModelFamilyTier): ModelName {
-  switch (family) {
-    case 'haiku':
-      return getModelStrings().gpt54mini
-    case 'opus':
-      return getModelStrings().gpt54
-    case 'sonnet':
-      return getModelStrings().gpt54
-  }
-}
-
-function getLMStudioProviderEquivalentModel(
-  family: ModelFamilyTier,
-): ModelName | null {
-  const models = getLMStudioModelCapabilities()
-  const preferredTier =
-    family === 'haiku' ? 'fast' : family === 'opus' ? 'quality' : 'balanced'
-  const preferred =
-    models.find(model => model.performance_tier === preferredTier) ??
-    (family === 'sonnet'
-      ? models.find(model => model.performance_tier === 'quality')
-      : undefined)
-
-  return preferred?.id ?? getDefaultLMStudioModel()
-}
-
-function getProviderEquivalentModel(family: ModelFamilyTier): ModelName {
-  switch (getAPIProvider()) {
-    case 'codex':
-      switch (family) {
-        case 'haiku':
-          return 'gpt-5.4-mini'
-        case 'opus':
-          return 'gpt-5.1-codex-max'
-        case 'sonnet':
-          return 'gpt-5.4'
-      }
-    case 'openai':
-      return getOpenAIProviderEquivalentModel(family)
-    case 'zen':
-      return family === 'haiku' ? 'minimax-m2.5-free' : 'big-pickle'
-    case 'openrouter':
-      switch (family) {
-        case 'haiku':
-          return 'anthropic/claude-3.5-haiku'
-        case 'opus':
-          return 'anthropic/claude-opus-4.1'
-        case 'sonnet':
-          return 'anthropic/claude-sonnet-4'
-      }
-    case 'copilot':
-      switch (family) {
-        case 'haiku':
-          return 'claude-haiku-4.5'
-        case 'opus':
-          return 'claude-opus-4.6'
-        case 'sonnet':
-          return 'claude-sonnet-4.6'
-      }
-    case 'lmstudio':
-      return (
-        getLMStudioProviderEquivalentModel(family) ??
-        getOpenAIProviderEquivalentModel(family)
-      )
-    case 'minimax':
-      switch (family) {
-        case 'haiku':
-          return 'MiniMax-M2.7-highspeed'
-        case 'opus':
-          return 'MiniMax-M2.7'
-        case 'sonnet':
-          return 'MiniMax-M2.7'
-      }
-    default:
-      switch (family) {
-        case 'haiku':
-          return getModelStrings().haiku45
-        case 'opus':
-          return getModelStrings().opus46
-        case 'sonnet':
-          return getModelStrings().sonnet46
-      }
-  }
-}
-
-function getAnthropicFamilyTier(model: string): ModelFamilyTier | null {
-  const normalized = model.trim().toLowerCase().replace(/\[1m\]$/i, '')
-
-  if (normalized === 'haiku' || normalized === 'sonnet' || normalized === 'opus') {
-    return normalized
-  }
-
-  const canonical = firstPartyNameToCanonical(normalized)
-  if (!canonical.includes('claude-')) {
-    return null
-  }
-  if (canonical.includes('haiku')) return 'haiku'
-  if (canonical.includes('sonnet')) return 'sonnet'
-  if (canonical.includes('opus')) return 'opus'
-  return null
-}
-
-function shouldRouteAnthropicFamilyToProviderEquivalent(): boolean {
-  switch (getAPIProvider()) {
-    case 'codex':
-    case 'openai':
-    case 'zen':
-    case 'openrouter':
-    case 'copilot':
-    case 'lmstudio':
-    case 'minimax':
-      return true
-    default:
-      return false
-  }
-}
-
 // MiniMax only supports its own model IDs — all Claude model slots remap to M2.7
 const MINIMAX_DEFAULT_MODEL = 'MiniMax-M2.7'
 
@@ -233,7 +113,16 @@ export function getDefaultOpusModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_OPUS_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_OPUS_MODEL
   }
-  return getProviderEquivalentModel('opus')
+  if (getAPIProvider() === 'minimax') {
+    return MINIMAX_DEFAULT_MODEL
+  }
+  // 3P providers (Bedrock, Vertex, Foundry) — kept as a separate branch
+  // even when values match, since 3P availability lags firstParty and
+  // these will diverge again at the next model launch.
+  if (getAPIProvider() !== 'firstParty') {
+    return getModelStrings().opus46
+  }
+  return getModelStrings().opus46
 }
 
 // @[MODEL LAUNCH]: Update the default Sonnet model (3P providers may lag so keep defaults unchanged).
@@ -241,7 +130,14 @@ export function getDefaultSonnetModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_SONNET_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_SONNET_MODEL
   }
-  return getProviderEquivalentModel('sonnet')
+  if (getAPIProvider() === 'minimax') {
+    return MINIMAX_DEFAULT_MODEL
+  }
+  // Default to Sonnet 4.5 for 3P since they may not have 4.6 yet
+  if (getAPIProvider() !== 'firstParty') {
+    return getModelStrings().sonnet45
+  }
+  return getModelStrings().sonnet46
 }
 
 // @[MODEL LAUNCH]: Update the default Haiku model (3P providers may lag so keep defaults unchanged).
@@ -249,7 +145,12 @@ export function getDefaultHaikuModel(): ModelName {
   if (process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL) {
     return process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL
   }
-  return getProviderEquivalentModel('haiku')
+  if (getAPIProvider() === 'minimax') {
+    return MINIMAX_DEFAULT_MODEL
+  }
+
+  // Haiku 4.5 is available on all platforms (first-party, Foundry, Bedrock, Vertex)
+  return getModelStrings().haiku45
 }
 
 /**
@@ -429,9 +330,6 @@ export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
   if (name.includes('gpt-5.4')) {
     return 'gpt-5.4'
   }
-  if (name.includes('gpt-5.3-codex-spark')) {
-    return 'gpt-5.3-codex-spark'
-  }
   if (name.includes('gpt-5.3-codex')) {
     return 'gpt-5.3-codex'
   }
@@ -583,8 +481,6 @@ export function getPublicModelDisplayName(model: ModelName): string | null {
       return 'Haiku 3.5'
     case getModelStrings().gpt54:
       return 'GPT-5.4'
-    case getModelStrings().gpt53codexspark:
-      return 'GPT-5.3 Codex Spark'
     case getModelStrings().gpt53codex:
       return 'GPT-5.3 Codex'
     case getModelStrings().gpt54mini:
@@ -694,14 +590,6 @@ export function parseUserSpecifiedModel(
     isLegacyModelRemapEnabled()
   ) {
     return getDefaultOpusModel() + (has1mTag ? '[1m]' : '')
-  }
-
-  const anthropicFamilyTier = getAnthropicFamilyTier(modelString)
-  if (
-    anthropicFamilyTier !== null &&
-    shouldRouteAnthropicFamilyToProviderEquivalent()
-  ) {
-    return getProviderEquivalentModel(anthropicFamilyTier)
   }
 
   if (process.env.USER_TYPE === 'ant') {
@@ -858,9 +746,6 @@ export function getMarketingNameForModel(modelId: string): string | undefined {
   }
   if (canonical === 'o1') {
     return 'o1'
-  }
-  if (canonical.includes('gpt-5.3-codex-spark')) {
-    return 'GPT-5.3 Codex Spark'
   }
   if (canonical.includes('gpt-5.3-codex')) {
     return 'GPT-5.3 Codex'

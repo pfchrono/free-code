@@ -13,8 +13,8 @@ function isCavemanModeEnabled(): boolean {
   return getInitialSettings().cavemanModeEnabled === true
 }
 
-export const call: LocalCommandCall = async (args = '', _context) => {
-  const normalizedArg = args.trim().toLowerCase()
+export const call: LocalCommandCall = async (_onDone, _context, args?: string) => {
+  const normalizedArg = args?.trim().toLowerCase() || ''
   const wasEnabled = isCavemanModeEnabled()
 
   let newState: boolean
@@ -49,21 +49,15 @@ export const call: LocalCommandCall = async (args = '', _context) => {
   })
 
   if (newState) {
-    const deadpoolAlsoEnabled = getInitialSettings().deadpoolModeEnabled === true
     return {
       type: 'text' as const,
       value:
-        deadpoolAlsoEnabled
-          ? 'Caveman mode ON. Deadpool mode still ON. Replies now compressed hard, with Deadpool voice kept terse.'
-          : 'Caveman mode ON. Responses now ultra-compressed. ~75% fewer tokens. Technical accuracy preserved.',
+        'Caveman mode ON. Responses now ultra-compressed. ~75% fewer tokens. Technical accuracy preserved.',
     }
   } else {
     return {
       type: 'text' as const,
-      value:
-        getInitialSettings().deadpoolModeEnabled === true
-          ? 'Caveman mode OFF. Deadpool mode still ON.'
-          : 'Caveman mode OFF. Responses back to normal.',
+      value: 'Caveman mode OFF. Responses back to normal.',
     }
   }
 }
