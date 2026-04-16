@@ -254,6 +254,8 @@ type State = {
   // logAPISuccess to tag the first post-compaction API call so we can
   // distinguish compaction-induced cache misses from TTL expiry.
   pendingPostCompaction: boolean
+  currentResumeSource: 'fresh' | 'visible_history' | 'core_persisted_memory' | 'checkpointed_state'
+  currentResumeDetail: string | undefined
 }
 
 // ALSO HERE - THINK THRICE BEFORE MODIFYING
@@ -424,6 +426,8 @@ function getInitialState(): State {
     lastMainRequestId: undefined,
     lastApiCompletionTimestamp: null,
     pendingPostCompaction: false,
+    currentResumeSource: 'fresh',
+    currentResumeDetail: undefined,
   }
 
   return state
@@ -1181,6 +1185,24 @@ export function getSessionSource(): string | undefined {
 
 export function setSessionSource(source: string): void {
   STATE.sessionSource = source
+}
+
+export function getCurrentResumeSource(): {
+  source: 'fresh' | 'visible_history' | 'core_persisted_memory' | 'checkpointed_state'
+  detail?: string
+} {
+  return {
+    source: STATE.currentResumeSource,
+    detail: STATE.currentResumeDetail,
+  }
+}
+
+export function setCurrentResumeSource(
+  source: 'fresh' | 'visible_history' | 'core_persisted_memory' | 'checkpointed_state',
+  detail?: string,
+): void {
+  STATE.currentResumeSource = source
+  STATE.currentResumeDetail = detail
 }
 
 export function getQuestionPreviewFormat(): 'markdown' | 'html' | undefined {

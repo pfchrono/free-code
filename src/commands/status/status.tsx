@@ -1,7 +1,11 @@
-import * as React from 'react';
-import type { LocalJSXCommandContext } from '../../commands.js';
-import { Settings } from '../../components/Settings/Settings.js';
-import type { LocalJSXCommandOnDone } from '../../types/command.js';
-export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXCommandContext): Promise<React.ReactNode> {
-  return <Settings onClose={onDone} context={context} defaultTab="Status" />;
+import type { LocalCommandCall } from '../../types/command.js'
+import { buildStatusSnapshot, renderStatusSnapshot } from './statusSnapshot.js'
+
+export const call: LocalCommandCall = async (_args, context) => {
+  const snapshot = await buildStatusSnapshot(context)
+
+  return {
+    type: 'text',
+    value: renderStatusSnapshot(snapshot),
+  }
 }

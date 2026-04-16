@@ -31,12 +31,9 @@ import type { FileHistoryState } from '../utils/fileHistory.js'
 import type { REPLHookContext } from '../utils/hooks/postSamplingHooks.js'
 import type { SessionHooksState } from '../utils/hooks/sessionHooks.js'
 import type { ModelSetting } from '../utils/model/model.js'
-import {
-  getAPIProvider,
-  type APIProvider,
-} from '../utils/model/providers.js'
 import type { DenialTrackingState } from '../utils/permissions/denialTracking.js'
 import type { PermissionMode } from '../utils/permissions/PermissionMode.js'
+import { getGlobalConfig } from '../utils/config.js'
 import { getInitialSettings } from '../utils/settings/settings.js'
 import type { SettingsJson } from '../utils/settings/types.js'
 import { shouldEnableThinkingByDefault } from '../utils/thinking.js'
@@ -95,7 +92,6 @@ export type AppState = DeepImmutable<{
   verbose: boolean
   mainLoopModel: ModelSetting
   mainLoopModelForSession: ModelSetting
-  provider: APIProvider
   statusLineText: string | undefined
   expandedView: 'none' | 'tasks' | 'teammates'
   isBriefOnly: boolean
@@ -174,6 +170,8 @@ export type AppState = DeepImmutable<{
   companionReaction?: string
   // Timestamp of last /buddy pet — CompanionSprite renders hearts while recent
   companionPetAt?: number
+  // Reactive mirror of config.companionMuted so buddy UI updates immediately.
+  companionMuted?: boolean
   // TODO (ashwin): see if we can use utility-types DeepReadonly for this
   mcp: {
     clients: MCPServerConnection[]
@@ -431,32 +429,26 @@ export type AppState = DeepImmutable<{
   // Effort value
   effortValue?: EffortValue
   // Set synchronously in launchUltraplan before the detached flow starts.
-  // Prevents duplicate launches during the ~5s window before
-  // ultraplanSessionUrl is set by teleportToRemote. Cleared by launchDetached
-  // once the URL is set or on failure.
+  // Prevents duplicate launches before the local run directory marker is set.
   ultraplanLaunching?: boolean
-  // Active ultraplan CCR session URL. Set while the RemoteAgentTask runs;
-  // truthy disables the keyword trigger + rainbow. Cleared when the poll
-  // reaches terminal state.
+  // Active local ultraplan run marker (`local:<runDir>`). Truthy disables the
+  // keyword trigger and launch hint until the run reaches a terminal state.
   ultraplanSessionUrl?: string
-  // Approved ultraplan awaiting user choice (implement here vs fresh session).
-  // Set by RemoteAgentTask poll on approval; cleared by UltraplanChoiceDialog.
+  // Finished local ultraplan awaiting user choice. Cleared by
+  // UltraplanChoiceDialog.
   ultraplanPendingChoice?: { plan: string; sessionId: string; taskId: string }
   // Pre-launch permission dialog. Set by /ultraplan (slash or keyword);
   // cleared by UltraplanLaunchDialog on choice.
-  ultraplanLaunchPending?: { blurb: string }
+  ultraplanLaunchPending?: { blurb: string; profile?: 'fast' | 'deep' | 'max' }
   // Remote-harness side: set via set_permission_mode control_request,
   // pushed to CCR external_metadata.is_ultraplan_mode by onChangeAppState.
   isUltraplanMode?: boolean
   // Always-on bridge: permission callbacks for bidirectional permission checks
   replBridgePermissionCallbacks?: BridgePermissionCallbacks
   // Channel permission callbacks — permission prompts over Telegram/iMessage/etc.
-  // Races against local UI + bridge + classifier via claim() in
+  // Races against local UI + bridge + hooks + classifier via claim() in
   // interactiveHandler.ts. Constructed once in useManageMCPConnections.
   channelPermissionCallbacks?: ChannelPermissionCallbacks
-  // Collapsible sidebar
-  sidebarOpen?: boolean
-  sidebarWidth?: number
 }
 
 export type AppStateStore = Store<AppState>
@@ -480,7 +472,6 @@ export function getDefaultAppState(): AppState {
     verbose: false,
     mainLoopModel: null, // alias, full name (as with --model or env var), or null (default)
     mainLoopModelForSession: null,
-    provider: getAPIProvider(),
     statusLineText: undefined,
     expandedView: 'none',
     isBriefOnly: false,
@@ -506,6 +497,7 @@ export function getDefaultAppState(): AppState {
     replBridgeError: undefined,
     replBridgeInitialName: undefined,
     showRemoteCallout: false,
+    companionMuted: !!getGlobalConfig().companionMuted,
     toolPermissionContext: {
       ...getEmptyToolPermissionContext(),
       mode: initialMode,
@@ -574,7 +566,5 @@ export function getDefaultAppState(): AppState {
     effortValue: undefined,
     activeOverlays: new Set<string>(),
     fastMode: false,
-    sidebarOpen: false,
-    sidebarWidth: 40,
   }
 }

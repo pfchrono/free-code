@@ -1,12 +1,13 @@
-import type { Command } from '../../types/command.js'
+import type { Command } from '../../commands.js'
 
 const buddy = {
-  type: 'local-jsx' as const,
+  type: 'local',
   name: 'buddy',
-  description: 'Hatch, pet, and manage your free-code companion',
-  immediate: true,
-  argumentHint: '[status|pet|mute|unmute|help]',
+  description: 'Show, hide, pet, or toggle your companion',
+  argumentHint: '[show|status|stats|pet|hatch|mute|unmute|hide]',
+  supportsNonInteractive: true,
   load: () => import('./buddy.js'),
 } satisfies Command
 
 export default buddy
+

@@ -1,4 +1,5 @@
 import {
+  execFileNoThrow,
   execFileNoThrowWithCwd,
   execSyncWithDefaults_DEPRECATED,
 } from './execFileNoThrow.js'
@@ -180,5 +181,72 @@ export function getChildPids(pid: string | number): number[] {
       .filter(p => !isNaN(p))
   } catch {
     return []
+  }
+}
+
+function collectDescendantPids(rootPid: number): number[] {
+  const descendants: number[] = []
+  const seen = new Set<number>()
+  const stack = [rootPid]
+
+  while (stack.length > 0) {
+    const currentPid = stack.pop()
+    if (currentPid === undefined || seen.has(currentPid)) {
+      continue
+    }
+    seen.add(currentPid)
+
+    for (const childPid of getChildPids(currentPid)) {
+      if (seen.has(childPid)) {
+        continue
+      }
+      descendants.push(childPid)
+      stack.push(childPid)
+    }
+  }
+
+  return descendants
+}
+
+/**
+ * Terminate a process and its descendants.
+ *
+ * On Windows this delegates to `taskkill /T` so subprocess trees created by
+ * bun or compiled binaries do not survive parent shutdown. On Unix we walk the
+ * descendant tree and signal children before the root.
+ */
+export async function terminateProcessTree(
+  pid: number,
+  options?: { force?: boolean },
+): Promise<void> {
+  if (pid <= 1) {
+    return
+  }
+
+  if (process.platform === 'win32') {
+    const args = ['/PID', String(pid), '/T']
+    if (options?.force) {
+      args.push('/F')
+    }
+    await execFileNoThrow('taskkill.exe', args, {
+      timeout: 5000,
+      preserveOutputOnError: true,
+    })
+    return
+  }
+
+  const signal: NodeJS.Signals = options?.force ? 'SIGKILL' : 'SIGTERM'
+  for (const childPid of collectDescendantPids(pid).reverse()) {
+    try {
+      process.kill(childPid, signal)
+    } catch {
+      // Process already exited or no permission. Ignore during best-effort cleanup.
+    }
+  }
+
+  try {
+    process.kill(pid, signal)
+  } catch {
+    // Process already exited or no permission. Ignore during best-effort cleanup.
   }
 }

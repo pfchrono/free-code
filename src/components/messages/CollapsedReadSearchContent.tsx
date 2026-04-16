@@ -3,7 +3,7 @@ import { feature } from 'bun:bundle';
 import { basename } from 'path';
 import React, { useRef } from 'react';
 import { useMinDisplayTime } from '../../hooks/useMinDisplayTime.js';
-import { Ansi, Box, Text, useTheme } from '../../ink.js';
+import { Ansi, Box, Text, useAnimationFrame, useTheme } from '../../ink.js';
 import { findToolByName, type Tools } from '../../Tool.js';
 import { getReplPrimitiveTools } from '../../tools/REPLTool/primitiveTools.js';
 import type { CollapsedReadSearchGroup, NormalizedAssistantMessage } from '../../types/message.js';
@@ -13,6 +13,7 @@ import { getDisplayPath } from '../../utils/file.js';
 import { formatDuration, formatNumber, formatSecondsShort } from '../../utils/format.js';
 import { isFullscreenEnvEnabled } from '../../utils/fullscreen.js';
 import type { buildMessageLookups } from '../../utils/messages.js';
+import { getRainbowColor } from '../../utils/thinking.js';
 import type { ThemeName } from '../../utils/theme.js';
 import { getCurrentTurnToolSavedInputTokens, getCurrentTurnToolSavedOutputTokens } from '../../bootstrap/state.js';
 import { CtrlOToExpand } from '../CtrlOToExpand.js';
@@ -28,6 +29,7 @@ const teamMemCollapsed = feature('TEAMMEM') ? require('./teamMemCollapsed.js') a
 // (bash commands, file reads, search patterns) are actually readable instead
 // of flickering past in a single frame.
 const MIN_HINT_DISPLAY_MS = 700;
+const THINKING_TICK_MS = 80;
 type Props = {
   message: CollapsedReadSearchGroup;
   inProgressToolUseIDs: Set<string>;
@@ -38,6 +40,15 @@ type Props = {
   /** True if this is the currently active collapsed group (last one, still loading) */
   isActiveGroup?: boolean;
 };
+function ThinkingProcessInline(): React.ReactNode {
+  const [, time] = useAnimationFrame(THINKING_TICK_MS);
+  const phase = Math.floor(time / (THINKING_TICK_MS * 3)) % 7;
+  return <>
+      <Text>{' '}</Text>
+      {[...'thinking'].map((ch, i) => <Text key={i} color={getRainbowColor(i + phase, true)}>{ch}</Text>)}
+      <Text dimColor>{' · processing'}</Text>
+    </>;
+}
 
 /** Render a single tool use in verbose mode */
 function VerboseToolUse(t0) {
@@ -449,24 +460,30 @@ export function CollapsedReadSearchContent({
   const toolSavedOutputTokens = getCurrentTurnToolSavedOutputTokens();
   const toolSavedInputTokens = getCurrentTurnToolSavedInputTokens();
   const hasToolSavedTokens = toolSavedOutputTokens > 0 || toolSavedInputTokens > 0;
+  const activeProcessingNode = isActiveGroup ? <ThinkingProcessInline /> : null;
   return <Box flexDirection="column" marginTop={1} backgroundColor={bg}>
-      <Box flexDirection="row">
-        {isActiveGroup ? <ToolUseLoader shouldAnimate isUnresolved isError={anyError} /> : <Box minWidth={2} />}
-        <Text dimColor={!isActiveGroup}>
-          {nonMemParts}
-          {memParts}
-          {feature('TEAMMEM') ? teamMemCollapsed!.TeamMemCountParts({
-          message,
-          isActiveGroup,
-          hasPrecedingParts: hasPrecedingNonMem || memParts.length > 0
-        }) : null}
-          {isActiveGroup && <Text key="ellipsis">…</Text>} <CtrlOToExpand />
-          {isActiveGroup && hasToolSavedTokens && <>
-              <Text dimColor>{' | '}</Text>
-              <Text dimColor>{`(↑ ${formatNumber(toolSavedOutputTokens)} / ↓ ${formatNumber(toolSavedInputTokens)} Tools)`}</Text>
-            </>}
-        </Text>
-      </Box>
+        <Box flexDirection="row">
+          {isActiveGroup ? <ToolUseLoader shouldAnimate isUnresolved isError={anyError} /> : <Box minWidth={2} />}
+          <Text dimColor={!isActiveGroup}>
+            {nonMemParts}
+            {memParts}
+            {feature('TEAMMEM') ? teamMemCollapsed!.TeamMemCountParts({
+            message,
+            isActiveGroup,
+            hasPrecedingParts: hasPrecedingNonMem || memParts.length > 0
+          }) : null}
+            {isActiveGroup && <Text key="ellipsis">…</Text>}
+            {activeProcessingNode} <CtrlOToExpand />
+            {isActiveGroup && hasToolSavedTokens && <>
+                <Text dimColor>{' | '}</Text>
+              <Text dimColor>{'('}</Text>
+              <Text color="info">{`↑ ${formatNumber(toolSavedOutputTokens)}`}</Text>
+              <Text dimColor>{' / '}</Text>
+              <Text color="info">{`↓ ${formatNumber(toolSavedInputTokens)}`}</Text>
+              <Text dimColor>{' Tools)'}</Text>
+              </>}
+          </Text>
+        </Box>
       {isActiveGroup && displayedHint !== undefined &&
     // Row layout: 5-wide gutter for ⎿, then a flex column for the text.
     // Ink's wrap stays inside the right column so continuation lines

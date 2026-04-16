@@ -97,16 +97,22 @@ if (args.includes('--gui')) {
 
 ### 3.3 GUI Mode Handler (`guiMode.ts`)
 
-**Initial implementation:** Stub responses only
+**Current implementation:** Real persistent runtime via `QueryEngine`
 
 **Key functions:**
 - `runGuiMode()` - Entry point, sends session_start
 - `processCommands()` - Main command loop reading from stdin
 - `handleCommand()` - Dispatch to specific handlers
-- `handleUserInput()` - Process user messages (STUBBED)
-- `handleGetModels()` / `handleGetCommands()` - Return metadata
+- `handleUserInput()` - Calls `queryEngine.submitMessage()` for each turn
+- `handleGetModels()` / `handleGetCommands()` - Return live runtime metadata
+- `handleSelectModel()` - Updates main loop model override and recreates engine
+- `handleInterrupt()` - Best-effort cancel + engine recreation
 
-**Problem:** `handleUserInput()` uses stub responses, not real CLI core.
+**Shipped behavior from archived `gui-core-integration`:**
+- One persistent `QueryEngine` per GUI process
+- Real assistant/tool/result/status/completion event mapping
+- Live command/model surfaces instead of stubbed metadata
+- Graceful teardown at session end
 
 ---
 
@@ -176,9 +182,9 @@ cargo build --release  # Rust build
 
 ---
 
-## 6. The Core Integration Problem
+## 6. Core Integration History
 
-### 6.1 The Challenge
+### 6.1 Original Challenge
 
 **Goal:** Connect real CLI core to `--gui` mode so user inputs actually process through `QueryEngine`.
 
@@ -206,59 +212,25 @@ Neither is designed for a persistent GUI session.
 
 **The problem:** `runHeadlessStreaming` is designed for ONE prompt then exit. GUI needs multiple prompts over time.
 
-### 6.3 Brainstormed Solutions
+### 6.3 Chosen Solution
 
-#### Option A: Direct QueryEngine Integration (Preferred)
+#### Option A: Direct QueryEngine Integration (Shipped)
 
 **Approach:**
 1. In `--gui` mode, initialize `QueryEngine` once
 2. For each user input, call `engine.submitMessage()`
 3. Stream results via `writeGuiEvent()`
 
-**Challenges:**
-- Need to replicate complex `runHeadless()` initialization
-- Tools, commands, MCP configs all need initialization
-- Permission handling callbacks
-- State management across turns
+**What shipped:**
+- `guiMode.ts` now initializes tools, commands, app state, file cache, and `QueryEngine` once
+- `user_input` flows through `submitMessage()`
+- SDK stream maps into GUI protocol events
+- `get_models`, `get_commands`, `select_model`, and `interrupt` are runtime-backed
 
-**Pros:**
-- True multi-turn conversation
-- Reuses all CLI infrastructure
-- No protocol translation needed
-
-#### Option B: Modify runHeadlessStreaming to loop
-
-**Approach:**
-- Wrap the for-await in a loop
-- Detect "turn complete" and wait for next input
-
-**Challenges:**
-- stdin EOF detection
-- Exit condition signaling
-- Could break existing headless mode
-
-**Risk:** High
-
-#### Option C: Use `-p` mode with persistent process
-
-**Approach:**
-- Rust backend keeps CLI running
-- Send prompts via stdin
-- Read responses from stdout
-
-**Problem:** `-p` mode exits when stdin closes
-
-**Workaround needed:** Would need to keep stdin open somehow
-
-#### Option D: Create new headless-gui mode
-
-**Approach:**
-- Create `runGuiStreaming()` that loops like Option A
-- But isolated to new entry point
-
-**Challenges:**
-- Code duplication from `runHeadless()`
-- Need to maintain both paths
+**Remaining gaps:**
+- Provider switching still partial
+- GUI mode still skips MCP initialization
+- Permissions still auto-allow, no GUI prompt surface
 
 ---
 
@@ -267,28 +239,30 @@ Neither is designed for a persistent GUI session.
 ### 7.1 What's Working
 - [x] CLI `--gui` flag detection and routing
 - [x] JSON protocol over stdio
-- [x] Stub responses in `handleUserInput()`
+- [x] Real multi-turn execution in `handleUserInput()`
 - [x] Tauri app builds and runs
 - [x] Auto-connect CLI on frontend mount
 - [x] IPC command/response flow
+- [x] Live command/model inventory
+- [x] Tool lifecycle event propagation
+- [x] Best-effort interrupt path
 
 ### 7.2 What's Not Working
-- [ ] Real CLI core execution (stub responses only)
-- [ ] Tool execution
-- [ ] MCP server integration
-- [ ] Conversation context across turns
-- [ ] Streaming responses for long outputs
+- [ ] Full provider switching in GUI
+- [ ] MCP server integration in GUI runtime
+- [ ] GUI permission prompts / approval UX
+- [ ] Rich transcript rendering in frontend
+- [ ] Purpose-built tool progress UI
 
 ### 7.3 Next Step Priority
 
-**HIGH PRIORITY: CLI Core Integration**
+**HIGH PRIORITY: GUI Interaction Surface**
 
 Best path forward:
-1. In `guiMode.ts`, import `QueryEngine` and initialization helpers
-2. Initialize once at startup: tools, commands, models
-3. In `handleUserInput()`, call `queryEngine.submitMessage()`
-4. Convert SDKMessage results to GUI events
-5. Handle tool execution callbacks (auto-allow for now)
+1. Add command palette and slash-command UX to React frontend
+2. Render assistant/tool output as rich transcript instead of plain text list
+3. Surface tool progress and failures explicitly
+4. Add permission/error affordances before deeper MCP work
 
 ---
 
@@ -322,18 +296,18 @@ Best path forward:
 ## 9. Suggestions for Future Work
 
 ### 9.1 Immediate Next Step
-Integrate `QueryEngine.submitMessage()` directly into `guiMode.ts`. Start with simplest case:
-- Load tools/commands once at startup
-- Call submitMessage for each user input
-- Auto-allow tool permissions
-- Skip MCP for initial implementation
+Build first real frontend productivity pass on top of shipped core:
+- command palette
+- markdown/code transcript rendering
+- tool progress presentation
+- clearer model/provider UX
 
 ### 9.2 Gradual Enhancement Path
-1. **Phase 1:** Basic query integration (no tools)
-2. **Phase 2:** Add tool execution with auto-allow
-3. **Phase 3:** Add MCP server support
-4. **Phase 4:** Add permission UI
-5. **Phase 5:** Add streaming responses
+1. **Phase 3:** Command palette + transcript rendering
+2. **Phase 3:** Tool progress + permission/error UX
+3. **Phase 4:** MCP integration
+4. **Phase 4:** Provider-switch parity
+5. **Phase 5:** Session/tabs/sidebar workflows
 
 ### 9.3 Alternative Approach Worth Exploring
 Consider creating a new `src/gui/guiHeadless.ts` that:
@@ -380,11 +354,11 @@ Once real core is connected, this should produce actual AI responses.
 
 ## 11. Open Questions
 
-1. **Permission handling?** Auto-allow for now, add UI later
-2. **MCP support?** Initial implementation can skip
-3. **Settings sync?** Share settings.json with CLI
-4. **Streaming?** Could add later with SSE or chunked responses
-5. **Session persistence?** Store sessions, allow resume
+1. **Permission handling?** Auto-allow still in place, UI still needed
+2. **MCP support?** GUI runtime still initializes with empty MCP clients
+3. **Settings sync?** Share settings.json with CLI, but frontend may need safe projection
+4. **Provider switching?** Current `select_model` warns on provider mismatch
+5. **Session persistence?** GUI should eventually expose resume/history intentionally
 
 ---
 

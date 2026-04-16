@@ -3,6 +3,7 @@ import figures from 'figures';
 import type { RefObject } from 'react';
 import React, { useCallback, useMemo, useRef } from 'react';
 import { Box, Text } from '../ink.js';
+import { Divider } from './design-system/Divider.js';
 import { useKeybindings } from '../keybindings/useKeybinding.js';
 import { logEvent } from '../services/analytics/index.js';
 import type { NormalizedUserMessage, RenderableMessage } from '../types/message.js';
@@ -314,7 +315,7 @@ export function MessageActionsBar(t0) {
     t5 = 0;
     t6 = 1;
     if ($[10] === Symbol.for("react.memo_cache_sentinel")) {
-      t7 = <Box borderStyle="single" borderTop={true} borderBottom={false} borderLeft={false} borderRight={false} borderDimColor={true} />;
+      t7 = <Divider animated />;
       $[10] = t7;
     } else {
       t7 = $[10];

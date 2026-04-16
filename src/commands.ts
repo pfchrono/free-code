@@ -103,9 +103,7 @@ const clearSkillIndexCache = feature('EXPERIMENTAL_SKILL_SEARCH')
 const subscribePr = feature('KAIROS_GITHUB_WEBHOOKS')
   ? require('./commands/subscribe-pr.js').default
   : null
-const ultraplan = feature('ULTRAPLAN')
-  ? require('./commands/ultraplan.js').default
-  : null
+const ultraplan = require('./commands/ultraplan.js').default as typeof import('./commands/ultraplan.js').default
 const torch = feature('TORCH') ? require('./commands/torch.js').default : null
 const peersCmd = feature('UDS_INBOX')
   ? (
@@ -117,11 +115,9 @@ const forkCmd = feature('FORK_SUBAGENT')
       require('./commands/fork/index.js') as typeof import('./commands/fork/index.js')
     ).default
   : null
-const buddy = feature('BUDDY')
-  ? (
-      require('./commands/buddy/index.js') as typeof import('./commands/buddy/index.js')
-    ).default
-  : null
+const buddy = (
+  require('./commands/buddy/index.js') as typeof import('./commands/buddy/index.js')
+).default
 /* eslint-enable @typescript-eslint/no-require-imports */
 import thinkback from './commands/thinkback/index.js'
 import thinkbackPlay from './commands/thinkback-play/index.js'
@@ -187,6 +183,7 @@ import provider from './commands/provider/index.ts'
 import sidebar from './commands/sidebar/index.ts'
 import palette from './commands/palette/index.ts'
 import cavemanMode from './commands/caveman-mode/index.ts'
+import deadpoolMode from './commands/deadpoolmode/index.ts'
 import dependencyGraph from './commands/dependency-graph/index.ts'
 import tag from './commands/tag/index.js'
 import outputStyle from './commands/output-style/index.js'
@@ -312,6 +309,7 @@ const COMMANDS = memoize((): Command[] => [
    lmstudio,
    minimax,
    cavemanMode,
+   deadpoolMode,
   outputStyle,
   remoteEnv,
   plugin,

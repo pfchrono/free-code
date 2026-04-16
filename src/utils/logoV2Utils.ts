@@ -1,3 +1,4 @@
+import { execFileSync } from 'child_process'
 import { getDirectConnectServerUrl, getSessionId } from '../bootstrap/state.js'
 import { stringWidth } from '../ink/stringWidth.js'
 import type { LogOption } from '../types/logs.js'
@@ -10,12 +11,15 @@ import {
   truncateToWidthNoEllipsis,
 } from './format.js'
 import {
+  parseChangelog,
   getRecentReleaseNotes,
   getStoredChangelogFromMemory,
 } from './releaseNotes.js'
+import { coerce } from 'semver'
 import { gt } from './semver.js'
 import { loadMessageLogs } from './sessionStorage.js'
 import { getInitialSettings } from './settings/settings.js'
+import { findGitRoot, gitExe } from './git.js'
 
 // Layout constants
 const MAX_LEFT_WIDTH = 50
@@ -186,6 +190,52 @@ export function truncatePath(path: string, maxLength: number): string {
 let cachedActivity: LogOption[] = []
 let cachePromise: Promise<LogOption[]> | null = null
 
+function getRecentGitActivity(limit: number): LogOption[] {
+  const gitRoot = findGitRoot(getCwd())
+  if (!gitRoot) {
+    return []
+  }
+
+  try {
+    const output = execFileSync(
+      gitExe(),
+      ['log', `-${limit}`, '--date=short', '--pretty=format:%ad|%s'],
+      {
+        cwd: gitRoot,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      },
+    )
+
+    return output
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map((line, index) => {
+        const [datePart, ...subjectParts] = line.split('|')
+        const subject = subjectParts.join('|').trim()
+        const safeDate = datePart?.trim()
+        const created = safeDate ? new Date(`${safeDate}T12:00:00Z`) : new Date()
+
+        return {
+          date: safeDate ?? created.toISOString(),
+          messages: [],
+          value: index,
+          created,
+          modified: created,
+          firstPrompt: subject,
+          summary: subject,
+          messageCount: 0,
+          isSidechain: false,
+          projectPath: gitRoot,
+        } satisfies LogOption
+      })
+      .filter(log => log.summary)
+  } catch {
+    return []
+  }
+}
+
 /**
  * Preloads recent conversations for display in Logo v2
  */
@@ -198,7 +248,7 @@ export async function getRecentActivity(): Promise<LogOption[]> {
   const currentSessionId = getSessionId()
   cachePromise = loadMessageLogs(10)
     .then(logs => {
-      cachedActivity = logs
+      const recentLogs = logs
         .filter(log => {
           if (log.isSidechain) return false
           if (log.sessionId === currentSessionId) return false
@@ -211,10 +261,13 @@ export async function getRecentActivity(): Promise<LogOption[]> {
           return hasSummary || hasFirstPrompt
         })
         .slice(0, 3)
+
+      cachedActivity =
+        recentLogs.length > 0 ? recentLogs : getRecentGitActivity(3)
       return cachedActivity
     })
     .catch(() => {
-      cachedActivity = []
+      cachedActivity = getRecentGitActivity(3)
       return cachedActivity
     })
 
@@ -336,8 +389,20 @@ export function getRecentReleaseNotesSync(
     return []
   }
 
-  return getRecentReleaseNotes(currentVersion, lastSeenVersion, changelog).slice(
-    0,
-    maxItems,
-  )
+  const recentNotes = getRecentReleaseNotes(
+    currentVersion,
+    lastSeenVersion,
+    changelog,
+  ).slice(0, maxItems)
+
+  if (recentNotes.length > 0) {
+    return recentNotes
+  }
+
+  return Object.entries(parseChangelog(changelog))
+    .filter(([version]) => Boolean(coerce(version)))
+    .sort(([versionA], [versionB]) => (gt(versionA, versionB) ? -1 : 1))
+    .flatMap(([, notes]) => notes)
+    .filter(Boolean)
+    .slice(0, maxItems)
 }

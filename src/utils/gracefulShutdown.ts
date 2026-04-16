@@ -1,5 +1,6 @@
 import chalk from 'chalk'
-import { writeSync } from 'fs'
+import { writeFileSync, writeSync } from 'fs'
+import { join } from 'path'
 import memoize from 'lodash-es/memoize.js'
 import { onExit } from 'signal-exit'
 import type { ExitReason } from 'src/entrypoints/agentSdkTypes.js'
@@ -43,6 +44,41 @@ import { isEnvTruthy } from './envUtils.js'
 import { getCurrentSessionTitle, sessionIdExists } from './sessionStorage.js'
 import { sleep } from './sleep.js'
 import { profileReport } from './startupProfiler.js'
+
+function writeCrashDump(
+  source: 'uncaughtException' | 'unhandledRejection',
+  errorLike: unknown,
+): void {
+  try {
+    const path = join(process.cwd(), 'crashed.txt')
+    const details =
+      errorLike instanceof Error
+        ? [
+            `name: ${errorLike.name}`,
+            `message: ${errorLike.message}`,
+            `stack:`,
+            errorLike.stack ?? '(no stack)',
+          ].join('\n')
+        : `value: ${String(errorLike)}`
+    writeFileSync(
+      path,
+      [
+        `source: ${source}`,
+        `timestamp: ${new Date().toISOString()}`,
+        `pid: ${process.pid}`,
+        `cwd: ${process.cwd()}`,
+        `sessionId: ${getSessionId()}`,
+        `argv: ${JSON.stringify(process.argv)}`,
+        '',
+        details,
+        '',
+      ].join('\n'),
+      'utf8',
+    )
+  } catch {
+    // Avoid recursive crash handling failures.
+  }
+}
 
 /**
  * Clean up terminal modes synchronously before process exit.
@@ -299,6 +335,7 @@ export const setupGracefulShutdown = memoize(() => {
   // Log uncaught exceptions for container observability and analytics
   // Error names (e.g., "TypeError") are not sensitive - safe to log
   process.on('uncaughtException', error => {
+    writeCrashDump('uncaughtException', error)
     logForDiagnosticsNoPII('error', 'uncaught_exception', {
       error_name: error.name,
       error_message: error.message.slice(0, 2000),
@@ -311,6 +348,7 @@ export const setupGracefulShutdown = memoize(() => {
 
   // Log unhandled promise rejections for container observability and analytics
   process.on('unhandledRejection', reason => {
+    writeCrashDump('unhandledRejection', reason)
     const errorName =
       reason instanceof Error
         ? reason.name

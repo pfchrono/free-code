@@ -313,7 +313,7 @@ export function MessageSelector({
   const canRestoreCode_0 = isFileHistoryEnabled && diffStatsForRestore?.filesChanged && diffStatsForRestore.filesChanged.length > 0;
   const showPickList = !error && !messageToRestore && !preselectedMessage && hasMessagesToSelect;
   return <Box flexDirection="column" width="100%">
-      <Divider color="suggestion" />
+      <Divider color="suggestion" animated />
       <Box flexDirection="column" marginX={1} gap={1}>
         <Text bold color="suggestion">
           Rewind

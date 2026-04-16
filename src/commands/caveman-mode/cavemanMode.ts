@@ -49,15 +49,21 @@ export const call: LocalCommandCall = async (_onDone, _context, args?: string) =
   })
 
   if (newState) {
+    const deadpoolAlsoEnabled = getInitialSettings().deadpoolModeEnabled === true
     return {
       type: 'text' as const,
       value:
-        'Caveman mode ON. Responses now ultra-compressed. ~75% fewer tokens. Technical accuracy preserved.',
+        deadpoolAlsoEnabled
+          ? 'Caveman mode ON. Deadpool mode still ON. Replies now compressed hard, with Deadpool voice kept terse.'
+          : 'Caveman mode ON. Responses now ultra-compressed. ~75% fewer tokens. Technical accuracy preserved.',
     }
   } else {
     return {
       type: 'text' as const,
-      value: 'Caveman mode OFF. Responses back to normal.',
+      value:
+        getInitialSettings().deadpoolModeEnabled === true
+          ? 'Caveman mode OFF. Deadpool mode still ON.'
+          : 'Caveman mode OFF. Responses back to normal.',
     }
   }
 }

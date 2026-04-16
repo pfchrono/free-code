@@ -7,6 +7,8 @@ const DEFAULT_MINIMAX_CHINA_BASE_URL = 'https://api.minimaxi.com/anthropic';
 const CODEX_ALIAS_MODELS = new Set([
   'codexplan',
   'codexspark',
+  'chatgpt-5.3-codex-spark',
+  'gpt-5.3-codex-spark',
   'gpt-5.4',
   'gpt-5.4-mini',
   'gpt-5.3-codex',

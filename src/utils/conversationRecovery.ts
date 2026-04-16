@@ -37,6 +37,11 @@ import {
 import { copyPlanForResume } from './plans.js'
 import { processSessionStartHooks } from './sessionStart.js'
 import {
+  loadPersistedSessionState,
+  type PersistedSessionState,
+  type SessionResumeSource,
+} from './persistedSessionState.js'
+import {
   buildConversationChain,
   checkResumeConsistency,
   getLastSessionLog,
@@ -443,6 +448,16 @@ export async function loadMessagesFromJsonlPath(path: string): Promise<{
  * Loads a conversation for resume from various sources.
  * This is the centralized function for loading and deserializing conversations.
  *
+ * Backward-compatibility note:
+ * - Read path starts here, then falls through to transcript loading in
+ *   sessionStorage/loadFullLog and message deserialization below.
+ * - Write path remains append-only JSONL in sessionStorage helpers
+ *   (materializeSessionFile, appendEntryToFile, metadata re-append).
+ * - Resume must keep tolerating older transcripts that only contain visible
+ *   transcript messages plus legacy metadata entries. New persisted session
+ *   memory must therefore remain optional and fall back cleanly to visible
+ *   history reconstruction when absent, invalid, or partially written.
+ *
  * @param source - The source to load from:
  *   - undefined: load most recent conversation
  *   - string: session ID to load
@@ -476,12 +491,15 @@ export async function loadConversationForResume(
   prNumber?: number
   prUrl?: string
   prRepository?: string
+  resumeSource: SessionResumeSource
+  resumeDetail?: string
+  persistedSessionState?: PersistedSessionState | null
   // Full path to the session file (for cross-directory resume)
   fullPath?: string
 } | null> {
   try {
     let log: LogOption | null = null
-    let messages: Message[] | null = null
+    let transcriptMessages: Message[] | null = null
     let sessionId: UUID | undefined
 
     if (source === undefined) {
@@ -515,7 +533,7 @@ export async function loadConversationForResume(
       // Same chain walk as the sid branch below — only the starting
       // path differs.
       const loaded = await loadMessagesFromJsonlPath(sourceJsonlFile)
-      messages = loaded.messages
+      transcriptMessages = loaded.messages
       sessionId = loaded.sessionId
     } else if (typeof source === 'string') {
       // Load specific session by ID
@@ -526,7 +544,7 @@ export async function loadConversationForResume(
       log = source
     }
 
-    if (!log && !messages) {
+    if (!log && !transcriptMessages) {
       return null
     }
 
@@ -549,9 +567,25 @@ export async function loadConversationForResume(
       // Copy file history for resume
       void copyFileHistoryForResume(log)
 
-      messages = log.messages
-      checkResumeConsistency(messages)
+      transcriptMessages = log.messages
+      checkResumeConsistency(transcriptMessages)
     }
+
+    const persistedSessionState =
+      sessionId === undefined
+        ? null
+        : await loadPersistedSessionState(sessionId, {
+            transcriptPath: sourceJsonlFile ?? log?.fullPath,
+          })
+
+    const resolvedResume = resolveResumeMessages(
+      transcriptMessages,
+      persistedSessionState,
+    )
+    if (!resolvedResume) {
+      return null
+    }
+    let { messages, resumeSource, resumeDetail } = resolvedResume
 
     // Restore skill state from invoked_skills attachments before deserialization.
     // This ensures skills survive multiple compaction cycles after resume.
@@ -587,6 +621,9 @@ export async function loadConversationForResume(
       prNumber: log?.prNumber,
       prUrl: log?.prUrl,
       prRepository: log?.prRepository,
+      resumeSource,
+      resumeDetail,
+      persistedSessionState,
       // Include full path for cross-directory resume
       fullPath: log?.fullPath,
     }
@@ -594,4 +631,60 @@ export async function loadConversationForResume(
     logError(error as Error)
     throw error
   }
+}
+
+export function resolveResumeMessages(
+  transcriptMessages: Message[] | null,
+  persistedSessionState: PersistedSessionState | null,
+): {
+  messages: Message[]
+  resumeSource: SessionResumeSource
+  resumeDetail?: string
+} | null {
+  if (
+    persistedSessionState?.coreMessages &&
+    persistedSessionState.coreMessages.length > 0
+  ) {
+    return {
+      messages: persistedSessionState.coreMessages,
+      resumeSource: 'core_persisted_memory',
+      resumeDetail:
+        persistedSessionState.resumeMetadata?.detail ??
+        'Loaded core persisted memory snapshot',
+    }
+  }
+
+  if (transcriptMessages && transcriptMessages.length > 0) {
+    return {
+      messages: transcriptMessages,
+      resumeSource: 'visible_history',
+      resumeDetail:
+        persistedSessionState?.coreMessages !== undefined
+          ? 'Persisted core memory missing or empty; fell back to visible history'
+          : 'Loaded visible transcript history',
+    }
+  }
+
+  if (
+    persistedSessionState?.visibleMessages &&
+    persistedSessionState.visibleMessages.length > 0
+  ) {
+    return {
+      messages: persistedSessionState.visibleMessages,
+      resumeSource: 'visible_history',
+      resumeDetail: 'Recovered visible history from persisted session state',
+    }
+  }
+
+  if (persistedSessionState?.checkpointMetadata) {
+    return {
+      messages: [],
+      resumeSource: 'checkpointed_state',
+      resumeDetail:
+        persistedSessionState.resumeMetadata?.detail ??
+        'Recovered checkpoint metadata without replayable messages',
+    }
+  }
+
+  return null
 }

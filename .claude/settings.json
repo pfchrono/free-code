@@ -1,3 +1,22 @@
 {
-  "apiProvider": "codex"
+  "apiProvider": "codex",
+  "enabledMcpjsonServers": [
+    "context7"
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$inputJson = [Console]::In.ReadToEnd() | ConvertFrom-Json; $p = $inputJson.tool_input.file_path; if ($null -eq $p) { exit 0 }; $norm = $p -replace '\\','/'; if ($norm.EndsWith('bun.lock') -or $norm.EndsWith('package-lock.json')) { exit 2 } else { exit 0 }",
+            "timeout": 5,
+            "statusMessage": "Checking lockfile guard"
+          }
+        ]
+      }
+    ]
+  }
 }

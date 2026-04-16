@@ -2,19 +2,44 @@
 
 All notable changes to free-code are documented here.
 
-## [Unreleased] - 2026-04-09
+## [0.3.1] - 2026-04-16
+
+<!-- GENERATED_RECENT_COMMITS_START -->
+### Recent commits
+- 2026-04-16 feat: expand ultraplan workflow and provider/status tooling
+- 2026-04-13 chore: ignore local claude session files
+- 2026-04-13 chore: stop tracking local session history
+- 2026-04-13 feat: align config-home storage and docs
+- 2026-04-13 feat: expand provider workflow and local skills
+- 2026-04-11 chore: stop tracking tauri build artifacts
+- 2026-04-11 feat: merge gui, wiki, provider, and mcp workflow upgrades
+- 2026-04-11 feat: ignore openspec temp artifacts
+- 2026-04-09 fix: correct process.env.NODE_ENV comparisons
+- 2026-04-09 docs: add project memory and documentation
+- 2026-04-09 feat: backport MCP servers, palette, sidebar, provider services, and UI components
+- 2026-04-08 feat: add RedQueen compression, deterministic tool reducers, and observability layer
+- 2026-04-08 fix: watchdog now aborts hung streams by calling abort() on AbortController
+- 2026-04-08 feat: add aggressive message pruning to reduce token bloat
+- 2026-04-08 feat: refine caveman compaction and provider workflow
+- 2026-04-08 fix: update attribution branding and document token reduction work
+- 2026-04-08 fix: remove anthropic email from default attribution
+- 2026-04-08 feat: comprehensive token reduction optimization
+- 2026-04-07 feat: expand command system, infrastructure, and UI overhaul
+- 2026-04-06 feat: ship provider and model workflow expansion
+<!-- GENERATED_RECENT_COMMITS_END -->
+
 
 ### Added
-- **RedQueen Compression** — MCP tool result compression pipeline with deduplication, relevance filtering, and LLM summarization (Phase 2)
-- **Deterministic Tool Reducers** — Pure string transforms for noisy tools (Playwright console/network/snapshot, GitHub search_code/list_issues, Context7 query) — extract high-signal fields without LLM cost
-- **Aggressive Message Pruning** — Automatic pruning of user/assistant messages to reduce token bloat before API calls
-- **Observability Layer** — Structured logging via `src/services/observability/`, telemetry events for compression stats
-- **MiniMax MCP Server** — New `src/commands/minimax/` for MiniMax-specific commands
+- **RedQueen Compression** â€” MCP tool result compression pipeline with deduplication, relevance filtering, and LLM summarization (Phase 2)
+- **Deterministic Tool Reducers** â€” Pure string transforms for noisy tools (Playwright console/network/snapshot, GitHub search_code/list_issues, Context7 query) â€” extract high-signal fields without LLM cost
+- **Aggressive Message Pruning** â€” Automatic pruning of user/assistant messages to reduce token bloat before API calls
+- **Observability Layer** â€” Structured logging via `src/services/observability/`, telemetry events for compression stats
+- **MiniMax MCP Server** â€” New `src/commands/minimax/` for MiniMax-specific commands
 
 ### Changed
-- **Caveman Mode** — Refined text compaction, removes articles/fillers for ultra-compressed LLM responses (~75% token reduction)
-- **Provider Config** — Enhanced provider configuration system with model-specific token limits
-- **API Client** — Improved streaming, abort handling, and provider routing
+- **Caveman Mode** â€” Refined text compaction, removes articles/fillers for ultra-compressed LLM responses (~75% token reduction)
+- **Provider Config** â€” Enhanced provider configuration system with model-specific token limits
+- **API Client** â€” Improved streaming, abort handling, and provider routing
 
 ## [0.1.12] - 2026-04-08
 

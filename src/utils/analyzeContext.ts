@@ -208,6 +208,7 @@ export interface ContextData {
   /** Skill statistics */
   readonly skills?: SkillInfo
   readonly autoCompactThreshold?: number
+  readonly autoCompactThresholdPercent?: number
   readonly isAutoCompactEnabled: boolean
   messageBreakdown?: {
     toolCallTokens: number
@@ -1003,6 +1004,9 @@ export async function analyzeContextUsage(
   const autoCompactThreshold = isAutoCompact
     ? getEffectiveContextWindowSize(model) - AUTOCOMPACT_BUFFER_TOKENS
     : undefined
+  const autoCompactThresholdPercent = isAutoCompact
+    ? (autoCompactThreshold! / getEffectiveContextWindowSize(model)) * 100
+    : undefined
 
   // Create categories
   const cats: ContextCategory[] = []
@@ -1375,6 +1379,7 @@ export async function analyzeContextUsage(
           }
         : undefined,
     autoCompactThreshold,
+    autoCompactThresholdPercent,
     isAutoCompactEnabled: isAutoCompact,
     messageBreakdown: formattedMessageBreakdown,
     apiUsage,

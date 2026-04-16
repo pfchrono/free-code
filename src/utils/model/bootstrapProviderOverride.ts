@@ -51,7 +51,26 @@ function clearProviderFlags(): void {
   delete process.env.CLAUDE_CODE_USE_MINIMAX
 }
 
+function hasExplicitProviderFlag(): boolean {
+  return Boolean(
+    process.env.CLAUDE_CODE_USE_BEDROCK ||
+      process.env.CLAUDE_CODE_USE_VERTEX ||
+      process.env.CLAUDE_CODE_USE_FOUNDRY ||
+      process.env.CLAUDE_CODE_USE_CODEX ||
+      process.env.CLAUDE_CODE_USE_OPENAI ||
+      process.env.CLAUDE_CODE_USE_OPENROUTER ||
+      process.env.CLAUDE_CODE_USE_COPILOT ||
+      process.env.CLAUDE_CODE_USE_LMSTUDIO ||
+      process.env.CLAUDE_CODE_USE_ZEN ||
+      process.env.CLAUDE_CODE_USE_MINIMAX
+  )
+}
+
 export function applyRepoLocalApiProviderOverride(): void {
+  if (hasExplicitProviderFlag()) {
+    return
+  }
+
   const apiProvider = readRepoLocalApiProvider()
 
   if (!apiProvider) {
