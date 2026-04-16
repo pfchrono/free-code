@@ -22,6 +22,18 @@ bun run compile
 
 # Run from source without compiling
 bun run dev
+
+# Headless slash-command transport for automation/smoke tests
+bun run dev:headless-transport
+
+# Smoke-test headless transport end to end
+bun run test:headless-transport
+
+# Start gRPC transport for exploration/manual checks
+bun run dev:grpc
+
+# Force-stop gRPC transport and its child process tree
+bun run dev:grpc:stop
 ```
 
 Run the built binary with `./cli` or `./cli-dev`. Set `ANTHROPIC_API_KEY` in the environment or use OAuth via `./cli /login`.
@@ -55,6 +67,10 @@ Run the built binary with `./cli` or `./cli-dev`. Set `ANTHROPIC_API_KEY` in the
   - design/test docs: `docs/live-dependency-graph-design.md`, `HOW-TO-TEST-LIVE-DEPENDENCY-GRAPH.md`
 - **Hash-anchor support for precise edits**
   - `src/tools/FileEditTool/hashAnchor.ts`
+- **Headless local-command transport for automation**
+  - `scripts/headless-transport-server.ts`
+  - `scripts/headless-transport-smoke.ts`
+  - `src/utils/headlessLocalCommandRunner.ts`
 
 ## Build system
 
@@ -85,3 +101,15 @@ bun run dev
 - Use `src/utils/codebase/` when working on dependency graph, blast-radius, or context recommendation behavior.
 - Memory/session continuity work centers on `src/services/memory/`.
 - Hash-anchor edit support lives in `src/tools/FileEditTool/hashAnchor.ts`.
+- For automated slash-command testing, prefer headless transport over current gRPC path.
+- Current stable path:
+  - start `bun run dev:headless-transport`
+  - send line-delimited JSON requests on stdin
+  - read JSON responses on stdout
+  - use `bun run test:headless-transport` for baseline smoke coverage
+- Current transport scope is local noninteractive slash commands, with `/deadpoolmode` and `/caveman-mode` wired first.
+- `bun run dev:grpc` remains useful for exploration, but Bun-hosted gRPC transport is currently unreliable for automation smoke tests in this repo.
+- Long-lived transport rule:
+  - do not leave transport servers running after tests
+  - when done with gRPC, run `bun run dev:grpc:stop`
+  - this force-stops stored gRPC pid and its Windows child process tree to avoid rogue memory-hogging `bun` or `free-code.exe` processes
