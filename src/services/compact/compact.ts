@@ -8,8 +8,8 @@ const sessionTranscriptModule = feature('KAIROS')
   : null
 
 import { APIUserAbortError } from '@anthropic-ai/sdk'
+import { getInvokedSkillsForAgent, getSessionId } from '../../bootstrap/state.js'
 import { markPostCompaction } from 'src/bootstrap/state.js'
-import { getInvokedSkillsForAgent } from '../../bootstrap/state.js'
 import type { QuerySource } from '../../constants/querySource.js'
 import type { CanUseToolFn } from '../../hooks/useCanUseTool.js'
 import type { Tool, ToolUseContext } from '../../Tool.js'
@@ -68,6 +68,7 @@ import {
 } from '../../utils/messages.js'
 import { expandPath } from '../../utils/path.js'
 import { getPlan, getPlanFilePath } from '../../utils/plans.js'
+import { persistCompactedSessionState } from '../../utils/persistedSessionState.js'
 import {
   isSessionActivityTrackingActive,
   sendSessionActivitySignal,
@@ -335,6 +336,23 @@ export function buildPostCompactMessages(result: CompactionResult): Message[] {
     ...result.attachments,
     ...result.hookResults,
   ]
+}
+
+function summarizeCompactionRetention(
+  keptMessages: readonly Message[] | undefined,
+): string {
+  if (!keptMessages || keptMessages.length === 0) {
+    return 'summary only'
+  }
+
+  return `${keptMessages.length} messages kept after boundary`
+}
+
+function summarizeCompactionDrop(
+  beforeMessages: number,
+  afterMessages: number,
+): string {
+  return `${Math.max(beforeMessages - afterMessages, 0)} messages summarized`
 }
 
 /**
@@ -735,7 +753,7 @@ export async function compactConversation(
       .filter(Boolean)
       .join('\n')
 
-    return {
+    const compactionResult = {
       boundaryMarker,
       summaryMessages,
       attachments: postCompactFileAttachments,
@@ -745,7 +763,33 @@ export async function compactConversation(
       postCompactTokenCount: compactionCallTotalTokens,
       truePostCompactTokenCount,
       compactionUsage,
-    }
+    } satisfies CompactionResult
+
+    void persistCompactedSessionState(getSessionId(), {
+      visibleMessages: buildPostCompactMessages(compactionResult),
+      coreMessages: buildPostCompactMessages(compactionResult),
+      checkpointMetadata: {
+        strategy: 'summary',
+        transcriptPath,
+      },
+      event: {
+        trigger: isAutoCompact ? 'auto' : 'manual',
+        strategy: 'summary',
+        occurredAt: new Date().toISOString(),
+        beforeTokens: preCompactTokenCount,
+        afterTokens: truePostCompactTokenCount,
+        beforeMessages: messages.length,
+        afterMessages: buildPostCompactMessages(compactionResult).length,
+        retainedSummary: summarizeCompactionRetention(undefined),
+        droppedSummary: summarizeCompactionDrop(
+          messages.length,
+          buildPostCompactMessages(compactionResult).length,
+        ),
+      },
+      transcriptPath,
+    }).catch(logError)
+
+    return compactionResult
   } catch (error) {
     // Only show the error notification for manual /compact.
     // Auto-compact failures are retried on the next turn and the
@@ -1079,7 +1123,7 @@ export async function partialCompactConversation(
       direction === 'up_to'
         ? (summaryMessages.at(-1)?.uuid ?? boundaryMarker.uuid)
         : boundaryMarker.uuid
-    return {
+    const compactionResult = {
       boundaryMarker: annotateBoundaryWithPreservedSegment(
         boundaryMarker,
         anchorUuid,
@@ -1093,7 +1137,33 @@ export async function partialCompactConversation(
       preCompactTokenCount,
       postCompactTokenCount,
       compactionUsage,
-    }
+    } satisfies CompactionResult
+
+    void persistCompactedSessionState(getSessionId(), {
+      visibleMessages: buildPostCompactMessages(compactionResult),
+      coreMessages: buildPostCompactMessages(compactionResult),
+      checkpointMetadata: {
+        strategy: `partial_${direction}`,
+        transcriptPath,
+      },
+      event: {
+        trigger: 'manual',
+        strategy: `partial_${direction}`,
+        occurredAt: new Date().toISOString(),
+        beforeTokens: preCompactTokenCount,
+        afterTokens: postCompactTokenCount,
+        beforeMessages: allMessages.length,
+        afterMessages: buildPostCompactMessages(compactionResult).length,
+        retainedSummary: summarizeCompactionRetention(messagesToKeep),
+        droppedSummary: summarizeCompactionDrop(
+          allMessages.length,
+          buildPostCompactMessages(compactionResult).length,
+        ),
+      },
+      transcriptPath,
+    }).catch(logError)
+
+    return compactionResult
   } catch (error) {
     addErrorNotificationIfNeeded(error, context)
     throw error

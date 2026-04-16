@@ -62,7 +62,7 @@ export function ConsoleOAuthFlow({
   const settings = getSettings_DEPRECATED() || {};
   const forceLoginMethod = forceLoginMethodProp ?? settings.forceLoginMethod;
   const orgUUID = settings.forceLoginOrgUUID;
-  const forcedMethodMessage = forceLoginMethod === 'claudeai' ? 'Login method pre-selected: Subscription Plan (Claude Pro/Max)' : forceLoginMethod === 'console' ? 'Login method pre-selected: API Usage Billing (Anthropic Console)' : null;
+  const forcedMethodMessage = forceLoginMethod === 'claudeai' ? 'Login method pre-selected: Subscription Plan' : forceLoginMethod === 'console' ? 'Login method pre-selected: API usage billing (console account)' : null;
   const terminal = useTerminalNotification();
   const [oauthStatus, setOAuthStatus] = useState<OAuthStatus>(() => {
     if (mode === 'setup-token') {
@@ -245,7 +245,7 @@ export function ConsoleOAuthFlow({
           state: 'success'
         });
         void sendNotification({
-          message: 'Claude Code login successful',
+          message: 'Free-Code login successful',
           notificationType: 'auth_success'
         }, terminal);
       }
@@ -427,7 +427,7 @@ function OAuthStatusMessage(t0) {
   switch (oauthStatus.state) {
     case "idle":
       {
-        const t1 = startingMessage ? startingMessage : "Claude Code can be used with your Claude subscription or billed based on API usage through your Console account.";
+        const t1 = startingMessage ? startingMessage : "Free-Code can be used with your hosted subscription or billed based on API usage through your console account.";
         let t2;
         if ($[0] !== t1) {
           t2 = <Text bold={true}>{t1}</Text>;
@@ -446,7 +446,7 @@ function OAuthStatusMessage(t0) {
         let t4;
         if ($[3] === Symbol.for("react.memo_cache_sentinel")) {
           t4 = {
-            label: <Text>Claude account with subscription ·{" "}<Text dimColor={true}>Pro, Max, Team, or Enterprise</Text>{false && <Text>{"\n"}<Text color="warning">[ANT-ONLY]</Text>{" "}<Text dimColor={true}>Please use this option unless you need to login to a special org for accessing sensitive data (e.g. customer data, HIPI data) with the Console option</Text></Text>}{"\n"}</Text>,
+            label: <Text>Hosted account with subscription ·{" "}<Text dimColor={true}>Pro, Max, Team, or Enterprise</Text>{false && <Text>{"\n"}<Text color="warning">[ANT-ONLY]</Text>{" "}<Text dimColor={true}>Please use this option unless you need to login to a special org for accessing sensitive data (e.g. customer data, HIPI data) with the Console option</Text></Text>}{"\n"}</Text>,
             value: "claudeai"
           };
           $[3] = t4;
@@ -548,7 +548,7 @@ function OAuthStatusMessage(t0) {
         let t2;
         let t3;
         if ($[14] === Symbol.for("react.memo_cache_sentinel")) {
-          t2 = <Text>Claude Code supports Amazon Bedrock, Microsoft Foundry, and Vertex AI. Set the required environment variables, then restart Claude Code.</Text>;
+          t2 = <Text>Free-Code supports Amazon Bedrock, Microsoft Foundry, and Vertex AI. Set the required environment variables, then restart Free-Code.</Text>;
           t3 = <Text>If you are part of an enterprise organization, contact your administrator for setup instructions.</Text>;
           $[14] = t2;
           $[15] = t3;
@@ -642,7 +642,7 @@ function OAuthStatusMessage(t0) {
       {
         let t1;
         if ($[38] === Symbol.for("react.memo_cache_sentinel")) {
-          t1 = <Box flexDirection="column" gap={1}><Box><Spinner /><Text>Creating API key for Claude Code…</Text></Box></Box>;
+          t1 = <Box flexDirection="column" gap={1}><Box><Spinner /><Text>Creating API key for Free-Code…</Text></Box></Box>;
           $[38] = t1;
         } else {
           t1 = $[38];

@@ -4,7 +4,7 @@ import { shouldAllowAnthropicHostedServices } from '../../utils/model/providers.
 
 const command: Command = {
   name: 'chrome',
-  description: 'Claude in Chrome (Beta) settings',
+  description: 'Free-Code in Chrome (Beta) settings',
   availability: ['claude-ai'],
   isEnabled: () =>
     shouldAllowAnthropicHostedServices() && !getIsNonInteractiveSession(),

@@ -1,3 +1,3 @@
 export function isBuddyEnabled(): boolean {
-  return false
+  return true
 }

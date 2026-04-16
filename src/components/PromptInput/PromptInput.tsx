@@ -13,6 +13,7 @@ import { getCwd } from 'src/utils/cwd.js';
 import { isQueuedCommandEditable, popAllEditable } from 'src/utils/messageQueueManager.js';
 import stripAnsi from 'strip-ansi';
 import { companionReservedColumns } from '../../buddy/CompanionSprite.js';
+import { isBuddyEnabled } from '../../buddy/feature.js';
 import { findBuddyTriggerPositions, useBuddyNotification } from '../../buddy/useBuddyNotification.js';
 import { FastModePicker } from '../../commands/fast/fast.js';
 import { isUltrareviewEnabled } from '../../commands/review/ultrareviewEnabled.js';
@@ -33,7 +34,7 @@ import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { useTypeahead } from '../../hooks/useTypeahead.js';
 import type { BorderTextOptions } from '../../ink/render-border.js';
 import { stringWidth } from '../../ink/stringWidth.js';
-import { Box, type ClickEvent, type Key, Text, useInput } from '../../ink.js';
+import { Box, type ClickEvent, type Key, Text, useAnimationFrame, useInput } from '../../ink.js';
 import { useOptionalKeybindingContext } from '../../keybindings/KeybindingContext.js';
 import { getShortcutDisplay } from '../../keybindings/shortcutFormat.js';
 import { useKeybinding, useKeybindings } from '../../keybindings/useKeybinding.js';
@@ -117,6 +118,18 @@ import { PromptInputModeIndicator } from './PromptInputModeIndicator.js';
 import { PromptInputQueuedCommands } from './PromptInputQueuedCommands.js';
 import { PromptInputStashNotice } from './PromptInputStashNotice.js';
 import { useMaybeTruncateInput } from './useMaybeTruncateInput.js';
+
+function AnimatedSeparatorLine({
+  text,
+  color
+}: {
+  text: string;
+  color?: keyof Theme;
+}): React.ReactNode {
+  const [, time] = useAnimationFrame(80);
+  const phase = Math.floor(time / 240) % 7;
+  return <>{[...text].map((ch, i) => <Text key={i} color={ch === '─' ? getRainbowColor(i + phase, true) : color}>{ch}</Text>)}</>;
+}
 import { usePromptInputPlaceholder } from './usePromptInputPlaceholder.js';
 import { useShowFastIconHint } from './useShowFastIconHint.js';
 import { useSwarmBanner } from './useSwarmBanner.js';
@@ -306,13 +319,10 @@ function PromptInput({
   const viewingAgentTaskId = useAppState(s => s.viewingAgentTaskId);
   const viewSelectionMode = useAppState(s => s.viewSelectionMode);
   const showSpinnerTree = useAppState(s => s.expandedView) === 'teammates';
-  const {
-    companion: _companion,
-    companionMuted
-  } = feature('BUDDY') ? getGlobalConfig() : {
-    companion: undefined,
-    companionMuted: undefined
-  };
+  const _companion = isBuddyEnabled() ? getGlobalConfig().companion : undefined;
+  const companionMuted = isBuddyEnabled() ?
+  // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
+  useAppState(s => s.companionMuted ?? false) : undefined;
   const companionFooterVisible = !!_companion && !companionMuted;
   // Brief mode: BriefSpinner/BriefIdleStatus own the 2-row footprint above
   // the input. Dropping marginTop here lets the spinner sit flush against
@@ -1786,7 +1796,7 @@ function PromptInput({
       }
       switch (footerItemSelected) {
         case 'companion':
-          if (feature('BUDDY')) {
+          if (isBuddyEnabled()) {
             selectFooterItem(null);
             void onSubmit('/buddy');
           }
@@ -1981,7 +1991,7 @@ function PromptInput({
     });
   }, [effortNotificationText, addNotification, removeNotification]);
   useBuddyNotification();
-  const companionSpeaking = feature('BUDDY') ?
+  const companionSpeaking = isBuddyEnabled() ?
   // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
   useAppState(s => s.companionReaction !== undefined) : false;
   const {
@@ -2250,13 +2260,13 @@ function PromptInput({
       {swarmBanner ? <>
           <Text color={swarmBanner.bgColor}>
             {swarmBanner.text ? <>
-                {'─'.repeat(Math.max(0, columns - stringWidth(swarmBanner.text) - 4))}
+                <AnimatedSeparatorLine text={'─'.repeat(Math.max(0, columns - stringWidth(swarmBanner.text) - 4))} color={swarmBanner.bgColor} />
                 <Text backgroundColor={swarmBanner.bgColor} color="inverseText">
                   {' '}
                   {swarmBanner.text}{' '}
                 </Text>
-                {'──'}
-              </> : '─'.repeat(columns)}
+                <AnimatedSeparatorLine text={'──'} color={swarmBanner.bgColor} />
+              </> : <AnimatedSeparatorLine text={'─'.repeat(columns)} color={swarmBanner.bgColor} />}
           </Text>
           <Box flexDirection="row" width="100%">
             <PromptInputModeIndicator mode={mode} isLoading={isLoading} viewingAgentName={viewingAgentName} viewingAgentColor={viewingAgentColor} />
@@ -2264,7 +2274,7 @@ function PromptInput({
               {textInputElement}
             </Box>
           </Box>
-          <Text color={swarmBanner.bgColor}>{'─'.repeat(columns)}</Text>
+          <Text color={swarmBanner.bgColor}><AnimatedSeparatorLine text={'─'.repeat(columns)} color={swarmBanner.bgColor} /></Text>
         </> : <Box flexDirection="row" alignItems="flex-start" justifyContent="flex-start" borderColor={getBorderColor()} borderStyle="round" borderLeft={false} borderRight={false} borderBottom width="100%" borderText={buildBorderText(showFastIcon ?? false, showFastIconHint, fastModeCooldown)}>
           <PromptInputModeIndicator mode={mode} isLoading={isLoading} viewingAgentName={viewingAgentName} viewingAgentColor={viewingAgentColor} />
           <Box flexGrow={1} flexShrink={1} onClick={handleInputClick}>

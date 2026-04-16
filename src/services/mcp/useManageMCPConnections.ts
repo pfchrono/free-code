@@ -1,6 +1,8 @@
 import { feature } from 'bun:bundle'
 import { basename } from 'path'
 import { useCallback, useEffect, useRef } from 'react'
+import { ListMcpResourcesTool } from '../../tools/ListMcpResourcesTool/ListMcpResourcesTool.js'
+import { ReadMcpResourceTool } from '../../tools/ReadMcpResourceTool/ReadMcpResourceTool.js'
 import { getSessionId } from '../../bootstrap/state.js'
 import type { Command } from '../../commands.js'
 import type { Tool } from '../../Tool.js'
@@ -210,6 +212,24 @@ export function useManageMCPConnections(
     commands?: Command[]
     resources?: ServerResource[]
   }
+
+  const getResourceToolNamesForState = (mcp: AppState['mcp']): Set<string> => {
+    const resourceToolNames = new Set<string>()
+
+    for (const client of mcp.clients) {
+      if (client.type !== 'connected') continue
+      if (!client.capabilities?.resources) continue
+      const prefix = getMcpPrefix(client.name)
+      if (mcp.tools.some(tool => tool.name === `${prefix}${ListMcpResourcesTool.name}`)) {
+        resourceToolNames.add(`${prefix}${ListMcpResourcesTool.name}`)
+      }
+      if (mcp.tools.some(tool => tool.name === `${prefix}${ReadMcpResourceTool.name}`)) {
+        resourceToolNames.add(`${prefix}${ReadMcpResourceTool.name}`)
+      }
+    }
+
+    return resourceToolNames
+  }
   const pendingUpdatesRef = useRef<PendingUpdate[]>([])
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -283,6 +303,19 @@ export function useManageMCPConnections(
           tools: updatedTools,
           commands: updatedCommands,
           resources: updatedResources,
+        }
+
+        const activeResourceToolNames = getResourceToolNamesForState(mcp)
+        mcp = {
+          ...mcp,
+          tools: mcp.tools.filter(tool => {
+            const name = tool.name
+            if (!name) return true
+            const isResourceTool =
+              name.endsWith(ListMcpResourcesTool.name) ||
+              name.endsWith(ReadMcpResourceTool.name)
+            return !isResourceTool || activeResourceToolNames.has(name)
+          }),
         }
       }
 

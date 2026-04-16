@@ -38,7 +38,7 @@ export function parseLineAnchor(anchor: string): LineAnchor | null {
  */
 export function generateContentHash(content: string): string {
   return createHash('sha256')
-    .update(content.trim())
+    .update(content)
     .digest('hex')
     .substring(0, 8) // Use first 8 characters for brevity
 }

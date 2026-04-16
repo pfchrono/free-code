@@ -2327,8 +2327,6 @@ export async function getMcpToolsCommandsAndResources(
   }) => void,
   mcpConfigs?: Record<string, ScopedMcpServerConfig>,
 ): Promise<void> {
-  let resourceToolsAdded = false
-
   const allConfigEntries = Object.entries(
     mcpConfigs ?? (await getAllMcpConfigs()).servers,
   )
@@ -2451,17 +2449,9 @@ export async function getMcpToolsCommandsAndResources(
       ])
       const commands = [...mcpCommands, ...mcpSkills]
 
-      // If this server resources and we haven't added resource tools yet,
-      // include our resource tools with this client's tools
-      const resourceTools: Tool[] = []
-      if (supportsResources && !resourceToolsAdded) {
-        resourceToolsAdded = true
-        resourceTools.push(ListMcpResourcesTool, ReadMcpResourceTool)
-      }
-
       onConnectionAttempt({
         client,
-        tools: [...tools, ...resourceTools],
+        tools,
         commands,
         resources: resources.length > 0 ? resources : undefined,
       })

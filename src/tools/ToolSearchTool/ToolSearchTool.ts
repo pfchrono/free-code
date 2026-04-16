@@ -69,18 +69,26 @@ const getToolDescriptionMemoized = memoize(
     if (!tool) {
       return ''
     }
-    return tool.prompt({
-      getToolPermissionContext: async () => ({
-        mode: 'default' as const,
-        additionalWorkingDirectories: new Map(),
-        alwaysAllowRules: {},
-        alwaysDenyRules: {},
-        alwaysAskRules: {},
-        isBypassPermissionsModeAvailable: false,
-      }),
-      tools,
-      agents: [],
-    })
+    try {
+      const prompt = await tool.prompt({
+        getToolPermissionContext: async () => ({
+          mode: 'default' as const,
+          additionalWorkingDirectories: new Map(),
+          alwaysAllowRules: {},
+          alwaysDenyRules: {},
+          alwaysAskRules: {},
+          isBypassPermissionsModeAvailable: false,
+        }),
+        tools,
+        agents: [],
+      })
+      return typeof prompt === 'string' ? prompt : ''
+    } catch (error) {
+      logForDebugging(
+        `ToolSearchTool: failed to load prompt for ${toolName}: ${error instanceof Error ? error.message : String(error)}`,
+      )
+      return ''
+    }
   },
   (toolName: string) => toolName,
 )

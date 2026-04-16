@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # free-code installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/paoloanzn/free-code/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/pfchrono/free-code/main/install.sh | bash
+#        curl -fsSL https://raw.githubusercontent.com/pfchrono/free-code/main/install.sh | bash -s -- --dev
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -12,9 +13,27 @@ BOLD='\033[1m'
 DIM='\033[2m'
 RESET='\033[0m'
 
-REPO="https://github.com/paoloanzn/free-code.git"
-INSTALL_DIR="$HOME/free-code"
+REPO="https://github.com/pfchrono/free-code.git"
+DEFAULT_INSTALL_DIR="$HOME/free-code"
 BUN_MIN_VERSION="1.3.11"
+DEV=0
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+USE_LOCAL_SOURCE=0
+INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+
+for arg in "$@"; do
+  case "$arg" in
+    --dev|-d) DEV=1 ;;
+    *)
+      fail "Unknown argument: $arg. Supported: --dev"
+      ;;
+  esac
+done
+
+if [ -f "$SCRIPT_DIR/package.json" ] && [ -f "$SCRIPT_DIR/scripts/build.ts" ]; then
+  USE_LOCAL_SOURCE=1
+  INSTALL_DIR="$SCRIPT_DIR"
+fi
 
 info()  { printf "${CYAN}[*]${RESET} %s\n" "$*"; }
 ok()    { printf "${GREEN}[+]${RESET} %s\n" "$*"; }
@@ -25,15 +44,16 @@ header() {
   echo ""
   printf "${BOLD}${CYAN}"
   cat << 'ART'
-   ___                            _
-  / _|_ __ ___  ___        ___ __| | ___
- | |_| '__/ _ \/ _ \_____ / __/ _` |/ _ \
- |  _| | |  __/  __/_____| (_| (_| |  __/
- |_| |_|  \___|\___|      \___\__,_|\___|
+  ______                    ______          __
+ / ____/_______  ___  ___  / ____/___  ____/ /__
+/ /_  / ___/ _ \/ _ \/ _ \/ /   / __ \/ __  / _ \
+/ __/ / /  /  __/  __/  __/ /___/ /_/ / /_/ /  __/
+/_/   /_/   \___/\___/\___/\____/\____/\__,_/\___/
 
 ART
   printf "${RESET}"
-  printf "${DIM}  The free build of Claude Code${RESET}\n"
+  printf "${DIM}  free-code installer for macOS/Linux${RESET}\n"
+  printf "${DIM}  telemetry stripped | multi-provider | local-first${RESET}\n"
   echo ""
 }
 
@@ -97,6 +117,12 @@ install_bun() {
 # -------------------------------------------------------------------
 
 clone_repo() {
+  if [ "$USE_LOCAL_SOURCE" -eq 1 ]; then
+    info "Using local checkout as install source..."
+    ok "Source: $INSTALL_DIR"
+    return
+  fi
+
   if [ -d "$INSTALL_DIR" ]; then
     warn "$INSTALL_DIR already exists"
     if [ -d "$INSTALL_DIR/.git" ]; then
@@ -120,17 +146,37 @@ install_deps() {
 }
 
 build_binary() {
-  info "Building free-code (all experimental features enabled)..."
+  local binary_path label
+  if [ "$DEV" -eq 1 ]; then
+    binary_path="$INSTALL_DIR/cli-dev"
+    label="Building free-code dev binary (all experimental features enabled)..."
+  else
+    binary_path="$INSTALL_DIR/cli"
+    label="Building free-code standard binary..."
+  fi
+
+  info "$label"
   cd "$INSTALL_DIR"
-  bun run build:dev:full
-  ok "Binary built: $INSTALL_DIR/cli-dev"
+  if [ "$DEV" -eq 1 ]; then
+    bun run build:dev:full
+  else
+    bun run build
+  fi
+  ok "Binary built: $binary_path"
 }
 
 link_binary() {
   local link_dir="$HOME/.local/bin"
+  local target_binary
   mkdir -p "$link_dir"
 
-  ln -sf "$INSTALL_DIR/cli-dev" "$link_dir/free-code"
+  if [ "$DEV" -eq 1 ]; then
+    target_binary="$INSTALL_DIR/cli-dev"
+  else
+    target_binary="$INSTALL_DIR/cli"
+  fi
+
+  ln -sf "$target_binary" "$link_dir/free-code"
   ok "Symlinked: $link_dir/free-code"
 
   if ! echo "$PATH" | tr ':' '\n' | grep -qx "$link_dir"; then
@@ -153,6 +199,9 @@ echo ""
 check_os
 check_git
 check_bun
+if [ "$USE_LOCAL_SOURCE" -eq 1 ]; then
+  warn "Local install script detected. Building and linking current checkout instead of cloning from GitHub."
+fi
 echo ""
 
 clone_repo
@@ -164,16 +213,50 @@ echo ""
 printf "${GREEN}${BOLD}  Installation complete!${RESET}\n"
 echo ""
 printf "  ${BOLD}Run it:${RESET}\n"
-printf "    ${CYAN}free-code${RESET}                          # interactive REPL\n"
+if [ "$DEV" -eq 1 ]; then
+  printf "    ${CYAN}free-code${RESET}                          # interactive REPL (dev/experimental build)\n"
+else
+  printf "    ${CYAN}free-code${RESET}                          # interactive REPL (standard build)\n"
+fi
 printf "    ${CYAN}free-code -p \"your prompt\"${RESET}          # one-shot mode\n"
 echo ""
-printf "  ${BOLD}Set your API key:${RESET}\n"
+printf "  ${BOLD}Provider bootstrap:${RESET}\n"
+printf "    ${CYAN}bun run profile:init${RESET}               # initialize repo-local provider profile\n"
+printf "    ${CYAN}bun run profile:auto${RESET}               # auto-detect recommended provider\n"
+printf "    ${CYAN}bun run doctor:provider${RESET}            # validate provider wiring and auth\n"
+echo ""
+printf "  ${BOLD}Launch from selected profile:${RESET}\n"
+printf "    ${CYAN}bun run dev:profile${RESET}                # start using current repo profile\n"
+printf "    ${CYAN}bun run dev:profile:auto${RESET}           # auto-pick launch profile\n"
+echo ""
+printf "  ${BOLD}Pick provider directly:${RESET}\n"
+printf "    ${CYAN}bun run profile:codex${RESET}\n"
+printf "    ${CYAN}bun run profile:openai${RESET}\n"
+printf "    ${CYAN}bun run profile:copilot${RESET}\n"
+printf "    ${CYAN}bun run profile:openrouter${RESET}\n"
+printf "    ${CYAN}bun run profile:lmstudio${RESET}\n"
+printf "    ${CYAN}bun run profile:zen${RESET}\n"
+printf "    ${CYAN}bun run profile:minimax${RESET}\n"
+printf "    ${CYAN}bun run profile:firstparty${RESET}\n"
+echo ""
+printf "  ${BOLD}gRPC dev helpers:${RESET}\n"
+printf "    ${CYAN}bun run dev:grpc${RESET}\n"
+printf "    ${CYAN}bun run dev:grpc:cli${RESET}\n"
+echo ""
+printf "  ${DIM}Provider notes:${RESET}\n"
+printf "  ${DIM}  Profiles stay repo-local and avoid redoing shell env setup each launch.${RESET}\n"
+printf "  ${DIM}  Use doctor:provider after switching auth, env, or provider targets.${RESET}\n"
+printf "  ${DIM}  Use dev:profile for normal startup; use dev:grpc or dev:grpc:cli for transport testing.${RESET}\n"
+echo ""
+printf "  ${BOLD}Manual API key setup if needed:${RESET}\n"
+printf "    ${CYAN}export OPENAI_API_KEY=\"sk-...\"${RESET}\n"
 printf "    ${CYAN}export ANTHROPIC_API_KEY=\"sk-ant-...\"${RESET}\n"
 echo ""
-printf "  ${BOLD}Or log in with Claude.ai:${RESET}\n"
-printf "    ${CYAN}free-code /login${RESET}\n"
-echo ""
 printf "  ${DIM}Source: $INSTALL_DIR${RESET}\n"
-printf "  ${DIM}Binary: $INSTALL_DIR/cli-dev${RESET}\n"
+if [ "$DEV" -eq 1 ]; then
+  printf "  ${DIM}Binary: $INSTALL_DIR/cli-dev${RESET}\n"
+else
+  printf "  ${DIM}Binary: $INSTALL_DIR/cli${RESET}\n"
+fi
 printf "  ${DIM}Link:   ~/.local/bin/free-code${RESET}\n"
 echo ""

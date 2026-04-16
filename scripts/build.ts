@@ -83,7 +83,8 @@ function getVersionChangelog(): string {
 }
 
 const defaultFeatures = ['VOICE_MODE', 'TOKEN_SMOKEN_GUARD']
-const featureSet = new Set(defaultFeatures)
+const alwaysOnFeatures = ['BUDDY', 'ULTRAPLAN']
+const featureSet = new Set([...defaultFeatures, ...alwaysOnFeatures])
 for (let i = 0; i < args.length; i += 1) {
   const arg = args[i]
   if (arg === '--feature-set' && args[i + 1]) {
@@ -152,7 +153,7 @@ const defines = {
     'This reconstructed source snapshot does not include Anthropic internal issue routing.',
   ),
   'MACRO.VERSION_CHANGELOG': JSON.stringify(
-    dev ? getVersionChangelog() : 'https://github.com/paoloanzn/claude-code',
+    dev ? getVersionChangelog() : 'https://github.com/pfchrono/free-code',
   ),
 } as const
 

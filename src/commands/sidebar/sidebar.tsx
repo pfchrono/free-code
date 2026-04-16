@@ -14,7 +14,7 @@ import { getAPIProvider } from '../../utils/model/providers.js'
 import { getFavoriteModels, getRecentModels } from '../../utils/modelPreferences.js'
 
 const PROVIDER_INFO: Record<string, { label: string; description: string }> = {
-  firstParty: { label: 'Claude (Anthropic)', description: 'Official Anthropic API' },
+  firstParty: { label: 'Free-Code Hosted', description: 'Default hosted API' },
   openai: { label: 'OpenAI', description: 'GPT models' },
   copilot: { label: 'GitHub Copilot', description: 'Copilot Chat API' },
   codex: { label: 'Codex (ChatGPT)', description: 'OpenAI Codex API' },

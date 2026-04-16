@@ -7,7 +7,7 @@ const web = {
   type: 'local-jsx',
   name: 'web-setup',
   description:
-    'Setup Claude Code on the web (requires connecting your GitHub account)',
+    'Setup Free-Code on the web (requires connecting your GitHub account)',
   availability: ['claude-ai'],
   isEnabled: () =>
     shouldAllowAnthropicHostedServices() &&

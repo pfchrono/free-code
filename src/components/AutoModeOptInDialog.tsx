@@ -6,8 +6,9 @@ import { updateSettingsForSource } from '../utils/settings/settings.js';
 import { Select } from './CustomSelect/index.js';
 import { Dialog } from './design-system/Dialog.js';
 
-// NOTE: This copy is legally reviewed — do not modify without Legal team approval.
-export const AUTO_MODE_DESCRIPTION = "Auto mode lets Claude handle permission prompts automatically — Claude checks each tool call for risky actions and prompt injection before executing. Actions Claude identifies as safe are executed, while actions Claude identifies as risky are blocked and Claude may try a different approach. Ideal for long-running tasks. Sessions are slightly more expensive. Claude can make mistakes that allow harmful commands to run, it's recommended to only use in isolated environments. Shift+Tab to change mode.";
+// NOTE: This copy was previously legally reviewed. Branding was sanitized here,
+// so re-review may be needed if downstream process requires it.
+export const AUTO_MODE_DESCRIPTION = "Auto mode lets Free-Code handle permission prompts automatically — Free-Code checks each tool call for risky actions and prompt injection before executing. Actions Free-Code identifies as safe are executed, while actions Free-Code identifies as risky are blocked and Free-Code may try a different approach. Ideal for long-running tasks. Sessions are slightly more expensive. Free-Code can make mistakes that allow harmful commands to run, it's recommended to only use in isolated environments. Shift+Tab to change mode.";
 type Props = {
   onAccept(): void;
   onDecline(): void;

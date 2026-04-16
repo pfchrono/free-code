@@ -5,8 +5,8 @@
 <h1 align="center">free-code</h1>
 
 <p align="center">
-  <strong>The free build of Claude Code.</strong><br>
-  All telemetry stripped. All guardrails removed. All experimental features unlocked.<br>
+  <strong>The clean-room Free-Code build.</strong><br>
+  Telemetry stripped. Prompt guardrails mostly removed. Experimental features unlocked.<br>
   One binary, zero callbacks home.
 </p>
 
@@ -26,7 +26,7 @@
 curl -fsSL https://raw.githubusercontent.com/pfchrono/free-code/main/install.sh | bash
 ```
 
-Checks your system, installs Bun if needed, clones the repo, builds with all experimental features enabled, and symlinks `free-code` on your PATH.
+Checks your system, installs Bun if needed, clones the repo, builds free-code, and symlinks `free-code` on your PATH.
 
 ### Windows (PowerShell)
 
@@ -43,7 +43,7 @@ The Windows installer will:
 - Create launchers in `%USERPROFILE%\.local\bin` (`free-code.exe` and `free-code.cmd`)
 - Add `%USERPROFILE%\.local\bin` to your user PATH if missing
 
-Then run `free-code` and use the `/login` command to authenticate with your preferred model provider.
+Then run `free-code profile:init`, check with `free-code doctor:provider`, and start with `free-code dev:profile`.
 
 ---
 
@@ -69,7 +69,7 @@ Then run `free-code` and use the `/login` command to authenticate with your pref
 
 ## What is this
 
-A clean, buildable fork of Anthropic's [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI -- the terminal-native AI coding agent. The upstream source became publicly available on March 31, 2026 through a source map exposure in the npm distribution.
+A clean, buildable fork of an upstream terminal-native AI coding agent CLI. This project is maintained as `free-code` by Grevin / `pfchrono`, with compatibility-preserving behavior where needed for existing installs and workflows.
 
 This fork applies three categories of changes on top of that snapshot:
 
@@ -81,39 +81,58 @@ The upstream binary phones home through OpenTelemetry/gRPC, GrowthBook analytics
 - GrowthBook feature flag evaluation still works locally (needed for runtime feature gates) but does not report back
 - No crash reports, no usage analytics, no session fingerprinting
 
-### Security-prompt guardrails removed
+### Security-prompt guardrails mostly removed
 
-Anthropic injects system-level instructions into every conversation that constrain Claude's behavior beyond what the model itself enforces. These include hardcoded refusal patterns, injected "cyber risk" instruction blocks, and managed-settings security overlays pushed from Anthropic's servers.
+The upstream product injects system-level instructions into every conversation that constrain assistant behavior beyond what the model itself enforces. These include hardcoded refusal patterns, injected "cyber risk" instruction blocks, and managed-settings security overlays pushed from hosted services.
 
-This build strips those injections. The model's own safety training still applies -- this just removes the extra layer of prompt-level restrictions that the CLI wraps around it.
+This build strips those injections. The model's own safety training still applies -- this removes the extra prompt-layer restrictions that the CLI wraps around it while keeping hard blocks for critical system paths/files.
 
 ### Experimental features unlocked
 
-Claude Code ships with 88 feature flags gated behind `bun:bundle` compile-time switches. Most are disabled in the public npm release. This build unlocks all 54 flags that compile cleanly. See [Experimental Features](#experimental-features) below, or refer to [FEATURES.md](FEATURES.md) for the full audit.
+The upstream CLI ships with 88 feature flags gated behind `bun:bundle` compile-time switches. Most are disabled in the public npm release. This build unlocks all 54 flags that compile cleanly. See [Experimental Features](#experimental-features) below, or refer to [FEATURES.md](FEATURES.md) for the full audit.
 
 ## Latest Changes
 
-Recent updates expanded provider switching, login availability, status visibility, Windows/path handling, local skill workflow support, and config-home-aware persistence:
+Recent updates expanded provider bootstrap, local launch workflow, provider health checks, status visibility, Windows/path handling, local skill workflow support, and config-home-aware persistence:
 
+- Added provider bootstrap commands for repo-local setup:
+  - `free-code profile:init`
+  - `free-code profile:auto`
+  - `free-code profile:codex`
+  - `free-code profile:openai`
+  - `free-code profile:copilot`
+  - `free-code profile:openrouter`
+  - `free-code profile:lmstudio`
+  - `free-code profile:zen`
+  - `free-code profile:minimax`
+  - `free-code profile:firstparty`
+- Added profile launch helpers:
+  - `free-code dev:profile`
+  - `free-code dev:profile:auto`
+  - provider-specific `dev:profile:*` variants
+- Added provider diagnostics with `free-code doctor:provider`
+- Added gRPC dev helpers with `free-code dev:grpc` and `free-code dev:grpc:cli`
+- Added explicit gRPC cleanup helper with `free-code dev:grpc:stop`
+- Added headless transport helpers with `free-code dev:headless-transport` and `free-code test:headless-transport`
 - Added GitHub Copilot provider integration (OAuth/token exchange + API adapter)
-- Added repo-local provider toggles:
-  - `/openai` to set OpenAI/ChatGPT-Codex mode for this repo
-  - `/copilot` to set GitHub Copilot mode for this repo
-  - `/openrouter` to manage repo-local OpenRouter mode and model discovery
 - Added `/copilot models` and `/openrouter models` to probe model support from cached capability data
-- Fixed `/login` command availability so the command stays exposed instead of being disabled by environment gating
+- Restored `/usage` for Codex sessions and surfaced same usage state in Settings -> Status
+- Added `gpt-5.3-codex-spark` support, including `chatgpt-5.3-codex-spark` alias normalization
+- Standardized Haiku/Sonnet/Opus routing to provider-equivalent models on third-party backends
 - Improved provider-aware status and settings displays so active model/provider state resolves more consistently across the UI
 - Added startup provider override handling from `.claude/settings.json`
 - Improved Windows and filesystem path validation/permission handling for file access and PowerShell workflows
-- Added local Claude skill bundles for `domore`, `domore-caveman`, and `domore-distillate`
+- Restored `--dangerously-bypass-permissions` for normal tool/edit flows while keeping hard denies for critical Windows/system paths
+- Added local free-code skill bundles for `domore`, `domore-caveman`, and `domore-distillate`
 - Added ignore coverage for `.claude/settings.local.json`, `.claude/worktrees/`, and OpenSpec temp artifacts
 - Added OpenSpec change set for status snapshots, session memory persistence, and compaction inspectability
+- Commit trailers now use active adapter names instead of `unknown-adapter`
 - Updated config path resolution so `CLAUDE_CONFIG_HOME` works consistently for:
   - global `.claude*.json` config lookup
   - macOS keychain service naming for custom config locations
   - persistent memory and session continuity storage directories
 
-Provider preference changes are repo-local and apply on the next launch.
+Provider preferences stay repo-local. Bootstrap and launch scripts now cover setup, validation, and repeatable startup from project root.
 
 ---
 
@@ -159,17 +178,17 @@ If PATH was updated, open a new terminal session before first use.
 
 ## Model Providers
 
-free-code supports **five API providers** out of the box. Set the corresponding environment variable to switch providers -- no code changes needed.
+free-code supports **eleven API providers** out of the box. You can switch with environment flags or, for several third-party providers, repo-local slash commands persisted in `.claude/settings.json`.
 
-### Anthropic (Direct API) -- Default
+### First-Party Hosted Provider -- Default
 
-Use Anthropic's first-party API directly.
+Use the default first-party hosted API directly.
 
 | Model | ID |
 |---|---|
-| Claude Opus 4.6 | `claude-opus-4-6` |
-| Claude Sonnet 4.6 | `claude-sonnet-4-6` |
-| Claude Haiku 4.5 | `claude-haiku-4-5` |
+| Opus 4.6 | `claude-opus-4-6` |
+| Sonnet 4.6 | `claude-sonnet-4-6` |
+| Haiku 4.5 | `claude-haiku-4-5` |
 
 ### OpenAI Codex
 
@@ -177,20 +196,102 @@ Use OpenAI's Codex models for code generation. Requires a Codex subscription.
 
 | Model | ID |
 |---|---|
-| GPT-5.3 Codex (recommended) | `gpt-5.3-codex` |
-| GPT-5.4 | `gpt-5.4` |
+| GPT-5.4 (default) | `gpt-5.4` |
+| GPT-5.3 Codex | `gpt-5.3-codex` |
+| GPT-5.3 Codex Spark | `gpt-5.3-codex-spark` |
 | GPT-5.4 Mini | `gpt-5.4-mini` |
+| GPT-5.2 Codex | `gpt-5.2-codex` |
+| GPT-5.1 Codex Max | `gpt-5.1-codex-max` |
+| GPT-5.1 Codex | `gpt-5.1-codex` |
+| GPT-5.1 Codex Mini | `gpt-5.1-codex-mini` |
 
 ```bash
-export CLAUDE_CODE_USE_OPENAI=1
+export CLAUDE_CODE_USE_CODEX=1
 free-code
 ```
 
 You can also switch repo-locally from inside free-code:
 
 ```text
+/codex on
+/codex status
+/codex models
+```
+
+### OpenAI
+
+Use native OpenAI-compatible routing and capability discovery.
+
+```bash
+export CLAUDE_CODE_USE_OPENAI=1
+free-code
+```
+
+```text
 /openai on
 /openai status
+/openai models
+/openai capabilities <model>
+```
+
+### GitHub Copilot
+
+Use GitHub Copilot chat/completions models through OAuth-backed credentials.
+
+```bash
+export CLAUDE_CODE_USE_COPILOT=1
+free-code
+```
+
+```text
+/copilot on
+/copilot status
+/copilot models
+```
+
+### OpenRouter
+
+Use OpenRouter model IDs and optional repo-local API key storage.
+
+```bash
+export CLAUDE_CODE_USE_OPENROUTER=1
+export OPENROUTER_API_KEY="..."
+free-code
+```
+
+```text
+/openrouter <api-key>
+/openrouter status
+/openrouter models
+/openrouter off
+```
+
+### LM Studio
+
+Use local LM Studio-hosted models. `/lmstudio` stores repo-local preference and restarts session to avoid mixed provider state.
+
+```bash
+export CLAUDE_CODE_USE_LMSTUDIO=1
+free-code
+```
+
+### OpenCode Zen
+
+Use OpenCode Zen routing.
+
+```bash
+export CLAUDE_CODE_USE_ZEN=1
+free-code
+```
+
+### MiniMax
+
+Use MiniMax routing with API key auth.
+
+```bash
+export CLAUDE_CODE_USE_MINIMAX=1
+export MINIMAX_API_KEY="..."
+free-code
 ```
 
 ### AWS Bedrock
@@ -238,22 +339,27 @@ Supports custom deployment IDs as model names.
 
 ### Provider Selection Summary
 
-| Provider | Env Variable | Auth Method |
-|---|---|---|
-| Anthropic (default) | -- | `ANTHROPIC_API_KEY` or OAuth |
-| OpenAI Codex | `CLAUDE_CODE_USE_OPENAI=1` | OAuth via OpenAI |
-| AWS Bedrock | `CLAUDE_CODE_USE_BEDROCK=1` | AWS credentials |
-| Google Vertex AI | `CLAUDE_CODE_USE_VERTEX=1` | `gcloud` ADC |
-| Anthropic Foundry | `CLAUDE_CODE_USE_FOUNDRY=1` | `ANTHROPIC_FOUNDRY_API_KEY` |
+| Provider | Env Variable | Repo-local command | Auth Method |
+|---|---|---|---|
+| Anthropic (default) | -- | -- | `ANTHROPIC_API_KEY` or OAuth |
+| OpenAI Codex | `CLAUDE_CODE_USE_CODEX=1` | `/codex` | OAuth via OpenAI |
+| OpenAI | `CLAUDE_CODE_USE_OPENAI=1` | `/openai` | API key / compatible endpoint |
+| GitHub Copilot | `CLAUDE_CODE_USE_COPILOT=1` | `/copilot` | OAuth via GitHub |
+| OpenRouter | `CLAUDE_CODE_USE_OPENROUTER=1` | `/openrouter` | `OPENROUTER_API_KEY` |
+| LM Studio | `CLAUDE_CODE_USE_LMSTUDIO=1` | `/lmstudio` | Local LM Studio |
+| OpenCode Zen | `CLAUDE_CODE_USE_ZEN=1` | `/zen` | `OPENCODE_API_KEY` optional |
+| MiniMax | `CLAUDE_CODE_USE_MINIMAX=1` | `/minimax` | `MINIMAX_API_KEY` |
+| AWS Bedrock | `CLAUDE_CODE_USE_BEDROCK=1` | -- | AWS credentials |
+| Google Vertex AI | `CLAUDE_CODE_USE_VERTEX=1` | -- | `gcloud` ADC |
+| Anthropic Foundry | `CLAUDE_CODE_USE_FOUNDRY=1` | -- | `ANTHROPIC_FOUNDRY_API_KEY` |
 
-Note: repo-local `/openai` and `/copilot` commands store provider preference in `.claude/settings.json` for this repository and apply after restart.
+Repo-local commands exist for `codex`, `openai`, `copilot`, `openrouter`, `lmstudio`, `zen`, and `minimax`. All persist in `.claude/settings.json`; `/lmstudio` requires restart, others switch immediately.
 
 ---
 
 ## Requirements
 
 - **Runtime**: [Bun](https://bun.sh) >= 1.3.11
-- **OS**: macOS or Linux (Windows via WSL)
 - **OS**: macOS, Linux, or Windows PowerShell
 - **Auth**: An API key or OAuth login for your chosen provider
 
@@ -269,7 +375,7 @@ curl -fsSL https://bun.sh/install | bash
 ```bash
 git clone https://github.com/pfchrono/free-code.git
 cd free-code
-bun build
+bun run build
 ./cli
 ```
 
@@ -318,23 +424,35 @@ bun run dev
 Provider control commands (inside free-code):
 
 ```text
+/codex on
+/codex status
+/codex models
+
 /openai on
 /openai status
+/openai models
 /openai off
 
 /copilot on
 /copilot status
 /copilot models
 /copilot off
+
+/openrouter status
+/lmstudio status
+/zen status
+/minimax status
+/provider status
+/usage
 ```
 
-`/openai` and `/copilot` are repo-local toggles and take effect on next launch.
+`/codex`, `/openai`, `/copilot`, `/openrouter`, `/zen`, and `/minimax` switch current session and persist repo-local preference. `/lmstudio` persists preference and restarts session.
 
 ---
 
 ## ChatGPT and Copilot Workflow
 
-This is the recommended setup flow for teams that switch providers by repository.
+This is the recommended setup flow for teams that switch providers by repository. Same pattern also works for `/openrouter`, `/zen`, `/minimax`, and `/lmstudio`.
 
 ### 1) Install and verify
 
@@ -352,55 +470,92 @@ curl -fsSL https://raw.githubusercontent.com/pfchrono/free-code/main/install.sh 
 free-code -p "health check"
 ```
 
-### 2) Authenticate
+### 2) Bootstrap provider profile
 
-Run:
+From repo root, initialize provider profile and local settings:
 
-```text
-free-code /login
+```bash
+free-code profile:init
 ```
 
-Choose one account type:
+Or pick one directly:
 
-- OpenAI Codex (ChatGPT Plus/Pro)
-- GitHub Copilot
-- Claude.ai
-
-### 3) Set repo-local provider mode
-
-For ChatGPT/Codex repos:
-
-```text
-/openai on
-/openai status
+```bash
+free-code profile:codex
+free-code profile:openai
+free-code profile:copilot
+free-code profile:openrouter
+free-code profile:lmstudio
+free-code profile:zen
+free-code profile:minimax
+free-code profile:firstparty
 ```
 
-For GitHub Copilot repos:
+Auto-detect and recommend:
 
-```text
-/copilot on
-/copilot status
-/copilot models
+```bash
+free-code profile:auto
 ```
 
-Restart free-code after setting mode.
+### 3) Check provider health
 
-### 4) Daily workflow
+```bash
+free-code doctor:provider
+```
+
+This validates current provider wiring, auth expectations, and repo-local profile state.
+
+### 4) Launch dev session from selected profile
+
+```bash
+free-code dev:profile
+```
+
+Provider-specific launch helpers:
+
+```bash
+free-code dev:profile:auto
+free-code dev:profile:codex
+free-code dev:profile:openai
+free-code dev:profile:copilot
+free-code dev:profile:openrouter
+free-code dev:profile:lmstudio
+free-code dev:profile:zen
+free-code dev:profile:minimax
+free-code dev:profile:firstparty
+```
+
+### 5) gRPC dev helpers
+
+```bash
+bun run dev:grpc
+bun run dev:grpc:cli
+```
+
+Use these when testing local gRPC workflow or CLI transport.
+
+### 6) Daily workflow
 
 - Start in project root
-- Confirm provider status (`/openai status` or `/copilot status`)
+- Initialize or confirm provider profile (`free-code profile:init`, `free-code doctor:provider`)
+- Launch from profile (`free-code dev:profile`)
 - Use normal coding loop (`free-code`, agent tools, edits, tests)
 - Keep provider scoped by repository rather than mutating global shell env each time
+- Use `/usage` or Settings -> Status to inspect Codex/Copilot context and rate-limit state when available
 
-### 5) Switch back to first-party mode
+### 7) Switch provider mode later
 
-```text
-/openai off
+Re-run any profile command:
+
+```bash
+free-code profile:codex
 # or
-/copilot off
+free-code profile:openai
+# or
+free-code profile:copilot
+# or
+free-code profile:firstparty
 ```
-
-Restart to apply.
 
 ### Environment Variables Reference
 
@@ -426,7 +581,7 @@ The `bun run build:dev:full` build enables all 54 working feature flags. Highlig
 
 | Flag | Description |
 |---|---|
-| `ULTRAPLAN` | Remote multi-agent planning on Claude Code web (Opus-class) |
+| `ULTRAPLAN` | Remote multi-agent planning on Free-Code web (Opus-class) |
 | `ULTRATHINK` | Deep thinking mode -- type "ultrathink" to boost reasoning effort |
 | `VOICE_MODE` | Push-to-talk voice input and dictation |
 | `TOKEN_BUDGET` | Token budget tracking and usage warnings |
@@ -534,4 +689,4 @@ Contributions are welcome. If you're working on restoring one of the 34 broken f
 
 ## License
 
-The original Claude Code source is the property of Anthropic. This fork exists because the source was publicly exposed through their npm distribution. Use at your own discretion.
+The original upstream source came from Anthropic's npm distribution. This fork exists because that source was publicly exposed there. Use at your own discretion.

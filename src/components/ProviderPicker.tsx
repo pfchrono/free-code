@@ -26,8 +26,8 @@ export type ProviderOption = {
 const PROVIDER_OPTIONS: ProviderOption[] = [
   {
     value: 'firstParty',
-    label: 'Claude (Anthropic)',
-    description: 'Official Anthropic API with Claude models',
+    label: 'Free-Code Hosted',
+    description: 'Default hosted API with Claude model IDs',
     models: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5'],
   },
   {

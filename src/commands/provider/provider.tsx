@@ -20,7 +20,7 @@ import { useRegisterKeybindingContext } from '../../keybindings/KeybindingContex
 import { useExitOnCtrlCDWithKeybindings } from '../../hooks/useExitOnCtrlCDWithKeybindings.js'
 
 const PROVIDER_INFO: Record<string, { label: string; description: string; color?: string }> = {
-  firstParty: { label: 'Claude', description: 'Anthropic API', color: 'red' },
+  firstParty: { label: 'Free-Code Hosted', description: 'Default hosted API', color: 'red' },
   openai: { label: 'OpenAI', description: 'GPT models', color: 'green' },
   copilot: { label: 'Copilot', description: 'GitHub Copilot', color: 'blue' },
   codex: { label: 'Codex', description: 'OpenAI Codex', color: 'green' },

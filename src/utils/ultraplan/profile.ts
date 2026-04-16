@@ -5,29 +5,37 @@ export type UltraplanProfileConfig = {
   label: string
   maxTurns: number
   planningDirective: string
+  toolMode: 'core' | 'expanded'
+  maxToolRounds: number
 }
 
 const PROFILE_CONFIG: Record<UltraplanProfile, UltraplanProfileConfig> = {
   fast: {
     name: 'fast',
     label: 'Fast',
-    maxTurns: 4,
+    maxTurns: 6,
     planningDirective:
       'Bias for speed. Collapse low-value branches, make explicit assumptions, and return the most actionable plan quickly.',
+    toolMode: 'core',
+    maxToolRounds: 2,
   },
   deep: {
     name: 'deep',
     label: 'Deep',
-    maxTurns: 8,
+    maxTurns: 10,
     planningDirective:
       'Balance thoroughness and speed. Inspect enough code to ground architecture, then produce a detailed but practical execution plan.',
+    toolMode: 'expanded',
+    maxToolRounds: 4,
   },
   max: {
     name: 'max',
     label: 'Max',
-    maxTurns: 14,
+    maxTurns: 16,
     planningDirective:
       'Go broad and deep. Surface architecture seams, migration concerns, validation matrix, rollback risk, and ordering dependencies before finalizing the plan.',
+    toolMode: 'expanded',
+    maxToolRounds: 6,
   },
 }
 

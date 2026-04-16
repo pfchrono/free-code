@@ -183,6 +183,23 @@ export function SpinnerAnimationRow({
   const totalToolSavedTokens = toolSavedOutputTokens + toolSavedInputTokens;
   const toolsText = `${figures.arrowUp} ${formatNumber(toolSavedOutputTokens)} / ${figures.arrowDown} ${formatNumber(toolSavedInputTokens)} Tools`;
   const toolsWidth = totalToolSavedTokens > 0 ? stringWidth(toolsText) : 0;
+  const tokensNode = <Box flexDirection="row" key="tokens">
+      {!hasRunningTeammates && <SpinnerModeGlyph mode={mode} />}
+      <Text color="success">{figures.arrowUp} {formatNumber(liveOutputTokens)}</Text>
+      <Text dimColor> Out / </Text>
+      <Text color="warning">{figures.arrowDown} {formatNumber(liveInputTokens)}</Text>
+      <Text dimColor> In</Text>
+    </Box>;
+  const toolsNode = <Box flexDirection="row" key="tools">
+      <Text color="info">{figures.arrowUp} {formatNumber(toolSavedOutputTokens)}</Text>
+      <Text dimColor> / </Text>
+      <Text color="info">{figures.arrowDown} {formatNumber(toolSavedInputTokens)}</Text>
+      <Text dimColor> Tools</Text>
+    </Box>;
+  const savedNode = <Box flexDirection="row" key="saved">
+      <Text color="claude">{formatNumber(totalSavedTokens)}</Text>
+      <Text dimColor> Saved</Text>
+    </Box>;
 
   // === Thinking text (may shrink to fit) ===
   let thinkingText = thinkingStatus === 'thinking' ? `thinking${effortSuffix}` : typeof thinkingStatus === 'number' ? `thought for ${Math.max(1, Math.round(thinkingStatus / 1000))}s` : null;
@@ -224,14 +241,7 @@ export function SpinnerAnimationRow({
             {spinnerSuffix}
           </Text>] : []), ...(showTimer ? [<Text dimColor key="elapsedTime">
             {timerText}
-          </Text>] : []), ...(showTokens ? [<Box flexDirection="row" key="tokens">
-            {!hasRunningTeammates && <SpinnerModeGlyph mode={mode} />}
-            <Text dimColor>{tokensText}</Text>
-          </Box>] : []), ...(showTools ? [<Text dimColor key="tools">
-            {toolsText}
-          </Text>] : []), ...(showSaved ? [<Text dimColor key="saved">
-            {savedText}
-          </Text>] : []), ...(showThinking && thinkingText ? [thinkingStatus === 'thinking' && !reducedMotion ? <Text key="thinking" color={thinkingShimmerColor}>
+          </Text>] : []), ...(showTokens ? [tokensNode] : []), ...(showTools ? [toolsNode] : []), ...(showSaved ? [savedNode] : []), ...(showThinking && thinkingText ? [thinkingStatus === 'thinking' && !reducedMotion ? <Text key="thinking" color={thinkingShimmerColor}>
               {thinkingOnly ? `(${thinkingText})` : thinkingText}
             </Text> : <Text dimColor key="thinking">
               {thinkingText}

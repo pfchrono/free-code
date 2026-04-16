@@ -3,7 +3,7 @@ import { feature } from 'bun:bundle';
 import { dirname } from 'path';
 import React from 'react';
 import { useTerminalSize } from 'src/hooks/useTerminalSize.js';
-import { getOriginalCwd, switchSession } from '../bootstrap/state.js';
+import { getOriginalCwd, setCurrentResumeSource, switchSession } from '../bootstrap/state.js';
 import type { Command } from '../commands.js';
 import { LogSelector } from '../components/LogSelector.js';
 import { Spinner } from '../components/Spinner.js';
@@ -28,6 +28,7 @@ import { checkCrossProjectResume } from '../utils/crossProjectResume.js';
 import type { FileHistorySnapshot } from '../utils/fileHistory.js';
 import { logError } from '../utils/log.js';
 import { createSystemMessage } from '../utils/messages.js';
+import { recordPersistedResumeMetadata } from '../utils/persistedSessionState.js';
 import { computeStandaloneAgentContext, restoreAgentFromSession, restoreWorktreeForResume } from '../utils/sessionRestore.js';
 import { adoptResumedSessionFile, enrichLogs, isCustomTitleEnabled, loadAllProjectsMessageLogsProgressive, loadSameRepoMessageLogsProgressive, recordContentReplacement, resetSessionFilePointer, restoreSessionMetadata, type SessionLogResult } from '../utils/sessionStorage.js';
 import type { ThinkingConfig } from '../utils/thinking.js';
@@ -191,6 +192,12 @@ export function ResumeConversation({
       const result_3 = await loadConversationForResume(log_0, undefined);
       if (!result_3) {
         throw new Error('Failed to load conversation');
+      }
+      setCurrentResumeSource(result_3.resumeSource, result_3.resumeDetail);
+      if (result_3.sessionId) {
+        void recordPersistedResumeMetadata(result_3.sessionId, result_3.resumeSource, result_3.resumeDetail, {
+          transcriptPath: log_0.fullPath
+        });
       }
       if (feature('COORDINATOR_MODE')) {
         /* eslint-disable @typescript-eslint/no-require-imports */

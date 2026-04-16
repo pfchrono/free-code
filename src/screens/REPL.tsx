@@ -21,6 +21,7 @@ import { Box, Text, useStdin, useTheme, useTerminalFocus, useTerminalTitle, useT
 import type { TabStatusKind } from '../ink/hooks/use-tab-status.js';
 import { CostThresholdDialog } from '../components/CostThresholdDialog.js';
 import { IdleReturnDialog } from '../components/IdleReturnDialog.js';
+import { Divider } from '../components/design-system/Divider.js';
 import * as React from 'react';
 import { useEffect, useMemo, useRef, useState, useCallback, useDeferredValue, useLayoutEffect, type RefObject } from 'react';
 import { useNotifications } from '../context/notifications.js';
@@ -277,7 +278,9 @@ const launchUltraplan: typeof import('../commands/ultraplan.js').launchUltraplan
 import { IssueFlagBanner } from '../components/PromptInput/IssueFlagBanner.js';
 import { useIssueFlagBanner } from '../hooks/useIssueFlagBanner.js';
 import { CompanionSprite, CompanionFloatingBubble, MIN_COLS_FOR_FULL_SPRITE } from '../buddy/CompanionSprite.js';
+import { isBuddyEnabled } from '../buddy/feature.js';
 import { fireCompanionObserver } from '../buddy/observer.js';
+import { isPromptTypingSuppressionActive } from './replInputSuppression.js';
 import { DevBar } from '../components/DevBar.js';
 // Session manager removed - using AppState now
 import type { RemoteSessionConfig } from '../remote/RemoteSessionManager.js';
@@ -355,7 +358,7 @@ function TranscriptModeFooter(t0) {
   }
   let t5;
   if ($[6] !== t3 || $[7] !== t4) {
-    t5 = <Box noSelect={true} alignItems="center" alignSelf="center" borderTopDimColor={true} borderBottom={false} borderLeft={false} borderRight={false} borderStyle="single" marginTop={1} paddingLeft={2} width="100%">{t3}{t4}</Box>;
+    t5 = <Box noSelect={true} flexDirection="column" alignSelf="center" marginTop={1} width="100%"><Divider animated /><Box alignItems="center" paddingLeft={2} width="100%">{t3}{t4}</Box></Box>;
     $[6] = t3;
     $[7] = t4;
     $[8] = t5;
@@ -450,7 +453,7 @@ function TranscriptSearchBar({
   }, [query, warmDone]);
   const off = cursorOffset;
   const cursorChar = off < query.length ? query[off] : ' ';
-  return <Box borderTopDimColor borderBottom={false} borderLeft={false} borderRight={false} borderStyle="single" marginTop={1} paddingLeft={2} width="100%"
+  return <Box flexDirection="column" marginTop={1} width="100%"
   // applySearchHighlight scans the whole screen buffer. The query
   // text rendered here IS on screen — /foo matches its own 'foo' in
   // the bar. With no content matches that's the ONLY visible match →
@@ -458,20 +461,23 @@ function TranscriptSearchBar({
   // skip these cells (same exclusion as gutters). You can't text-
   // select the bar either; it's transient chrome, fine.
   noSelect>
-      <Text>/</Text>
-      <Text>{query.slice(0, off)}</Text>
-      <Text inverse>{cursorChar}</Text>
-      {off < query.length && <Text>{query.slice(off + 1)}</Text>}
-      <Box flexGrow={1} />
-      {indexStatus === 'building' ? <Text dimColor>indexing… </Text> : indexStatus ? <Text dimColor>indexed in {indexStatus.ms}ms </Text> : count === 0 && query ? <Text color="error">no matches </Text> : count > 0 ?
-    // Engine-counted (indexOf on extractSearchText). May drift from
-    // render-count for ghost/phantom messages — badge is a rough
-    // location hint. scanElement gives exact per-message positions
-    // but counting ALL would cost ~1-3ms × matched-messages.
-    <Text dimColor>
-          {current}/{count}
-          {'  '}
-        </Text> : null}
+      <Divider animated />
+      <Box paddingLeft={2} width="100%">
+        <Text>/</Text>
+        <Text>{query.slice(0, off)}</Text>
+        <Text inverse>{cursorChar}</Text>
+        {off < query.length && <Text>{query.slice(off + 1)}</Text>}
+        <Box flexGrow={1} />
+        {indexStatus === 'building' ? <Text dimColor>indexing… </Text> : indexStatus ? <Text dimColor>indexed in {indexStatus.ms}ms </Text> : count === 0 && query ? <Text color="error">no matches </Text> : count > 0 ?
+      // Engine-counted (indexOf on extractSearchText). May drift from
+      // render-count for ghost/phantom messages — badge is a rough
+      // location hint. scanElement gives exact per-message positions
+      // but counting ALL would cost ~1-3ms × matched-messages.
+      <Text dimColor>
+            {current}/{count}
+            {'  '}
+          </Text> : null}
+      </Box>
     </Box>;
 }
 const TITLE_ANIMATION_FRAMES = ['⠂', '⠐'];
@@ -1303,7 +1309,7 @@ export function REPL({
       // Dismiss the companion bubble on scroll — it's absolute-positioned
       // at bottom-right and covers transcript content. Scrolling = user is
       // trying to read something under it.
-      if (feature('BUDDY')) {
+      if (isBuddyEnabled()) {
         setAppState(prev => prev.companionReaction === undefined ? prev : {
           ...prev,
           companionReaction: undefined
@@ -1429,6 +1435,8 @@ export function REPL({
   // Ref instead of state to avoid triggering React re-renders on every
   // streaming text_delta. The spinner reads this via its animation timer.
   const responseLengthRef = useRef(0);
+  const inputTokensRef = useRef(0);
+  const outputTokensRef = useRef(0);
   // API performance metrics ref for ant-only spinner display (TTFT/OTPS).
   // Accumulates metrics from all API requests in a turn for P50 aggregation.
   const apiMetricsRef = useRef<Array<{
@@ -1576,6 +1584,8 @@ export function REPL({
     setIsExternalLoading(false);
     setUserInputOnProcessing(undefined);
     responseLengthRef.current = 0;
+    inputTokensRef.current = 0;
+    outputTokensRef.current = 0;
     apiMetricsRef.current = [];
     setStreamingText(null);
     setStreamingToolUses([]);
@@ -2013,6 +2023,7 @@ export function REPL({
 
   // Calculate if cost dialog should be shown
   const showingCostDialog = !isLoading && showCostDialog;
+  const promptTypingSuppressionActive = isPromptTypingSuppressionActive(isPromptInputActive, inputValue);
 
   // Determine which dialog should have focus (if any)
   // Permission and interactive dialogs can show even when toolJSX is set,
@@ -2026,7 +2037,7 @@ export function REPL({
     if (isMessageSelectorVisible) return 'message-selector';
 
     // Suppress interrupt dialogs while user is actively typing
-    if (isPromptInputActive) return undefined;
+    if (promptTypingSuppressionActive) return undefined;
     if (sandboxPermissionRequestQueue[0]) return 'sandbox-permission';
 
     // Permission/interactive dialogs (show unless blocked by toolJSX)
@@ -2038,7 +2049,7 @@ export function REPL({
     if (allowDialogsWithAnimation && elicitation.queue[0]) return 'elicitation';
     if (allowDialogsWithAnimation && showingCostDialog) return 'cost';
     if (allowDialogsWithAnimation && idleReturnPending) return 'idle-return';
-    if (feature('ULTRAPLAN') && allowDialogsWithAnimation && !isLoading && ultraplanPendingChoice) return 'ultraplan-choice';
+    if (feature('ULTRAPLAN') && allowDialogsWithAnimation && ultraplanPendingChoice) return 'ultraplan-choice';
     if (feature('ULTRAPLAN') && allowDialogsWithAnimation && !isLoading && ultraplanLaunchPending) return 'ultraplan-launch';
 
     // Onboarding dialogs (special conditions)
@@ -2069,7 +2080,7 @@ export function REPL({
   const focusedInputDialog = getFocusedInputDialog();
 
   // True when permission prompts exist but are hidden because the user is typing
-  const hasSuppressedDialogs = isPromptInputActive && (sandboxPermissionRequestQueue[0] || toolUseConfirmQueue[0] || promptQueue[0] || workerSandboxPermissions.queue[0] || elicitation.queue[0] || showingCostDialog);
+  const hasSuppressedDialogs = promptTypingSuppressionActive && (sandboxPermissionRequestQueue[0] || toolUseConfirmQueue[0] || promptQueue[0] || workerSandboxPermissions.queue[0] || elicitation.queue[0] || showingCostDialog);
 
   // Keep ref in sync so timer callbacks can read the current value
   focusedInputDialogRef.current = focusedInputDialog;
@@ -2805,7 +2816,7 @@ export function REPL({
     })) {
       onQueryEvent(event);
     }
-    if (feature('BUDDY')) {
+    if (isBuddyEnabled()) {
       void fireCompanionObserver(messagesRef.current, reaction => setAppState(prev => prev.companionReaction === reaction ? prev : {
         ...prev,
         companionReaction: reaction
@@ -4566,7 +4577,7 @@ export function REPL({
       {feature('MESSAGE_ACTIONS') && isFullscreenEnvEnabled() && !disableMessageActions ? <MessageActionsKeybindings handlers={messageActionHandlers} isActive={cursor !== null} /> : null}
       <CancelRequestHandler {...cancelRequestProps} />
       <MCPConnectionManager key={remountKey} dynamicMcpConfig={dynamicMcpConfig} isStrictMcpConfig={strictMcpConfig}>
-        <FullscreenLayout scrollRef={scrollRef} overlay={toolPermissionOverlay} bottomFloat={feature('BUDDY') && companionVisible && !companionNarrow ? <CompanionFloatingBubble /> : undefined} modal={centeredModal} modalScrollRef={modalScrollRef} dividerYRef={dividerYRef} hidePill={!!viewedAgentTask} hideSticky={!!viewedTeammateTask} newMessageCount={unseenDivider?.count ?? 0} onPillClick={() => {
+        <FullscreenLayout scrollRef={scrollRef} overlay={toolPermissionOverlay} bottomFloat={isBuddyEnabled() && companionVisible && !companionNarrow ? <CompanionFloatingBubble /> : undefined} modal={centeredModal} modalScrollRef={modalScrollRef} dividerYRef={dividerYRef} hidePill={!!viewedAgentTask} hideSticky={!!viewedTeammateTask} newMessageCount={unseenDivider?.count ?? 0} onPillClick={() => {
         setCursor(null);
         jumpToNew(scrollRef.current);
       }} scrollable={<>
@@ -4588,11 +4599,11 @@ export function REPL({
               {"external" === 'ant' && <TungstenLiveMonitor />}
               {feature('WEB_BROWSER_TOOL') ? WebBrowserPanelModule && <WebBrowserPanelModule.WebBrowserPanel /> : null}
               <Box flexGrow={1} />
-              {showSpinner && <SpinnerWithVerb mode={streamMode} spinnerTip={spinnerTip} responseLengthRef={responseLengthRef} apiMetricsRef={apiMetricsRef} overrideMessage={spinnerMessage} spinnerSuffix={stopHookSpinnerSuffix} verbose={verbose} loadingStartTimeRef={loadingStartTimeRef} totalPausedMsRef={totalPausedMsRef} pauseStartTimeRef={pauseStartTimeRef} overrideColor={spinnerColor} overrideShimmerColor={spinnerShimmerColor} hasActiveTools={inProgressToolUseIDs.size > 0} leaderIsIdle={!isLoading} />}
+              {showSpinner && <SpinnerWithVerb mode={streamMode} spinnerTip={spinnerTip} responseLengthRef={responseLengthRef} inputTokensRef={inputTokensRef} outputTokensRef={outputTokensRef} overrideMessage={spinnerMessage} spinnerSuffix={stopHookSpinnerSuffix} verbose={verbose} loadingStartTimeRef={loadingStartTimeRef} totalPausedMsRef={totalPausedMsRef} pauseStartTimeRef={pauseStartTimeRef} overrideColor={spinnerColor} overrideShimmerColor={spinnerShimmerColor} hasActiveTools={inProgressToolUseIDs.size > 0} leaderIsIdle={!isLoading} />}
               {!showSpinner && !isLoading && !userInputOnProcessing && !hasRunningTeammates && isBriefOnly && !viewedAgentTask && <BriefIdleStatus />}
               {isFullscreenEnvEnabled() && <PromptInputQueuedCommands />}
-            </>} bottom={<Box flexDirection={feature('BUDDY') && companionNarrow ? 'column' : 'row'} width="100%" alignItems={feature('BUDDY') && companionNarrow ? undefined : 'flex-end'}>
-              {feature('BUDDY') && companionNarrow && isFullscreenEnvEnabled() && companionVisible ? <CompanionSprite /> : null}
+            </>} bottom={<Box flexDirection={isBuddyEnabled() && companionNarrow ? 'column' : 'row'} width="100%" alignItems={isBuddyEnabled() && companionNarrow ? undefined : 'flex-end'}>
+              {isBuddyEnabled() && companionNarrow && isFullscreenEnvEnabled() && companionVisible ? <CompanionSprite /> : null}
               <Box flexDirection="column" flexGrow={1}>
                 {permissionStickyFooter}
                 {/* Immediate local-jsx commands (/btw, /sandbox, /assistant,
@@ -4998,7 +5009,7 @@ export function REPL({
           }} />}
                 {"external" === 'ant' && <DevBar />}
               </Box>
-              {feature('BUDDY') && !(companionNarrow && isFullscreenEnvEnabled()) && companionVisible ? <CompanionSprite /> : null}
+              {isBuddyEnabled() && !(companionNarrow && isFullscreenEnvEnabled()) && companionVisible ? <CompanionSprite /> : null}
             </Box>} />
       </MCPConnectionManager>
     </KeybindingSetup>;

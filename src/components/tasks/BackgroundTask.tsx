@@ -6,6 +6,7 @@ import type { DeepImmutable } from 'src/types/utils.js';
 import { truncate } from 'src/utils/format.js';
 import { toInkColor } from 'src/utils/ink.js';
 import { plural } from 'src/utils/stringUtils.js';
+import { getUltraplanPhaseDisplay } from 'src/utils/ultraplan/phase.js';
 import { DIAMOND_FILLED, DIAMOND_OPEN } from '../../constants/figures.js';
 import { RemoteSessionProgress } from './RemoteSessionProgress.js';
 import { ShellProgress, TaskStatusText } from './ShellProgress.js';
@@ -15,7 +16,7 @@ type Props = {
   maxActivityWidth?: number;
 };
 export function BackgroundTask(t0) {
-  const $ = _c(92);
+  const $ = _c(99);
   const {
     task,
     maxActivityWidth
@@ -248,16 +249,27 @@ export function BackgroundTask(t0) {
         } else {
           t5 = $[63];
         }
+        const phase = getUltraplanPhaseDisplay(task.status, task.summary);
         let t6;
-        if ($[64] !== t2 || $[65] !== t5) {
-          t6 = <Text>{t2}{" "}{t5}</Text>;
-          $[64] = t2;
-          $[65] = t5;
-          $[66] = t6;
+        if ($[92] !== phase.label || $[93] !== phase.tone) {
+          t6 = <Text color={phase.tone}>[{phase.label}]</Text>;
+          $[92] = phase.label;
+          $[93] = phase.tone;
+          $[94] = t6;
         } else {
-          t6 = $[66];
+          t6 = $[94];
         }
-        return t6;
+        let t7;
+        if ($[95] !== t2 || $[96] !== t5 || $[97] !== t6) {
+          t7 = <Text>{t6} {t2}{" "}{t5}</Text>;
+          $[95] = t2;
+          $[96] = t5;
+          $[97] = t6;
+          $[98] = t7;
+        } else {
+          t7 = $[98];
+        }
+        return t7;
       }
     case "monitor_mcp":
       {

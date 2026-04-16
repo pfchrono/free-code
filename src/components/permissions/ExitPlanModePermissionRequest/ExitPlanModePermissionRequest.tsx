@@ -600,7 +600,7 @@ export function ExitPlanModePermissionRequest({
     }
     return <PermissionDialog color="planMode" title="Exit plan mode?" workerBadge={workerBadge}>
         <Box flexDirection="column" paddingX={1} marginTop={1}>
-          <Text>Claude wants to exit plan mode</Text>
+          <Text>Free-Code wants to exit plan mode</Text>
           <Box marginTop={1}>
             <Select options={[{
             label: 'Yes',
@@ -644,7 +644,7 @@ export function ExitPlanModePermissionRequest({
                 </Box>}
             {!useStickyFooter && <>
                 <Text dimColor>
-                  Claude has written up a plan and is ready to execute. Would
+                  Free-Code has written up a plan and is ready to execute. Would
                   you like to proceed?
                 </Text>
                 <Box marginTop={1}>
@@ -738,7 +738,7 @@ export function buildPlanApprovalOptions({
     type: 'input',
     label: 'No, keep planning',
     value: 'no',
-    placeholder: 'Tell Claude what to change',
+    placeholder: 'Tell Free-Code what to change',
     description: 'shift+tab to approve with this feedback',
     onChange: onFeedbackChange
   });

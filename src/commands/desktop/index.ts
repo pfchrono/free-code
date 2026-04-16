@@ -15,7 +15,7 @@ const desktop = {
   type: 'local-jsx',
   name: 'desktop',
   aliases: ['app'],
-  description: 'Continue the current session in Claude Desktop',
+  description: 'Continue the current session in Free-Code Desktop',
   availability: ['claude-ai'],
   isEnabled: () =>
     shouldAllowAnthropicHostedServices() && isSupportedPlatform(),
