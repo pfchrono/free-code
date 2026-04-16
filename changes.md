@@ -2,7 +2,7 @@
 
 All notable changes to free-code are documented here.
 
-## [0.3.1] - 2026-04-16
+## [0.5.0] - 2026-04-16
 
 <!-- GENERATED_RECENT_COMMITS_START -->
 ### Recent commits
