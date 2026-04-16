@@ -2,10 +2,11 @@
 
 All notable changes to free-code are documented here.
 
-## [0.5.0] - 2026-04-16
+## [0.5.1] - 2026-04-16
 
 <!-- GENERATED_RECENT_COMMITS_START -->
 ### Recent commits
+- 2026-04-16 retry commit after hook fix
 - 2026-04-16 feat: expand ultraplan workflow and provider/status tooling
 - 2026-04-13 chore: ignore local claude session files
 - 2026-04-13 chore: stop tracking local session history
@@ -25,7 +26,6 @@ All notable changes to free-code are documented here.
 - 2026-04-08 fix: remove anthropic email from default attribution
 - 2026-04-08 feat: comprehensive token reduction optimization
 - 2026-04-07 feat: expand command system, infrastructure, and UI overhaul
-- 2026-04-06 feat: ship provider and model workflow expansion
 <!-- GENERATED_RECENT_COMMITS_END -->
 
 

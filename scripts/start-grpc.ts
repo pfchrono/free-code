@@ -1,10 +1,15 @@
 import { GrpcServer } from '../src/grpc/server.ts'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 import { init } from '../src/entrypoints/init.ts'
 import {
   applyProviderRuntimeBootstrap,
   formatProviderRuntimeStatus,
   getProviderRuntimeValidationError,
 } from '../src/utils/providerRuntime.js'
+
+const PID_DIR = path.resolve(process.cwd(), '.tmp')
+const PID_PATH = path.join(PID_DIR, 'grpc-server.pid')
 
 Object.assign(globalThis, {
   MACRO: {
@@ -40,6 +45,20 @@ async function main(): Promise<void> {
   const host = process.env.GRPC_HOST || 'localhost'
   const server = new GrpcServer()
   server.start(port, host)
+  await mkdir(PID_DIR, { recursive: true })
+  await writeFile(PID_PATH, `${process.pid}\n`, 'utf8')
+
+  await new Promise<void>((resolve, reject) => {
+    const shutdown = async () => {
+      await server.stop()
+      resolve()
+    }
+    process.once('SIGINT', () => void shutdown())
+    process.once('SIGTERM', () => void shutdown())
+    process.once('uncaughtException', reject)
+  })
+
+  await rm(PID_PATH, { force: true })
 }
 
 main().catch(err => {

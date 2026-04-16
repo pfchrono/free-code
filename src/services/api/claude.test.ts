@@ -134,4 +134,21 @@ describe('getSystemPrompt', () => {
     expect(joined).toContain('keep the antihero voice but compress it hard and keep jokes terse')
     expect(joined).toContain('keep jokes short, compressed, and secondary to technical clarity')
   })
+
+  it('makes deadpool mode override plain-language tone guidance', async () => {
+    const prompt = await buildPrompt({
+      deadpoolModeEnabled: true,
+    })
+    const joined = prompt.join('\n\n')
+
+    expect(joined).toContain(
+      'This mode overrides the default plain-language tone guidance for all user-visible prose.',
+    )
+    expect(joined).toContain(
+      'it MUST sound recognizably Deadpool-flavored unless the task is serious enough to reduce joke density',
+    )
+    expect(joined).toContain(
+      'Deadpool mode: "Parser had a null-check faceplant. I patched it and chained a regression test to the radiator."',
+    )
+  })
 })

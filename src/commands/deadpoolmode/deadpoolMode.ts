@@ -8,14 +8,43 @@ import {
 
 const DISABLE_ARGS = new Set(['off', 'disable', 'disabled'])
 const ENABLE_ARGS = new Set(['on', 'enable', 'enabled'])
+const STATUS_ARGS = new Set(['status', 'state'])
 
 function isDeadpoolModeEnabled(): boolean {
   return getInitialSettings().deadpoolModeEnabled === true
 }
 
-export const call: LocalCommandCall = async (_onDone, _context, args?: string) => {
-  const normalizedArg = args?.trim().toLowerCase() || ''
+function getStyleStackMessage(overrides?: {
+  deadpoolModeEnabled?: boolean
+  cavemanModeEnabled?: boolean
+}): string {
+  const settings = getInitialSettings()
+  const activeStyles: string[] = []
+
+  if ((overrides?.deadpoolModeEnabled ?? settings.deadpoolModeEnabled) === true) {
+    activeStyles.push('deadpool')
+  }
+  if ((overrides?.cavemanModeEnabled ?? settings.cavemanModeEnabled) === true) {
+    activeStyles.push('caveman')
+  }
+
+  if (activeStyles.length === 0) {
+    return 'Style stack: normal.'
+  }
+
+  return `Style stack: ${activeStyles.join(' + ')}.`
+}
+
+export const call: LocalCommandCall = async (args = '', _context) => {
+  const normalizedArg = args.trim().toLowerCase()
   const wasEnabled = isDeadpoolModeEnabled()
+
+  if (STATUS_ARGS.has(normalizedArg)) {
+    return {
+      type: 'text' as const,
+      value: `${isDeadpoolModeEnabled() ? 'Deadpool mode ON.' : 'Deadpool mode OFF.'} ${getStyleStackMessage()}`,
+    }
+  }
 
   let newState: boolean
 
@@ -49,10 +78,10 @@ export const call: LocalCommandCall = async (_onDone, _context, args?: string) =
     type: 'text' as const,
     value: newState
       ? getInitialSettings().cavemanModeEnabled === true
-        ? 'Deadpool mode ON. Caveman mode still ON. Replies keep antihero voice, but compressed.'
+        ? `Deadpool mode ON. Caveman mode still ON. Replies keep antihero voice, but compressed. ${getStyleStackMessage({ deadpoolModeEnabled: true })}`
         : 'Deadpool mode ON. Replies now use snarky antihero voice. Code and structured output stay normal.'
       : getInitialSettings().cavemanModeEnabled === true
-        ? 'Deadpool mode OFF. Caveman mode still ON.'
-        : 'Deadpool mode OFF. Replies back to normal voice.',
+        ? `Deadpool mode OFF. Caveman mode still ON. ${getStyleStackMessage({ deadpoolModeEnabled: false })}`
+        : `Deadpool mode OFF. Replies back to normal voice. ${getStyleStackMessage({ deadpoolModeEnabled: false })}`,
   }
 }

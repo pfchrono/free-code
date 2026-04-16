@@ -27,7 +27,7 @@ describe('deadpoolMode command', () => {
     }))
 
     const { call } = await import('./deadpoolMode.js')
-    const result = await call(() => {}, {} as never, 'on')
+    const result = await call('on', {} as never)
 
     expect(updateSettingsForSource).toHaveBeenCalledWith('userSettings', {
       deadpoolModeEnabled: true,
@@ -35,7 +35,36 @@ describe('deadpoolMode command', () => {
     expect(result).toEqual({
       type: 'text',
       value:
-        'Deadpool mode ON. Caveman mode still ON. Replies keep antihero voice, but compressed.',
+        'Deadpool mode ON. Caveman mode still ON. Replies keep antihero voice, but compressed. Style stack: deadpool + caveman.',
+    })
+  })
+
+  it('reports effective style stack without changing settings', async () => {
+    const updateSettingsForSource = mock(() => ({}))
+
+    mock.module('../../utils/settings/settings.js', () => ({
+      getInitialSettings: () => ({
+        cavemanModeEnabled: true,
+        deadpoolModeEnabled: true,
+      }),
+      updateSettingsForSource,
+    }))
+    mock.module('../../utils/settings/changeDetector.js', () => ({
+      settingsChangeDetector: {
+        notifyChange: mock(() => {}),
+      },
+    }))
+    mock.module('src/services/analytics/index.js', () => ({
+      logEvent: mock(() => {}),
+    }))
+
+    const { call } = await import('./deadpoolMode.js')
+    const result = await call('status', {} as never)
+
+    expect(updateSettingsForSource).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      type: 'text',
+      value: 'Deadpool mode ON. Style stack: deadpool + caveman.',
     })
   })
 })

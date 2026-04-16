@@ -50,14 +50,6 @@ function bumpVersion(version: string, releaseType: ReleaseType): string {
   return `${major}.${minor}.${patch + 1}`
 }
 
-function getStagedStats() {
-  const output = runGit(['diff', '--cached', '--shortstat'])
-  const files = Number(output.match(/(\d+) files? changed/)?.[1] ?? '0')
-  const insertions = Number(output.match(/(\d+) insertions?\(\+\)/)?.[1] ?? '0')
-  const deletions = Number(output.match(/(\d+) deletions?\(-\)/)?.[1] ?? '0')
-  return { files, insertions, deletions, totalLines: insertions + deletions }
-}
-
 function detectReleaseType(commitMessage: string): ReleaseType {
   const message = commitMessage.trim()
   const lower = message.toLowerCase()
@@ -131,27 +123,33 @@ function setPackageVersion(version: string) {
   writeFileSync(packageJsonPath, `${JSON.stringify(pkg, null, 2)}\n`)
 }
 
+function stageReleaseFiles() {
+  runGit(['add', 'package.json', 'changes.md'])
+}
+
+function getCurrentVersion() {
+  const pkg = readJson<{ version: string }>(packageJsonPath)
+  return pkg.version === '1.0.0' ? initialVersion : pkg.version
+}
+
 const [mode, arg] = process.argv.slice(2)
 
 if (mode === 'pre-commit') {
-  const pkg = readJson<{ version: string }>(packageJsonPath)
-  const version = pkg.version === '1.0.0' ? initialVersion : pkg.version
-  if (version !== pkg.version) {
-    setPackageVersion(version)
-  }
+  const version = getCurrentVersion()
+  setPackageVersion(version)
   updateChanges(version)
+  stageReleaseFiles()
   process.exit(0)
 }
 
-if (mode === 'commit-msg') {
+if (mode === 'prepare-commit-msg') {
   if (!arg) throw new Error('Missing commit message file path')
   const message = readFileSync(arg, 'utf-8')
-  const pkg = readJson<{ version: string }>(packageJsonPath)
-  const currentVersion = pkg.version === '1.0.0' ? initialVersion : pkg.version
-  const nextVersion = bumpVersion(currentVersion, detectReleaseType(message))
+  const nextVersion = bumpVersion(getCurrentVersion(), detectReleaseType(message))
   setPackageVersion(nextVersion)
   updateChanges(nextVersion)
+  stageReleaseFiles()
   process.exit(0)
 }
 
-throw new Error('Usage: bun run ./scripts/update-release-metadata.ts <pre-commit|commit-msg> [commit-msg-file]')
+throw new Error('Usage: bun run ./scripts/update-release-metadata.ts <pre-commit|prepare-commit-msg> [commit-msg-file]')

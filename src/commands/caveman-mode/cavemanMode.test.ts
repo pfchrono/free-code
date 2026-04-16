@@ -27,7 +27,7 @@ describe('cavemanMode command', () => {
     }))
 
     const { call } = await import('./cavemanMode.js')
-    const result = await call(() => {}, {} as never, 'on')
+    const result = await call('on', {} as never)
 
     expect(updateSettingsForSource).toHaveBeenCalledWith('userSettings', {
       cavemanModeEnabled: true,

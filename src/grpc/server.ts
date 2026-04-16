@@ -10,6 +10,7 @@ import {
   FileStateCache,
   READ_FILE_STATE_CACHE_SIZE,
 } from '../utils/fileStateCache.js'
+import { runHeadlessLocalSlashCommand } from '../utils/headlessLocalCommandRunner.js'
 
 const PROTO_PATH = path.resolve(import.meta.dirname, '../proto/openclaude.proto')
 
@@ -29,6 +30,8 @@ const MAX_SESSIONS = 1000
 export class GrpcServer {
   private server: grpc.Server
   private sessions = new Map<string, any[]>()
+  private activeEngines = new Set<QueryEngine>()
+  private isStopping = false
 
   constructor() {
     this.server = new grpc.Server()
@@ -49,6 +52,44 @@ export class GrpcServer {
         console.log(`gRPC server running at ${host}:${boundPort}`)
       },
     )
+  }
+
+  async stop(graceMs = 2_000): Promise<void> {
+    if (this.isStopping) {
+      return
+    }
+    this.isStopping = true
+
+    for (const engine of this.activeEngines) {
+      engine.interrupt()
+    }
+
+    await new Promise<void>(resolve => {
+      let settled = false
+      const finish = (): void => {
+        if (settled) {
+          return
+        }
+        settled = true
+        resolve()
+      }
+
+      const forceTimer = setTimeout(() => {
+        try {
+          this.server.forceShutdown()
+        } finally {
+          finish()
+        }
+      }, graceMs)
+
+      this.server.tryShutdown(error => {
+        clearTimeout(forceTimer)
+        if (error) {
+          this.server.forceShutdown()
+        }
+        finish()
+      })
+    })
   }
 
   private handleChat(call: grpc.ServerDuplexStream<any, any>): void {
@@ -88,6 +129,35 @@ export class GrpcServer {
           const toolNameById = new Map<string, string>()
           const cwd = req.working_directory || process.cwd()
           const commands = await getCommands(cwd)
+          const directLocalCommand = await runHeadlessLocalSlashCommand(
+            req.message,
+            {
+              cwd,
+              appState,
+              setAppState: updater => {
+                appState = updater(appState)
+              },
+              messages: previousMessages,
+              fileCache,
+            },
+          )
+
+          if (directLocalCommand) {
+            const { result } = directLocalCommand
+            call.write({
+              done: {
+                full_text:
+                  result.type === 'text'
+                    ? result.value
+                    : result.type === 'compact'
+                      ? result.displayText ?? ''
+                      : '',
+                prompt_tokens: 0,
+                completion_tokens: 0,
+              },
+            })
+            return
+          }
 
           engine = new QueryEngine({
             cwd,
@@ -144,6 +214,7 @@ export class GrpcServer {
             userSpecifiedModel: req.model,
             fallbackModel: req.model,
           })
+          this.activeEngines.add(engine)
 
           let fullText = ''
           let promptTokens = 0
@@ -217,6 +288,9 @@ export class GrpcServer {
             })
           }
 
+          if (engine) {
+            this.activeEngines.delete(engine)
+          }
           engine = null
         } else if (clientMessage.input) {
           const promptId = clientMessage.input.prompt_id
@@ -248,7 +322,10 @@ export class GrpcServer {
       for (const resolve of pendingRequests.values()) {
         resolve('no')
       }
-      engine?.interrupt()
+      if (engine) {
+        engine.interrupt()
+        this.activeEngines.delete(engine)
+      }
       engine = null
       pendingRequests.clear()
     })

@@ -13,8 +13,8 @@ function isCavemanModeEnabled(): boolean {
   return getInitialSettings().cavemanModeEnabled === true
 }
 
-export const call: LocalCommandCall = async (_onDone, _context, args?: string) => {
-  const normalizedArg = args?.trim().toLowerCase() || ''
+export const call: LocalCommandCall = async (args = '', _context) => {
+  const normalizedArg = args.trim().toLowerCase()
   const wasEnabled = isCavemanModeEnabled()
 
   let newState: boolean

@@ -1,6 +1,6 @@
 {
   "name": "free-code-source",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "Freecode CLI workspace for agentic coding.",
   "type": "module",
@@ -37,6 +37,7 @@
     "dev:profile:zen": "bun run ./scripts/provider-launch.ts zen",
     "dev:profile:firstparty": "bun run ./scripts/provider-launch.ts firstParty",
     "dev:grpc": "bun run ./scripts/start-grpc.ts",
+    "dev:grpc:stop": "bun run ./scripts/stop-grpc.ts",
     "dev:grpc:cli": "bun run ./scripts/grpc-cli.ts",
     "dev:headless-transport": "bun run ./scripts/headless-transport-server.ts",
     "test:headless-integration": "bun run ./scripts/headless-integration.ts",
