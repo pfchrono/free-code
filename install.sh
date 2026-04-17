@@ -17,6 +17,7 @@ REPO="https://github.com/pfchrono/free-code.git"
 DEFAULT_INSTALL_DIR="$HOME/free-code"
 BUN_MIN_VERSION="1.3.11"
 DEV=0
+MCP=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 USE_LOCAL_SOURCE=0
 INSTALL_DIR="$DEFAULT_INSTALL_DIR"
@@ -24,8 +25,9 @@ INSTALL_DIR="$DEFAULT_INSTALL_DIR"
 for arg in "$@"; do
   case "$arg" in
     --dev|-d) DEV=1 ;;
+    --mcp) MCP=1 ;;
     *)
-      fail "Unknown argument: $arg. Supported: --dev"
+      fail "Unknown argument: $arg. Supported: --dev, --mcp"
       ;;
   esac
 done
@@ -145,38 +147,56 @@ install_deps() {
   ok "Dependencies installed"
 }
 
-build_binary() {
-  local binary_path label
+resolve_built_binary() {
+  local candidates=()
   if [ "$DEV" -eq 1 ]; then
-    binary_path="$INSTALL_DIR/cli-dev"
-    label="Building free-code dev binary (all experimental features enabled)..."
+    candidates=(
+      "$INSTALL_DIR/dist/cli-dev"
+      "$INSTALL_DIR/dist/cli"
+    )
   else
-    binary_path="$INSTALL_DIR/cli"
-    label="Building free-code standard binary..."
+    candidates=(
+      "$INSTALL_DIR/dist/cli"
+    )
   fi
 
-  info "$label"
-  cd "$INSTALL_DIR"
+  for candidate in "${candidates[@]}"; do
+    if [ -f "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+build_binary() {
+  local binary_path build_label build_script expected_binary
   if [ "$DEV" -eq 1 ]; then
-    bun run build:dev:full
+    build_label="Building free-code dev binary (all experimental features enabled, no telemetry)..."
+    build_script="compile:dev:full:no-telemetry"
+    expected_binary="cli-dev"
   else
-    bun run build
+    build_label="Building free-code standard binary (no telemetry)..."
+    build_script="compile:no-telemetry"
+    expected_binary="cli"
   fi
+
+  info "$build_label"
+  cd "$INSTALL_DIR"
+  bun run "$build_script"
+  binary_path="$(resolve_built_binary)" || fail "Build completed but $expected_binary was not found in dist/."
+  info "Verifying $binary_path for phone-home patterns..."
+  bun run verify:no-phone-home -- "$binary_path"
+  BUILT_BINARY="$binary_path"
   ok "Binary built: $binary_path"
 }
 
 link_binary() {
   local link_dir="$HOME/.local/bin"
-  local target_binary
   mkdir -p "$link_dir"
 
-  if [ "$DEV" -eq 1 ]; then
-    target_binary="$INSTALL_DIR/cli-dev"
-  else
-    target_binary="$INSTALL_DIR/cli"
-  fi
-
-  ln -sf "$target_binary" "$link_dir/free-code"
+  ln -sf "$BUILT_BINARY" "$link_dir/free-code"
   ok "Symlinked: $link_dir/free-code"
 
   if ! echo "$PATH" | tr ':' '\n' | grep -qx "$link_dir"; then
@@ -186,6 +206,94 @@ link_binary() {
     printf "${BOLD}    export PATH=\"\$HOME/.local/bin:\$PATH\"${RESET}\n"
     echo ""
   fi
+}
+
+install_mcp_servers() {
+  local npm_cmd mcp_workspace local_prefix code_summarizer_cmd token_monitor_cmd existing_servers
+  info "Installing MCP servers..."
+
+  npm_cmd="$(command -v npm || true)"
+  if [ -z "$npm_cmd" ]; then
+    fail "npm is required for MCP server installation.
+    Install Node.js first:
+      macOS:  brew install node
+      Linux:  use your distro package manager for nodejs/npm"
+  fi
+
+  mcp_workspace="$INSTALL_DIR/mcp-servers"
+  local_prefix="$HOME/.local"
+  code_summarizer_cmd="$local_prefix/bin/code-summarizer"
+  token_monitor_cmd="$local_prefix/bin/token-monitor"
+
+  install_local_mcp_launcher() {
+    local package_name="$1"
+    local command_name="$2"
+    local package_entry="$local_prefix/lib/node_modules/$package_name/build/index.js"
+
+    if [ ! -f "$package_entry" ]; then
+      warn "  Package entry for '$command_name' not found at '$package_entry'"
+      return 1
+    fi
+
+    mkdir -p "$local_prefix/bin"
+    cat >"$local_prefix/bin/$command_name" <<EOF
+#!/usr/bin/env sh
+exec node "$package_entry" "\$@"
+EOF
+    chmod +x "$local_prefix/bin/$command_name"
+    ok "  Installed stable launcher: $local_prefix/bin/$command_name"
+  }
+
+  if [ -d "$mcp_workspace" ]; then
+    info "Building local MCP servers from $mcp_workspace..."
+    cd "$mcp_workspace"
+    "$npm_cmd" install
+    "$npm_cmd" run build
+    "$npm_cmd" install --global --prefix "$local_prefix" --workspaces=false ./token-monitor
+    "$npm_cmd" install --global --prefix "$local_prefix" --workspaces=false ./code-summarizer
+    install_local_mcp_launcher "@free-code/mcp-token-monitor" "token-monitor"
+    install_local_mcp_launcher "@free-code/mcp-code-summarizer" "code-summarizer"
+  else
+    warn "MCP workspace not found at $mcp_workspace. Skipping local MCP package install."
+  fi
+
+  existing_servers="$("$HOME/.local/bin/free-code" mcp list 2>&1 || true)"
+
+  while IFS='|' read -r server_name server_cmd server_args; do
+    [ -n "$server_name" ] || continue
+
+    if printf '%s\n' "$existing_servers" | grep -Fqi "$server_name"; then
+      ok "  MCP server '$server_name' already installed, skipping"
+      continue
+    fi
+
+    if { [ "$server_name" = "code-summarizer" ] || [ "$server_name" = "token-monitor" ]; } && [ ! -x "$server_cmd" ]; then
+      warn "  MCP server '$server_name' launcher not found at '$server_cmd'. Skipping."
+      continue
+    fi
+
+    info "  Adding MCP server: $server_name"
+    if [ -n "$server_args" ]; then
+      if "$HOME/.local/bin/free-code" mcp add "$server_name" "$server_cmd" $server_args >/dev/null 2>&1; then
+        ok "  MCP server '$server_name' added successfully"
+      else
+        warn "  MCP server '$server_name' failed. Skipping."
+      fi
+    else
+      if "$HOME/.local/bin/free-code" mcp add "$server_name" "$server_cmd" >/dev/null 2>&1; then
+        ok "  MCP server '$server_name' added successfully"
+      else
+        warn "  MCP server '$server_name' failed. Skipping."
+      fi
+    fi
+  done <<EOF
+MiniMax|uvx|minimax-coding-plan-mcp -y
+codesight|npx|codesight --wiki --mcp --watch -hook
+code-summarizer|$code_summarizer_cmd|
+token-monitor|$token_monitor_cmd|
+EOF
+
+  ok "MCP server setup complete"
 }
 
 # -------------------------------------------------------------------
@@ -208,6 +316,11 @@ clone_repo
 install_deps
 build_binary
 link_binary
+if [ "$MCP" -eq 1 ]; then
+  install_mcp_servers
+else
+  info "Skipping MCP server install (pass --mcp to enable)."
+fi
 
 echo ""
 printf "${GREEN}${BOLD}  Installation complete!${RESET}\n"
@@ -239,24 +352,28 @@ printf "    ${CYAN}bun run profile:zen${RESET}\n"
 printf "    ${CYAN}bun run profile:minimax${RESET}\n"
 printf "    ${CYAN}bun run profile:firstparty${RESET}\n"
 echo ""
-printf "  ${BOLD}gRPC dev helpers:${RESET}\n"
-printf "    ${CYAN}bun run dev:grpc${RESET}\n"
-printf "    ${CYAN}bun run dev:grpc:cli${RESET}\n"
+printf "  ${BOLD}Automation and transport testing:${RESET}\n"
+printf "    ${CYAN}bun run dev:headless-transport${RESET}    # preferred automation/session transport\n"
+printf "    ${CYAN}bun run test:headless-transport${RESET}   # baseline transport smoke test\n"
+printf "    ${CYAN}bun run test:headless-integration${RESET} # shared harness integration smoke\n"
+printf "    ${CYAN}bun run dev:grpc${RESET}                  # experimental/manual gRPC server\n"
+printf "    ${CYAN}bun run dev:grpc:cli${RESET}              # experimental/manual gRPC client\n"
+printf "    ${CYAN}bun run dev:grpc:stop${RESET}             # force-stop gRPC server + child tree\n"
 echo ""
 printf "  ${DIM}Provider notes:${RESET}\n"
 printf "  ${DIM}  Profiles stay repo-local and avoid redoing shell env setup each launch.${RESET}\n"
 printf "  ${DIM}  Use doctor:provider after switching auth, env, or provider targets.${RESET}\n"
-printf "  ${DIM}  Use dev:profile for normal startup; use dev:grpc or dev:grpc:cli for transport testing.${RESET}\n"
+printf "  ${DIM}  Use dev:profile for normal startup; use headless transport scripts for reliable automation.${RESET}\n"
+printf "  ${DIM}  Treat gRPC helpers as experimental/manual-only and stop them when done to avoid rogue processes.${RESET}\n"
 echo ""
 printf "  ${BOLD}Manual API key setup if needed:${RESET}\n"
 printf "    ${CYAN}export OPENAI_API_KEY=\"sk-...\"${RESET}\n"
 printf "    ${CYAN}export ANTHROPIC_API_KEY=\"sk-ant-...\"${RESET}\n"
 echo ""
+printf "  ${BOLD}Optional MCP setup:${RESET}\n"
+printf "    ${CYAN}./install.sh --mcp${RESET}                 # build and register bundled MCP servers\n"
+echo ""
 printf "  ${DIM}Source: $INSTALL_DIR${RESET}\n"
-if [ "$DEV" -eq 1 ]; then
-  printf "  ${DIM}Binary: $INSTALL_DIR/cli-dev${RESET}\n"
-else
-  printf "  ${DIM}Binary: $INSTALL_DIR/cli${RESET}\n"
-fi
+printf "  ${DIM}Binary: $BUILT_BINARY${RESET}\n"
 printf "  ${DIM}Link:   ~/.local/bin/free-code${RESET}\n"
 echo ""

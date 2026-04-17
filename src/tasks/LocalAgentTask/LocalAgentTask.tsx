@@ -506,7 +506,7 @@ export function registerAsyncAgent({
   // Register cleanup handler
   const unregisterCleanup = registerCleanup(async () => {
     killAsyncAgent(agentId, setAppState);
-  });
+  }, `agent-task:${agentId}`);
   taskState.unregisterCleanup = unregisterCleanup;
 
   // Register task in AppState
@@ -548,7 +548,7 @@ export function registerAgentForeground({
   const abortController = createAbortController();
   const unregisterCleanup = registerCleanup(async () => {
     killAsyncAgent(agentId, setAppState);
-  });
+  }, `agent-task:${agentId}`);
   const taskState: LocalAgentTaskState = {
     ...createTaskStateBase(agentId, 'local_agent', description, toolUseId),
     type: 'local_agent',

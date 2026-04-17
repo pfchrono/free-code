@@ -15,6 +15,7 @@
 import { type ChildProcess, spawn } from 'child_process'
 import { registerCleanup } from '../utils/cleanupRegistry.js'
 import { logForDebugging } from '../utils/debug.js'
+import { registerChildProcessLifecycle } from '../utils/processLifecycle.js'
 
 // Caffeinate timeout in seconds. Process auto-exits after this duration.
 // We restart it before expiry to maintain continuous sleep prevention.
@@ -25,6 +26,7 @@ const CAFFEINATE_TIMEOUT_SECONDS = 300 // 5 minutes
 const RESTART_INTERVAL_MS = 4 * 60 * 1000
 
 let caffeinateProcess: ChildProcess | null = null
+let unregisterCaffeinateLifecycle: (() => void) | null = null
 let restartInterval: ReturnType<typeof setInterval> | null = null
 let refCount = 0
 let cleanupRegistered = false
@@ -134,6 +136,23 @@ function spawnCaffeinate(): void {
     caffeinateProcess.unref()
 
     const thisProc = caffeinateProcess
+    unregisterCaffeinateLifecycle = registerChildProcessLifecycle(thisProc, {
+      label: 'prevent-sleep:caffeinate',
+      interrupt: () => {
+        try {
+          thisProc.kill('SIGTERM')
+        } catch {
+          // Process may have already exited.
+        }
+      },
+      forceKill: () => {
+        try {
+          thisProc.kill('SIGKILL')
+        } catch {
+          // Process may have already exited.
+        }
+      },
+    })
     caffeinateProcess.on('error', err => {
       logForDebugging(`caffeinate spawn error: ${err.message}`)
       if (caffeinateProcess === thisProc) caffeinateProcess = null
@@ -154,6 +173,8 @@ function killCaffeinate(): void {
   if (caffeinateProcess !== null) {
     const proc = caffeinateProcess
     caffeinateProcess = null
+    unregisterCaffeinateLifecycle?.()
+    unregisterCaffeinateLifecycle = null
     try {
       // SIGKILL for immediate termination - SIGTERM could be delayed
       proc.kill('SIGKILL')

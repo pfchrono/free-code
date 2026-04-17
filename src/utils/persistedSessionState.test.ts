@@ -8,6 +8,25 @@ describe('parsePersistedSessionState', () => {
       version: 1,
       visibleMessages: [{ type: 'user', uuid: 'u1', message: { content: 'hi' } }],
       coreMessages: 'broken',
+      continuityMetadata: {
+        sessionId: 'session-1',
+        projectPath: '/tmp/project',
+        startedAt: 1,
+        lastActivity: 2,
+        status: 'active',
+        completedTasks: ['done'],
+        remainingTasks: ['todo'],
+        workingFiles: ['a.ts'],
+        keyInsights: ['keep this'],
+        metadata: { imported: true },
+        persistedAt: '2026-04-16T00:00:00.000Z',
+      },
+      memoryLineage: {
+        authoritativeSource: 'persisted_session_state',
+        importedLegacySources: ['session-history'],
+        legacySidecarDetected: true,
+        persistedAt: '2026-04-16T00:00:00.000Z',
+      },
       compactionHistory: [
         {
           trigger: 'manual',
@@ -24,6 +43,10 @@ describe('parsePersistedSessionState', () => {
 
     expect(parsed?.visibleMessages).toHaveLength(1)
     expect(parsed?.coreMessages).toBeUndefined()
+    expect(parsed?.continuityMetadata?.sessionId).toBe('session-1')
+    expect(parsed?.memoryLineage?.importedLegacySources).toEqual([
+      'session-history',
+    ])
     expect(parsed?.compactionHistory).toHaveLength(2)
   })
 })

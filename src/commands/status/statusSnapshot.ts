@@ -23,6 +23,10 @@ import {
   loadPersistedSessionState,
   type PersistedCompactionEvent,
 } from '../../utils/persistedSessionState.js'
+import {
+  getProcessLifecycleSnapshot,
+  type ProcessLifecycleDiagnostic,
+} from '../../utils/processLifecycle.js'
 
 export type StatusSectionHealth = 'ok' | 'warning' | 'unavailable'
 
@@ -88,6 +92,14 @@ export type StatusSnapshot = {
     activeAgents: number
     activeAgentType: string | null
   }
+  cleanup: {
+    health: StatusSectionHealth
+    ownedProcesses: number
+    cleanupHandlers: number
+    activeLabels: string[]
+    diagnostics: ProcessLifecycleDiagnostic[]
+    warnings: string[]
+  }
 }
 
 type BuildStatusSnapshotDeps = {
@@ -106,6 +118,7 @@ type BuildStatusSnapshotDeps = {
   isAutoCompactEnabledFn?: typeof isAutoCompactEnabled
   getAutoCompactThresholdFn?: typeof getAutoCompactThreshold
   shouldUseSessionMemoryCompactionFn?: typeof shouldUseSessionMemoryCompaction
+  getProcessLifecycleSnapshotFn?: typeof getProcessLifecycleSnapshot
 }
 
 export async function buildStatusSnapshot(
@@ -125,6 +138,8 @@ export async function buildStatusSnapshot(
     deps.getAutoCompactThresholdFn ?? getAutoCompactThreshold
   const shouldUseSessionMemoryCompactionFn =
     deps.shouldUseSessionMemoryCompactionFn ?? shouldUseSessionMemoryCompaction
+  const getProcessLifecycleSnapshotFn =
+    deps.getProcessLifecycleSnapshotFn ?? getProcessLifecycleSnapshot
 
   let contextHealth: StatusSectionHealth = 'ok'
   let contextUsageText = 'Unavailable'
@@ -172,6 +187,7 @@ export async function buildStatusSnapshot(
   const sessionMemoryConfig = getSessionMemoryConfig()
   const sessionMemoryCompactConfig = getSessionMemoryCompactConfig()
   const compactionHistory = persistedSessionState?.compactionHistory ?? []
+  const lifecycleSnapshot = getProcessLifecycleSnapshotFn()
 
   let sessionHealth: StatusSectionHealth = 'ok'
   if (persistedSessionState?.resumeMetadata?.detail) {
@@ -185,6 +201,42 @@ export async function buildStatusSnapshot(
   if (compactionHistory.length === 0) {
     compactionWarnings.push('No recent compaction events recorded')
     compactionHealth = 'warning'
+  }
+
+  let cleanupHealth: StatusSectionHealth = 'ok'
+  const cleanupWarnings: string[] = []
+  const lifecycleTimeouts = lifecycleSnapshot.recentDiagnostics.filter(
+    diagnostic => diagnostic.outcome === 'timeout',
+  )
+  const lifecycleFailures = lifecycleSnapshot.recentDiagnostics.filter(
+    diagnostic => diagnostic.outcome === 'failed',
+  )
+  const lifecycleForcedKills = lifecycleSnapshot.recentDiagnostics.filter(
+    diagnostic => diagnostic.outcome === 'force_killed',
+  )
+
+  if (lifecycleTimeouts.length > 0) {
+    cleanupHealth = 'warning'
+    cleanupWarnings.push(
+      `${lifecycleTimeouts.length} cleanup timeout(s) recorded recently`,
+    )
+  }
+  if (lifecycleFailures.length > 0) {
+    cleanupHealth = 'warning'
+    cleanupWarnings.push(
+      `${lifecycleFailures.length} cleanup failure(s) recorded recently`,
+    )
+  }
+  if (lifecycleForcedKills.length > 0) {
+    cleanupHealth = 'warning'
+    cleanupWarnings.push(
+      `${lifecycleForcedKills.length} forced termination(s) recorded recently`,
+    )
+  }
+  if (lifecycleSnapshot.ownedProcessCount > 0) {
+    cleanupWarnings.push(
+      `${lifecycleSnapshot.ownedProcessCount} owned process(es) currently registered`,
+    )
   }
 
   return {
@@ -263,6 +315,14 @@ export async function buildStatusSnapshot(
       fastMode: Boolean(appState.fastMode),
       activeAgents: appState.agentDefinitions.activeAgents.length,
       activeAgentType: getMainThreadAgentType() ?? appState.agent ?? null,
+    },
+    cleanup: {
+      health: cleanupHealth,
+      ownedProcesses: lifecycleSnapshot.ownedProcessCount,
+      cleanupHandlers: lifecycleSnapshot.cleanupHandlerCount,
+      activeLabels: lifecycleSnapshot.activeProcessLabels,
+      diagnostics: lifecycleSnapshot.recentDiagnostics,
+      warnings: cleanupWarnings,
     },
   }
 }
@@ -360,6 +420,23 @@ export function renderStatusSnapshot(snapshot: StatusSnapshot): string {
   if (snapshot.agentPolicy.activeAgentType) {
     lines.push(`- Active agent type: ${snapshot.agentPolicy.activeAgentType}`)
   }
+  lines.push('')
+
+  lines.push('### Cleanup')
+  lines.push(`- Health: ${snapshot.cleanup.health}`)
+  lines.push(`- Owned processes: ${snapshot.cleanup.ownedProcesses}`)
+  lines.push(`- Cleanup handlers: ${snapshot.cleanup.cleanupHandlers}`)
+  if (snapshot.cleanup.activeLabels.length > 0) {
+    lines.push(`- Active owners: ${snapshot.cleanup.activeLabels.join(', ')}`)
+  }
+  for (const diagnostic of snapshot.cleanup.diagnostics.slice(-5)) {
+    lines.push(
+      `- Recent: ${diagnostic.occurredAt} ${diagnostic.phase}/${diagnostic.outcome} ${diagnostic.label}` +
+        `${diagnostic.pid ? ` pid=${diagnostic.pid}` : ''}` +
+        `${diagnostic.detail ? ` (${diagnostic.detail})` : ''}`,
+    )
+  }
+  appendWarnings(lines, snapshot.cleanup.warnings)
 
   return lines.join('\n')
 }

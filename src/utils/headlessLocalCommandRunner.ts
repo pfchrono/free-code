@@ -1,5 +1,9 @@
 import { findCommand, getCommands } from '../commands.js'
-import type { Command, LocalCommandResult } from '../types/command.js'
+import type {
+  Command,
+  LocalCommandResult,
+  LocalJSXCommandContext,
+} from '../types/command.js'
 import type { FileStateCache } from './fileStateCache.js'
 import { parseSlashCommand } from './slashCommandParsing.js'
 
@@ -19,6 +23,8 @@ export async function runHeadlessLocalSlashCommand(
     fileCache: FileStateCache
     commands?: Command[]
     theme?: string
+    canUseTool?: LocalJSXCommandContext['canUseTool']
+    abortController?: AbortController
   },
 ): Promise<HeadlessLocalCommandRunResult | null> {
   const parsedSlash = parseSlashCommand(input)
@@ -39,7 +45,8 @@ export async function runHeadlessLocalSlashCommand(
   const mod = await command.load()
   const messages = options.messages ?? []
   const result = await mod.call(parsedSlash.args, {
-    canUseTool: async () => ({ behavior: 'allow' }),
+    canUseTool:
+      options.canUseTool ?? (async () => ({ behavior: 'allow' as const })),
     getAppState: () => options.appState,
     setAppState: options.setAppState,
     messages,
@@ -47,7 +54,7 @@ export async function runHeadlessLocalSlashCommand(
       const next = updater(messages)
       messages.splice(0, messages.length, ...next)
     },
-    abortController: new AbortController(),
+    abortController: options.abortController ?? new AbortController(),
     readFileState: options.fileCache,
     options: {
       dynamicMcpConfig: {},

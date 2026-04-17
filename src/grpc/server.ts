@@ -1,16 +1,12 @@
 import * as grpc from '@grpc/grpc-js'
 import * as protoLoader from '@grpc/proto-loader'
 import path from 'path'
-import { randomUUID } from 'crypto'
-import { getCommands } from '../commands.js'
-import { QueryEngine } from '../QueryEngine.js'
-import { getDefaultAppState, type AppState } from '../state/AppStateStore.js'
-import { getTools } from '../tools.js'
 import {
-  FileStateCache,
-  READ_FILE_STATE_CACHE_SIZE,
-} from '../utils/fileStateCache.js'
-import { runHeadlessLocalSlashCommand } from '../utils/headlessLocalCommandRunner.js'
+  createHeadlessSessionHarness,
+  type HeadlessHarnessEvent,
+  type HeadlessHarnessTurn,
+  type HeadlessSessionHarness,
+} from '../headless/sessionHarness.js'
 
 const PROTO_PATH = path.resolve(import.meta.dirname, '../proto/openclaude.proto')
 
@@ -27,10 +23,16 @@ const openclaudeProto = protoDescriptor.openclaude.v1
 
 const MAX_SESSIONS = 1000
 
+type ActiveStreamState = {
+  session: HeadlessSessionHarness
+  turn: HeadlessHarnessTurn | null
+  interrupted: boolean
+}
+
 export class GrpcServer {
   private server: grpc.Server
-  private sessions = new Map<string, any[]>()
-  private activeEngines = new Set<QueryEngine>()
+  private sessions = new Map<string, HeadlessSessionHarness>()
+  private activeStreams = new Set<ActiveStreamState>()
   private isStopping = false
 
   constructor() {
@@ -40,18 +42,23 @@ export class GrpcServer {
     })
   }
 
-  start(port = 50051, host = 'localhost'): void {
-    this.server.bindAsync(
-      `${host}:${port}`,
-      grpc.ServerCredentials.createInsecure(),
-      (error, boundPort) => {
-        if (error) {
-          console.error('Failed to start gRPC server', error)
-          return
-        }
-        console.log(`gRPC server running at ${host}:${boundPort}`)
-      },
-    )
+  async start(port = 50051, host = 'localhost'): Promise<number> {
+    const boundPort = await new Promise<number>((resolve, reject) => {
+      this.server.bindAsync(
+        `${host}:${port}`,
+        grpc.ServerCredentials.createInsecure(),
+        (error, actualPort) => {
+          if (error) {
+            reject(error)
+            return
+          }
+          resolve(actualPort)
+        },
+      )
+    })
+
+    console.log(`gRPC server running at ${host}:${boundPort}`)
+    return boundPort
   }
 
   async stop(graceMs = 2_000): Promise<void> {
@@ -60,8 +67,9 @@ export class GrpcServer {
     }
     this.isStopping = true
 
-    for (const engine of this.activeEngines) {
-      engine.interrupt()
+    for (const stream of this.activeStreams) {
+      stream.interrupted = true
+      stream.session.interrupt()
     }
 
     await new Promise<void>(resolve => {
@@ -92,22 +100,117 @@ export class GrpcServer {
     })
   }
 
+  private getSession(sessionId: string, cwd: string): HeadlessSessionHarness {
+    const existing = this.sessions.get(sessionId)
+    if (existing) {
+      return existing
+    }
+
+    if (this.sessions.size >= MAX_SESSIONS) {
+      const oldestKey = this.sessions.keys().next().value
+      if (oldestKey !== undefined) {
+        this.sessions.delete(oldestKey)
+      }
+    }
+
+    const created = createHeadlessSessionHarness({ cwd })
+    this.sessions.set(sessionId, created)
+    return created
+  }
+
+  private async streamTurnEvents(
+    call: grpc.ServerDuplexStream<any, any>,
+    turn: HeadlessHarnessTurn,
+    state: ActiveStreamState,
+  ): Promise<void> {
+    for await (const event of turn.events()) {
+      this.writeGrpcEvent(call, event)
+    }
+
+    await turn.done
+
+    if (this.activeStreams.has(state)) {
+      state.turn = null
+    }
+  }
+
+  private writeGrpcEvent(
+    call: grpc.ServerDuplexStream<any, any>,
+    event: HeadlessHarnessEvent,
+  ): void {
+    switch (event.type) {
+      case 'message_delta':
+        call.write({
+          text_chunk: {
+            text: event.delta,
+          },
+        })
+        return
+      case 'tool_use':
+        call.write({
+          tool_start: {
+            tool_name: event.tool,
+            arguments_json: JSON.stringify(event.input),
+            tool_use_id: event.toolUseId,
+          },
+        })
+        return
+      case 'tool_result':
+        call.write({
+          tool_result: {
+            tool_name: event.tool,
+            tool_use_id: event.toolUseId,
+            output: event.output,
+            is_error: !event.success,
+          },
+        })
+        return
+      case 'permission_request':
+        call.write({
+          action_required: {
+            prompt_id: event.requestId,
+            question: event.question,
+            type: 'CONFIRM_COMMAND',
+          },
+        })
+        return
+      case 'error':
+        call.write({
+          error: {
+            message: event.message,
+            code: event.code ?? 'INTERNAL',
+          },
+        })
+        return
+      case 'completion':
+        call.write({
+          done: {
+            full_text: event.output,
+            prompt_tokens: event.inputTokens,
+            completion_tokens: event.outputTokens,
+          },
+        })
+        return
+      default:
+        return
+    }
+  }
+
   private handleChat(call: grpc.ServerDuplexStream<any, any>): void {
-    let engine: QueryEngine | null = null
-    let appState: AppState = getDefaultAppState()
-    const fileCache = new FileStateCache(
-      READ_FILE_STATE_CACHE_SIZE,
-      25 * 1024 * 1024,
-    )
-    const pendingRequests = new Map<string, (reply: string) => void>()
-    let previousMessages: any[] = []
-    let sessionId = ''
-    let interrupted = false
+    const sessionKey = { value: '' }
+    const state: ActiveStreamState = {
+      session: createHeadlessSessionHarness({
+        cwd: process.cwd(),
+      }),
+      turn: null,
+      interrupted: false,
+    }
+    this.activeStreams.add(state)
 
     call.on('data', async clientMessage => {
       try {
         if (clientMessage.request) {
-          if (engine) {
+          if (state.turn) {
             call.write({
               error: {
                 message: 'A request is already in progress on this stream',
@@ -117,192 +220,56 @@ export class GrpcServer {
             return
           }
 
-          interrupted = false
-          const req = clientMessage.request
-          sessionId = req.session_id || ''
-          previousMessages = []
+          state.interrupted = false
 
-          if (sessionId && this.sessions.has(sessionId)) {
-            previousMessages = [...this.sessions.get(sessionId)!]
+          const req = clientMessage.request
+          const cwd = req.working_directory || process.cwd()
+          const sessionId = req.session_id || `grpc-${Date.now()}`
+          sessionKey.value = sessionId
+          state.session = this.getSession(sessionId, cwd)
+
+          if (req.model) {
+            state.session.selectModel('', req.model)
           }
 
-          const toolNameById = new Map<string, string>()
-          const cwd = req.working_directory || process.cwd()
-          const commands = await getCommands(cwd)
-          const directLocalCommand = await runHeadlessLocalSlashCommand(
-            req.message,
-            {
-              cwd,
-              appState,
-              setAppState: updater => {
-                appState = updater(appState)
+          const turn = await state.session.submit(req.message, {
+            permissionMode: 'ask',
+          })
+          state.turn = turn
+
+          void this.streamTurnEvents(call, turn, state).catch(err => {
+            call.write({
+              error: {
+                message: err instanceof Error ? err.message : String(err),
+                code: 'INTERNAL',
               },
-              messages: previousMessages,
-              fileCache,
-            },
+            })
+          })
+          return
+        }
+
+        if (clientMessage.input) {
+          const ok = state.session.respondToPermission(
+            clientMessage.input.prompt_id,
+            /^(y|yes)$/i.test(clientMessage.input.reply)
+              ? { behavior: 'allow' }
+              : { behavior: 'deny', reason: 'User denied via gRPC' },
           )
 
-          if (directLocalCommand) {
-            const { result } = directLocalCommand
+          if (!ok) {
             call.write({
-              done: {
-                full_text:
-                  result.type === 'text'
-                    ? result.value
-                    : result.type === 'compact'
-                      ? result.displayText ?? ''
-                      : '',
-                prompt_tokens: 0,
-                completion_tokens: 0,
-              },
-            })
-            return
-          }
-
-          engine = new QueryEngine({
-            cwd,
-            tools: getTools(appState.toolPermissionContext),
-            commands,
-            mcpClients: [],
-            agents: [],
-            ...(previousMessages.length > 0
-              ? { initialMessages: previousMessages }
-              : {}),
-            includePartialMessages: true,
-            canUseTool: async (tool, input, context, assistantMsg, toolUseID) => {
-              void context
-              void assistantMsg
-              if (toolUseID) {
-                toolNameById.set(toolUseID, tool.name)
-              }
-
-              call.write({
-                tool_start: {
-                  tool_name: tool.name,
-                  arguments_json: JSON.stringify(input),
-                  tool_use_id: toolUseID,
-                },
-              })
-
-              const promptId = randomUUID()
-              call.write({
-                action_required: {
-                  prompt_id: promptId,
-                  question: `Approve ${tool.name}?`,
-                  type: 'CONFIRM_COMMAND',
-                },
-              })
-
-              return new Promise(resolve => {
-                pendingRequests.set(promptId, reply => {
-                  if (reply.toLowerCase() === 'yes' || reply.toLowerCase() === 'y') {
-                    resolve({ behavior: 'allow' })
-                  } else {
-                    resolve({
-                      behavior: 'deny',
-                      reason: 'User denied via gRPC',
-                    })
-                  }
-                })
-              })
-            },
-            getAppState: () => appState,
-            setAppState: updater => {
-              appState = updater(appState)
-            },
-            readFileCache: fileCache,
-            userSpecifiedModel: req.model,
-            fallbackModel: req.model,
-          })
-          this.activeEngines.add(engine)
-
-          let fullText = ''
-          let promptTokens = 0
-          let completionTokens = 0
-
-          for await (const msg of engine.submitMessage(req.message)) {
-            if (msg.type === 'stream_event') {
-              if (
-                msg.event.type === 'content_block_delta' &&
-                msg.event.delta.type === 'text_delta'
-              ) {
-                call.write({
-                  text_chunk: {
-                    text: msg.event.delta.text,
-                  },
-                })
-                fullText += msg.event.delta.text
-              }
-            } else if (msg.type === 'user') {
-              const content = msg.message.content
-              if (Array.isArray(content)) {
-                for (const block of content) {
-                  if (block.type === 'tool_result') {
-                    let outputStr = ''
-                    if (typeof block.content === 'string') {
-                      outputStr = block.content
-                    } else if (Array.isArray(block.content)) {
-                      outputStr = block.content
-                        .map(c => (c.type === 'text' ? c.text : ''))
-                        .join('\n')
-                    }
-                    call.write({
-                      tool_result: {
-                        tool_name:
-                          toolNameById.get(block.tool_use_id) ?? block.tool_use_id,
-                        tool_use_id: block.tool_use_id,
-                        output: outputStr,
-                        is_error: block.is_error || false,
-                      },
-                    })
-                  }
-                }
-              }
-            } else if (msg.type === 'result' && msg.subtype === 'success') {
-              if (msg.result) {
-                fullText = msg.result
-              }
-              promptTokens = msg.usage?.input_tokens ?? 0
-              completionTokens = msg.usage?.output_tokens ?? 0
-            }
-          }
-
-          if (!interrupted) {
-            previousMessages = [...engine.getMessages()]
-            if (sessionId) {
-              if (!this.sessions.has(sessionId) && this.sessions.size >= MAX_SESSIONS) {
-                const oldestKey = this.sessions.keys().next().value
-                if (oldestKey !== undefined) {
-                  this.sessions.delete(oldestKey)
-                }
-              }
-              this.sessions.set(sessionId, previousMessages)
-            }
-
-            call.write({
-              done: {
-                full_text: fullText,
-                prompt_tokens: promptTokens,
-                completion_tokens: completionTokens,
+              error: {
+                message: `Unknown permission request: ${clientMessage.input.prompt_id}`,
+                code: 'NOT_FOUND',
               },
             })
           }
+          return
+        }
 
-          if (engine) {
-            this.activeEngines.delete(engine)
-          }
-          engine = null
-        } else if (clientMessage.input) {
-          const promptId = clientMessage.input.prompt_id
-          const reply = clientMessage.input.reply
-          const resolve = pendingRequests.get(promptId)
-          if (resolve) {
-            resolve(reply)
-            pendingRequests.delete(promptId)
-          }
-        } else if (clientMessage.cancel) {
-          interrupted = true
-          engine?.interrupt()
+        if (clientMessage.cancel) {
+          state.interrupted = true
+          state.session.interrupt()
           call.end()
         }
       } catch (err) {
@@ -318,16 +285,15 @@ export class GrpcServer {
     })
 
     call.on('end', () => {
-      interrupted = true
-      for (const resolve of pendingRequests.values()) {
-        resolve('no')
-      }
-      if (engine) {
-        engine.interrupt()
-        this.activeEngines.delete(engine)
-      }
-      engine = null
-      pendingRequests.clear()
+      state.interrupted = true
+      state.session.interrupt()
+      this.activeStreams.delete(state)
+    })
+
+    call.on('close', () => {
+      state.interrupted = true
+      state.session.interrupt()
+      this.activeStreams.delete(state)
     })
   }
 }

@@ -87,7 +87,10 @@ import { getAddDirEnabledPlugins } from './addDirPluginSettings.js'
 import { verifyAndDemote } from './dependencyResolver.js'
 import { classifyFetchError, logPluginFetch } from './fetchTelemetry.js'
 import { checkGitAvailable } from './gitAvailability.js'
-import { getInMemoryInstalledPlugins } from './installedPluginsManager.js'
+import {
+  getInMemoryInstalledPlugins,
+  isInstallationRelevantToCurrentProject,
+} from './installedPluginsManager.js'
 import { getManagedPluginNames } from './managedPlugins.js'
 import {
   formatSourceForDisplay,
@@ -2048,7 +2051,9 @@ async function loadPluginsFromMarketplaces({
       // installed_plugins.json records what's actually cached on disk
       // (version for the full loader's first-pass probe, installPath for
       // the cache-only loader's direct read).
-      const installEntry = installedPluginsData.plugins[pluginId]?.[0]
+      const installEntry = installedPluginsData.plugins[pluginId]?.find(
+        isInstallationRelevantToCurrentProject,
+      )
       return cacheOnly
         ? loadPluginFromMarketplaceEntryCacheOnly(
             result.entry,

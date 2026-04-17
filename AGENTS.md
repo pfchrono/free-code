@@ -48,7 +48,7 @@ bun run test:headless-transport
 # Start headless slash-command transport server
 bun run dev:headless-transport
 
-# Start gRPC transport server
+# Start experimental gRPC transport server
 bun run dev:grpc
 
 # Force-stop gRPC transport server and child process tree
@@ -58,14 +58,18 @@ bun run dev:grpc:stop
 ### Transport testing guidance
 
 - Prefer headless transport for automation around local slash commands.
-- Headless transport is line-delimited JSON over stdin/stdout, backed by real local command execution.
+- Headless transport is line-delimited JSON over stdin/stdout, backed by shared headless session harness execution.
 - Primary files:
+  - `src/headless/sessionHarness.ts`
   - `scripts/headless-transport-server.ts`
   - `scripts/headless-transport-smoke.ts`
-  - `src/utils/headlessLocalCommandRunner.ts`
-- Current known-good use case: `/deadpoolmode` and `/caveman-mode` regression checks.
-- Use `bun run test:headless-transport` before trying broader transport experiments.
-- gRPC transport (`bun run dev:grpc`, `bun run dev:grpc:cli`) is not current source of truth for smoke automation; Bun-hosted gRPC has shown connection/protocol instability in this repo.
+  - `scripts/headless-integration.ts`
+- Current known-good use cases:
+  - `/deadpoolmode` and `/caveman-mode` regression checks
+  - scripted permission prompts
+  - interrupt/event ordering smoke on shared harness
+- Use `bun run test:headless-transport` and `bun run test:headless-integration` before trying broader transport experiments.
+- gRPC transport (`bun run dev:grpc`, `bun run dev:grpc:cli`) is experimental/manual only; not source of truth for smoke automation in this repo.
 - Always stop long-lived transport processes when finished.
 - For gRPC runs, use `bun run dev:grpc:stop` after testing.
 - `dev:grpc:stop` reads `.tmp/grpc-server.pid` and force-kills whole process tree on Windows, preventing rogue `bun` / `free-code.exe` children from lingering and eating RAM.

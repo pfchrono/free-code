@@ -3,8 +3,8 @@ import { createWriteStream, type WriteStream } from 'fs'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { createInterface } from 'readline'
-import { registerCleanup } from '../utils/cleanupRegistry.js'
 import { terminateProcessTree } from '../utils/genericProcessUtils.js'
+import { registerChildProcessLifecycle } from '../utils/processLifecycle.js'
 import { jsonParse, jsonStringify } from '../utils/slowOperations.js'
 import { debugTruncate } from './debugUtils.js'
 import type {
@@ -354,11 +354,24 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
       let unregisterCleanup: (() => void) | undefined
 
       if (child.pid) {
-        unregisterCleanup = registerCleanup(async () => {
-          deps.onDebug(
-            `[bridge:session] Cleanup terminating process tree for sessionId=${opts.sessionId} pid=${child.pid}`,
-          )
-          await terminateProcessTree(child.pid, { force: true })
+        unregisterCleanup = registerChildProcessLifecycle(child, {
+          label: `bridge-session:${opts.sessionId}`,
+          interrupt: async () => {
+            deps.onDebug(
+              `[bridge:session] Interrupting process tree for sessionId=${opts.sessionId} pid=${child.pid}`,
+            )
+            if (child.pid) {
+              await terminateProcessTree(child.pid, { force: false })
+            }
+          },
+          forceKill: async () => {
+            deps.onDebug(
+              `[bridge:session] Force-killing process tree for sessionId=${opts.sessionId} pid=${child.pid}`,
+            )
+            if (child.pid) {
+              await terminateProcessTree(child.pid, { force: true })
+            }
+          },
         })
       }
 

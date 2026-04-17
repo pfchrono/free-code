@@ -22,6 +22,7 @@ const memoryEntrySchema = z.object({
   ttl: z.number().optional(), // TTL in milliseconds
   sessionId: z.string().optional(),
   projectPath: z.string().optional(),
+  lastAccess: z.number().optional(),
 })
 
 const memoryStoreSchema = z.object({
@@ -370,7 +371,9 @@ class PersistentMemorySystem {
     let score = 0
 
     // Content match
-    const contentMatches = (entry.content.toLowerCase().match(new RegExp(queryLower, 'g')) || []).length
+    const contentMatches = queryLower
+      ? entry.content.toLowerCase().split(queryLower).length - 1
+      : 0
     score += contentMatches * 10
 
     // Tag matches

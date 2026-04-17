@@ -44,6 +44,31 @@ export type PersistedCompactionEvent = {
   droppedSummary?: string
 }
 
+export type PersistedSessionContinuityMetadata = {
+  sessionId: string
+  projectPath: string
+  startedAt: number
+  lastActivity: number
+  status: 'active' | 'paused' | 'completed' | 'abandoned'
+  activePlan?: string
+  planName?: string
+  completedTasks: string[]
+  remainingTasks: string[]
+  currentTask?: string
+  workingFiles: string[]
+  conversationSummary?: string
+  keyInsights: string[]
+  metadata: Record<string, unknown>
+  persistedAt: string
+}
+
+export type PersistedSessionMemoryLineage = {
+  authoritativeSource: 'persisted_session_state'
+  importedLegacySources?: string[]
+  legacySidecarDetected?: boolean
+  persistedAt: string
+}
+
 export type PersistedSessionStateV1 = {
   version: 1
   visibleMessages?: Message[]
@@ -51,6 +76,8 @@ export type PersistedSessionStateV1 = {
   checkpointMetadata?: PersistedSessionCheckpointMetadata
   resumeMetadata?: PersistedSessionResumeMetadata
   compactionHistory?: PersistedCompactionEvent[]
+  continuityMetadata?: PersistedSessionContinuityMetadata
+  memoryLineage?: PersistedSessionMemoryLineage
 }
 
 export type PersistedSessionState = PersistedSessionStateV1
@@ -206,6 +233,88 @@ export function parsePersistedSessionState(
       })
       .slice(-MAX_PERSISTED_COMPACTION_HISTORY)
   }
+  if (
+    typeof candidate.continuityMetadata === 'object' &&
+    candidate.continuityMetadata !== null
+  ) {
+    const continuity = candidate.continuityMetadata as Record<string, unknown>
+    if (
+      typeof continuity.sessionId === 'string' &&
+      typeof continuity.projectPath === 'string' &&
+      typeof continuity.startedAt === 'number' &&
+      typeof continuity.lastActivity === 'number' &&
+      typeof continuity.persistedAt === 'string'
+    ) {
+      state.continuityMetadata = {
+        sessionId: continuity.sessionId,
+        projectPath: continuity.projectPath,
+        startedAt: continuity.startedAt,
+        lastActivity: continuity.lastActivity,
+        status:
+          continuity.status === 'paused' ||
+          continuity.status === 'completed' ||
+          continuity.status === 'abandoned'
+            ? continuity.status
+            : 'active',
+        activePlan:
+          typeof continuity.activePlan === 'string'
+            ? continuity.activePlan
+            : undefined,
+        planName:
+          typeof continuity.planName === 'string'
+            ? continuity.planName
+            : undefined,
+        completedTasks: Array.isArray(continuity.completedTasks)
+          ? continuity.completedTasks.filter(
+              item => typeof item === 'string',
+            )
+          : [],
+        remainingTasks: Array.isArray(continuity.remainingTasks)
+          ? continuity.remainingTasks.filter(
+              item => typeof item === 'string',
+            )
+          : [],
+        currentTask:
+          typeof continuity.currentTask === 'string'
+            ? continuity.currentTask
+            : undefined,
+        workingFiles: Array.isArray(continuity.workingFiles)
+          ? continuity.workingFiles.filter(item => typeof item === 'string')
+          : [],
+        conversationSummary:
+          typeof continuity.conversationSummary === 'string'
+            ? continuity.conversationSummary
+            : undefined,
+        keyInsights: Array.isArray(continuity.keyInsights)
+          ? continuity.keyInsights.filter(item => typeof item === 'string')
+          : [],
+        metadata:
+          typeof continuity.metadata === 'object' && continuity.metadata !== null
+            ? (continuity.metadata as Record<string, unknown>)
+            : {},
+        persistedAt: continuity.persistedAt,
+      }
+    }
+  }
+  if (
+    typeof candidate.memoryLineage === 'object' &&
+    candidate.memoryLineage !== null
+  ) {
+    const lineage = candidate.memoryLineage as Record<string, unknown>
+    if (typeof lineage.persistedAt === 'string') {
+      state.memoryLineage = {
+        authoritativeSource: 'persisted_session_state',
+        importedLegacySources: Array.isArray(lineage.importedLegacySources)
+          ? lineage.importedLegacySources.filter(item => typeof item === 'string')
+          : undefined,
+        legacySidecarDetected:
+          typeof lineage.legacySidecarDetected === 'boolean'
+            ? lineage.legacySidecarDetected
+            : undefined,
+        persistedAt: lineage.persistedAt,
+      }
+    }
+  }
 
   return state
 }
@@ -310,10 +419,74 @@ export async function persistCompactedSessionState(
         existing?.compactionHistory,
         params.event,
       ),
+      continuityMetadata: existing?.continuityMetadata,
+      memoryLineage: existing?.memoryLineage,
     },
     {
       transcriptPath: params.transcriptPath,
       projectDir: params.projectDir,
     },
+  )
+}
+
+export async function updatePersistedSessionContinuity(
+  sessionId: UUID,
+  continuityMetadata: Omit<PersistedSessionContinuityMetadata, 'persistedAt'>,
+  opts: {
+    transcriptPath?: string
+    projectDir?: string
+  } = {},
+): Promise<void> {
+  const existing = await loadPersistedSessionState(sessionId, opts)
+  await savePersistedSessionState(
+    sessionId,
+    {
+      ...(existing ?? { version: 1 }),
+      version: 1,
+      continuityMetadata: {
+        ...continuityMetadata,
+        persistedAt: new Date().toISOString(),
+      },
+      memoryLineage: {
+        authoritativeSource: 'persisted_session_state',
+        importedLegacySources: existing?.memoryLineage?.importedLegacySources,
+        legacySidecarDetected:
+          existing?.memoryLineage?.legacySidecarDetected ?? false,
+        persistedAt: new Date().toISOString(),
+      },
+    },
+    opts,
+  )
+}
+
+export async function markPersistedSessionLegacySources(
+  sessionId: UUID,
+  legacySources: string[],
+  opts: {
+    transcriptPath?: string
+    projectDir?: string
+  } = {},
+): Promise<void> {
+  const existing = await loadPersistedSessionState(sessionId, opts)
+  const mergedSources = Array.from(
+    new Set([
+      ...(existing?.memoryLineage?.importedLegacySources ?? []),
+      ...legacySources,
+    ]),
+  )
+
+  await savePersistedSessionState(
+    sessionId,
+    {
+      ...(existing ?? { version: 1 }),
+      version: 1,
+      memoryLineage: {
+        authoritativeSource: 'persisted_session_state',
+        importedLegacySources: mergedSources,
+        legacySidecarDetected: mergedSources.length > 0,
+        persistedAt: new Date().toISOString(),
+      },
+    },
+    opts,
   )
 }

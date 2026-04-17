@@ -13,7 +13,6 @@ import {
   deleteTask,
   getTask,
   getTaskListId,
-  isTodoV2Enabled,
   listTasks,
   type TaskStatus,
   TaskStatusSchema,
@@ -106,7 +105,7 @@ export const TaskUpdateTool = buildTool({
   },
   shouldDefer: true,
   isEnabled() {
-    return isTodoV2Enabled()
+    return true
   },
   isConcurrencySafe() {
     return true

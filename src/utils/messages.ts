@@ -3728,9 +3728,6 @@ Read the team config to discover your teammates' names. Check the task list peri
       ])
     }
     case 'task_reminder': {
-      if (!isTodoV2Enabled()) {
-        return []
-      }
       const taskItems = attachment.content
         .map(task => `#${task.id}. [${task.status}] ${task.subject}`)
         .join('\n')

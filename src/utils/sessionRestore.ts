@@ -54,6 +54,10 @@ import {
   saveWorktreeState,
 } from './sessionStorage.js'
 import { isTodoV2Enabled } from './tasks.js'
+import {
+  buildTaskSnapshotFromToolUseLog,
+  convertTasksToTodoList,
+} from './tasks.js'
 import type { TodoList } from './todo/types.js'
 import { TodoListSchema } from './todo/types.js'
 import type { ContentReplacementRecord } from './toolResultStorage.js'
@@ -142,8 +146,16 @@ export function restoreSessionStateFromLog(
 
   // Restore TodoWrite state from transcript (SDK/non-interactive only).
   // Interactive mode uses file-backed v2 tasks, so AppState.todos is unused there.
-  if (!isTodoV2Enabled() && result.messages && result.messages.length > 0) {
-    const todos = extractTodosFromTranscript(result.messages)
+  if (result.messages && result.messages.length > 0) {
+    const canonicalTodos = convertTasksToTodoList(
+      buildTaskSnapshotFromToolUseLog(result.messages),
+    )
+    const todos =
+      canonicalTodos.length > 0
+        ? canonicalTodos
+        : !isTodoV2Enabled()
+          ? extractTodosFromTranscript(result.messages)
+          : []
     if (todos.length > 0) {
       const agentId = getSessionId()
       setAppState(prev => ({

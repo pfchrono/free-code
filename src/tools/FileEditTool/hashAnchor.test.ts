@@ -16,4 +16,15 @@ describe('hash anchors', () => {
     expect(result.isValid).toBe(false)
     expect(result.message).toContain('Content hash mismatch')
   })
+
+  it('rejects anchors when old_string only differs by surrounding whitespace', () => {
+    const anchoredLine = 'target'
+    const anchor = createLineAnchor(2, anchoredLine)
+    const fileContent = ['const value = 1', anchoredLine, ''].join('\n')
+
+    const result = validateHashAnchor(fileContent, { lineNumber: 2, contentHash: anchor.split('#')[1] }, `  ${anchoredLine}  `)
+
+    expect(result.isValid).toBe(false)
+    expect(result.message).toContain('old_string not found near anchored line 2')
+  })
 })

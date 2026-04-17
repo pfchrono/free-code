@@ -52,6 +52,8 @@ export type ModelOption = {
   descriptionForModel?: string
 }
 
+const provider = getAPIProvider()
+
 function joinModelDetails(parts: Array<string | null | undefined>): string {
   return parts.filter(Boolean).join(' · ')
 }

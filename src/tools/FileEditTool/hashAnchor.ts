@@ -89,7 +89,7 @@ export function validateHashAnchor(
   const searchEnd = Math.min(lines.length, anchor.lineNumber + 5)
   const contextLines = lines.slice(searchStart, searchEnd).join('\n')
 
-  if (!contextLines.includes(oldString.trim())) {
+  if (!contextLines.includes(oldString)) {
     return {
       isValid: false,
       message: `old_string not found near anchored line ${anchor.lineNumber}. Content may have been moved or modified.`,

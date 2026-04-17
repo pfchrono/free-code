@@ -29,7 +29,7 @@ bun run dev:headless-transport
 # Smoke-test headless transport end to end
 bun run test:headless-transport
 
-# Start gRPC transport for exploration/manual checks
+# Start gRPC transport for experimental/manual checks only
 bun run dev:grpc
 
 # Force-stop gRPC transport and its child process tree
@@ -101,14 +101,22 @@ bun run dev
 - Use `src/utils/codebase/` when working on dependency graph, blast-radius, or context recommendation behavior.
 - Memory/session continuity work centers on `src/services/memory/`.
 - Hash-anchor edit support lives in `src/tools/FileEditTool/hashAnchor.ts`.
-- For automated slash-command testing, prefer headless transport over current gRPC path.
+- For automated testing, prefer headless transport over gRPC.
 - Current stable path:
   - start `bun run dev:headless-transport`
   - send line-delimited JSON requests on stdin
   - read JSON responses on stdout
   - use `bun run test:headless-transport` for baseline smoke coverage
-- Current transport scope is local noninteractive slash commands, with `/deadpoolmode` and `/caveman-mode` wired first.
-- `bun run dev:grpc` remains useful for exploration, but Bun-hosted gRPC transport is currently unreliable for automation smoke tests in this repo.
+- Shared harness-backed path:
+  - `scripts/headless-transport-server.ts`
+  - `scripts/headless-transport-smoke.ts`
+  - `scripts/headless-integration.ts`
+  - `src/headless/sessionHarness.ts`
+- Current known-good coverage:
+  - local noninteractive slash commands
+  - scripted permission injection
+  - interrupt/event-order regression checks
+- `bun run dev:grpc` remains experimental/manual-only. Do not use it as source of truth for CI or automation smoke in this repo.
 - Long-lived transport rule:
   - do not leave transport servers running after tests
   - when done with gRPC, run `bun run dev:grpc:stop`

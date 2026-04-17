@@ -94,6 +94,7 @@ export function ResumeConversation({
   const [loading, setLoading] = React.useState(true);
   const [resuming, setResuming] = React.useState(false);
   const [showAllProjects, setShowAllProjects] = React.useState(false);
+  const [crossProjectCommand, setCrossProjectCommand] = React.useState<string | null>(null);
   const [resumeData, setResumeData] = React.useState<{
     messages: Message[];
     fileHistorySnapshots?: FileHistorySnapshot[];
@@ -102,7 +103,6 @@ export function ResumeConversation({
     agentColor?: AgentColorName;
     mainThreadAgentDefinition?: AgentDefinition;
   } | null>(null);
-  const [crossProjectCommand, setCrossProjectCommand] = React.useState<string | null>(null);
   const sessionLogResultRef = React.useRef<SessionLogResult | null>(null);
   // Mirror of logs.length so loadMoreLogs can compute value indices outside
   // the setLogs updater (keeping it pure per React's contract).
@@ -298,7 +298,10 @@ export function ResumeConversation({
     }
   }
   if (crossProjectCommand) {
-    return <CrossProjectMessage command={crossProjectCommand} />;
+    return <CrossProjectMessage command={crossProjectCommand} onBack={() => {
+      setCrossProjectCommand(null);
+      setResuming(false);
+    }} />;
   }
   if (resumeData) {
     return <REPL debug={debug} commands={commands} initialTools={initialTools} initialMessages={resumeData.messages} initialFileHistorySnapshots={resumeData.fileHistorySnapshots} initialContentReplacements={resumeData.contentReplacements} initialAgentName={resumeData.agentName} initialAgentColor={resumeData.agentColor} mcpClients={mcpClients} dynamicMcpConfig={dynamicMcpConfig} strictMcpConfig={strictMcpConfig} systemPrompt={systemPrompt} appendSystemPrompt={appendSystemPrompt} mainThreadAgentDefinition={resumeData.mainThreadAgentDefinition} autoConnectIdeFlag={autoConnectIdeFlag} disableSlashCommands={disableSlashCommands} taskListId={taskListId} thinkingConfig={thinkingConfig} onTurnComplete={onTurnComplete} />;
@@ -345,61 +348,12 @@ function _temp() {
   process.exit(1);
 }
 function CrossProjectMessage(t0) {
-  const $ = _c(8);
   const {
-    command
+    command,
+    onBack
   } = t0;
-  let t1;
-  if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
-    t1 = [];
-    $[0] = t1;
-  } else {
-    t1 = $[0];
-  }
-  React.useEffect(_temp3, t1);
-  let t2;
-  if ($[1] === Symbol.for("react.memo_cache_sentinel")) {
-    t2 = <Text>This conversation is from a different directory.</Text>;
-    $[1] = t2;
-  } else {
-    t2 = $[1];
-  }
-  let t3;
-  if ($[2] === Symbol.for("react.memo_cache_sentinel")) {
-    t3 = <Text>To resume, run:</Text>;
-    $[2] = t3;
-  } else {
-    t3 = $[2];
-  }
-  let t4;
-  if ($[3] !== command) {
-    t4 = <Box flexDirection="column">{t3}<Text> {command}</Text></Box>;
-    $[3] = command;
-    $[4] = t4;
-  } else {
-    t4 = $[4];
-  }
-  let t5;
-  if ($[5] === Symbol.for("react.memo_cache_sentinel")) {
-    t5 = <Text dimColor={true}>(Command copied to clipboard)</Text>;
-    $[5] = t5;
-  } else {
-    t5 = $[5];
-  }
-  let t6;
-  if ($[6] !== t4) {
-    t6 = <Box flexDirection="column" gap={1}>{t2}{t4}{t5}</Box>;
-    $[6] = t4;
-    $[7] = t6;
-  } else {
-    t6 = $[7];
-  }
-  return t6;
-}
-function _temp3() {
-  const timeout = setTimeout(_temp2, 100);
-  return () => clearTimeout(timeout);
-}
-function _temp2() {
-  process.exit(0);
+  useKeybinding("menu:back", onBack, {
+    context: "Global"
+  });
+  return <Box flexDirection="column" gap={1}><Text>This conversation is from a different directory.</Text><Box flexDirection="column"><Text>To resume, run:</Text><Text> {command}</Text></Box><Text dimColor={true}>(Command copied to clipboard)</Text><Text dimColor={true}>Press Escape to go back.</Text></Box>;
 }

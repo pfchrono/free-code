@@ -5,121 +5,159 @@ type TransportEnvelope =
   | {
       type: 'ready'
       transport: string
-      commands: string[]
+      protocol: string
     }
   | {
       id: string
+      type: 'event'
+      event: {
+        type: string
+        content?: string
+        output?: string
+        status?: string
+      }
+    }
+  | {
+      id: string
+      type: 'done'
       ok: boolean
-      output?: string
-      error?: string
+    }
+  | {
+      id: string
+      type: 'error'
+      ok: boolean
+      error: string
     }
 
-function waitForResponse(
-  rl: readline.Interface,
+function waitForEnvelope(
+  _rl: readline.Interface,
   predicate: (payload: TransportEnvelope) => boolean,
   timeoutMs: number,
+  buffer: TransportEnvelope[],
 ): Promise<TransportEnvelope> {
   return new Promise((resolve, reject) => {
+    const tryConsume = (): boolean => {
+      const index = buffer.findIndex(predicate)
+      if (index === -1) {
+        return false
+      }
+      const [payload] = buffer.splice(index, 1)
+      cleanup()
+      resolve(payload as TransportEnvelope)
+      return true
+    }
+
     const timer = setTimeout(() => {
       cleanup()
       reject(new Error(`Timed out after ${timeoutMs}ms waiting for transport response`))
     }, timeoutMs)
-
-    const onLine = (line: string): void => {
-      try {
-        const payload = JSON.parse(line) as TransportEnvelope
-        if (predicate(payload)) {
-          cleanup()
-          resolve(payload)
-        }
-      } catch {
-        // Ignore non-JSON lines.
-      }
-    }
+    const interval = setInterval(() => {
+      void tryConsume()
+    }, 10)
 
     const cleanup = (): void => {
       clearTimeout(timer)
-      rl.off('line', onLine)
+      clearInterval(interval)
     }
 
-    rl.on('line', onLine)
+    void tryConsume()
   })
 }
 
+async function collectRequestEvents(
+  child: ReturnType<typeof spawn>,
+  rl: readline.Interface,
+  payload: Record<string, unknown>,
+  buffer: TransportEnvelope[],
+): Promise<TransportEnvelope[]> {
+  const seen: TransportEnvelope[] = []
+  const requestId = String(payload.id)
+
+  child.stdin.write(`${JSON.stringify(payload)}\n`)
+
+  while (true) {
+    const envelope = await waitForEnvelope(
+      rl,
+      message => 'id' in message && message.id === requestId,
+      10000,
+      buffer,
+    )
+    seen.push(envelope)
+
+    if (envelope.type === 'done' || envelope.type === 'error') {
+      return seen
+    }
+  }
+}
+
 async function main(): Promise<void> {
-  const child = spawn(
-    'bun',
-    ['run', './scripts/headless-transport-server.ts'],
-    {
-      cwd: process.cwd(),
-      stdio: ['pipe', 'pipe', 'inherit'],
-    },
-  )
+  const child = spawn('bun', ['run', './scripts/headless-transport-server.ts'], {
+    cwd: process.cwd(),
+    stdio: ['pipe', 'pipe', 'inherit'],
+  })
 
   const rl = readline.createInterface({
     input: child.stdout,
     crlfDelay: Infinity,
   })
+  const buffer: TransportEnvelope[] = []
 
   try {
-    await waitForResponse(
-      rl,
-      payload => payload.type === 'ready',
-      10000,
-    )
+    rl.on('line', line => {
+      try {
+        buffer.push(JSON.parse(line) as TransportEnvelope)
+      } catch {
+        // ignore
+      }
+    })
 
-    child.stdin.write(
-      `${JSON.stringify({
-        id: 'deadpool-status',
-        command: '/deadpoolmode status',
-        sessionId: 'smoke',
-      })}\n`,
-    )
+    await waitForEnvelope(rl, payload => payload.type === 'ready', 10000, buffer)
 
-    const statusResponse = await waitForResponse(
-      rl,
-      payload => payload.id === 'deadpool-status',
-      10000,
-    )
+    const statusEvents = await collectRequestEvents(child, rl, {
+      id: 'deadpool-status',
+      input: '/deadpoolmode status',
+      sessionId: 'smoke',
+    }, buffer)
 
+    const statusMessage = statusEvents.find(
+      event =>
+        event.type === 'event' &&
+        event.event.type === 'message' &&
+        event.event.content?.includes('Deadpool mode'),
+    )
     if (
-      !statusResponse.ok ||
-      !statusResponse.output?.includes('Deadpool mode') ||
-      !statusResponse.output.includes('Style stack:')
+      !statusMessage ||
+      !statusMessage.event.content?.includes('Deadpool mode') ||
+      !statusMessage.event.content.includes('Style stack:')
     ) {
-      throw new Error(
-        `Unexpected /deadpoolmode status response: ${JSON.stringify(statusResponse)}`,
-      )
+      throw new Error(`Unexpected /deadpoolmode status event stream: ${JSON.stringify(statusEvents)}`)
     }
 
-    child.stdin.write(
-      `${JSON.stringify({
-        id: 'caveman-on',
-        command: '/caveman-mode on',
-        sessionId: 'smoke',
-      })}\n`,
-    )
+    const cavemanEvents = await collectRequestEvents(child, rl, {
+      id: 'caveman-on',
+      input: '/caveman-mode on',
+      sessionId: 'smoke',
+    }, buffer)
 
-    const cavemanResponse = await waitForResponse(
-      rl,
-      payload => payload.id === 'caveman-on',
-      10000,
+    const cavemanMessage = cavemanEvents.find(
+      event =>
+        event.type === 'event' &&
+        event.event.type === 'message' &&
+        event.event.content?.includes('Caveman mode ON'),
     )
-
     if (
-      !cavemanResponse.ok ||
-      !cavemanResponse.output?.includes('Caveman mode ON')
+      !cavemanMessage ||
+      !cavemanMessage.event.content?.includes('Caveman mode ON')
     ) {
-      throw new Error(
-        `Unexpected /caveman-mode on response: ${JSON.stringify(cavemanResponse)}`,
-      )
+      throw new Error(`Unexpected /caveman-mode on event stream: ${JSON.stringify(cavemanEvents)}`)
     }
 
     console.log(
       JSON.stringify(
         {
           ok: true,
-          results: [statusResponse, cavemanResponse],
+          statusEvents,
+          cavemanEvents,
         },
         null,
         2,

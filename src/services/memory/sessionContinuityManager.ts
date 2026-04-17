@@ -6,9 +6,16 @@
 import { z } from 'zod'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
+import type { UUID } from 'crypto'
 import { logForDebugging } from '../../utils/debug.js'
 import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
 import { getMemorySystem, type MemoryEntry } from './persistentMemorySystem.js'
+import {
+  loadPersistedSessionState,
+  markPersistedSessionLegacySources,
+  type PersistedSessionContinuityMetadata,
+  updatePersistedSessionContinuity,
+} from '../../utils/persistedSessionState.js'
 
 // Session State Schema
 const sessionStateSchema = z.object({
@@ -97,7 +104,10 @@ class SessionContinuityManager {
    * Start a new session
    */
   async startSession(projectPath: string, metadata: Record<string, any> = {}): Promise<string> {
-    const sessionId = this.generateSessionId()
+    const sessionId =
+      typeof metadata.sessionId === 'string'
+        ? metadata.sessionId
+        : this.generateSessionId()
 
     // End current session if exists
     if (this.currentSession) {
@@ -133,6 +143,7 @@ class SessionContinuityManager {
     })
 
     await this.saveSessionHistory()
+    await this.persistCurrentSession()
     logForDebugging(`[Session] Started new session: ${sessionId}`)
 
     return sessionId
@@ -172,6 +183,7 @@ class SessionContinuityManager {
     await this.logSessionChanges(oldSession, this.currentSession)
 
     this.debouncedSave()
+    await this.persistCurrentSession()
     logForDebugging(`[Session] Updated session: ${this.currentSession.sessionId}`)
   }
 
@@ -321,6 +333,7 @@ class SessionContinuityManager {
     })
 
     await this.saveSessionHistory()
+    await this.persistCurrentSession()
     logForDebugging(`[Session] Ended session: ${this.currentSession.sessionId}`)
 
     this.currentSession = null
@@ -368,6 +381,7 @@ class SessionContinuityManager {
     })
 
     await this.saveSessionHistory()
+    await this.persistCurrentSession()
     logForDebugging(`[Session] Resumed session: ${sessionId}`)
 
     return session
@@ -415,6 +429,7 @@ class SessionContinuityManager {
 
       // Clean up expired sessions
       await this.cleanupExpiredSessions()
+      await this.hydrateCurrentSessionFromCanonicalState()
     } catch (error) {
       if ((error as any).code !== 'ENOENT') {
         logForDebugging(`[Session] Failed to load history: ${error}`)
@@ -474,6 +489,106 @@ class SessionContinuityManager {
 
   private generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  }
+
+  private async hydrateCurrentSessionFromCanonicalState(): Promise<void> {
+    const currentSessionId = this.sessionHistory.currentSessionId
+    if (!currentSessionId) {
+      return
+    }
+
+    const legacySession = this.sessionHistory.sessions.find(
+      session => session.sessionId === currentSessionId,
+    )
+    const persisted = await loadPersistedSessionState(currentSessionId, {
+      projectDir: legacySession?.projectPath,
+    })
+    if (persisted?.continuityMetadata) {
+      this.currentSession = this.fromPersistedContinuity(
+        persisted.continuityMetadata,
+      )
+
+      const existingIndex = this.sessionHistory.sessions.findIndex(
+        session => session.sessionId === currentSessionId,
+      )
+      if (existingIndex !== -1) {
+        this.sessionHistory.sessions[existingIndex] = this.currentSession
+      } else {
+        this.sessionHistory.sessions.push(this.currentSession)
+      }
+      return
+    }
+
+    if (legacySession) {
+      this.currentSession = legacySession
+      await this.persistSession(legacySession, ['session-history'])
+    }
+  }
+
+  private async persistCurrentSession(): Promise<void> {
+    if (!this.currentSession) {
+      return
+    }
+    await this.persistSession(this.currentSession)
+  }
+
+  private async persistSession(
+    session: SessionState,
+    legacySources: string[] = [],
+  ): Promise<void> {
+    await updatePersistedSessionContinuity(
+      session.sessionId as UUID,
+      {
+        sessionId: session.sessionId,
+        projectPath: session.projectPath,
+        startedAt: session.startedAt,
+        lastActivity: session.lastActivity,
+        status: session.status,
+        activePlan: session.activePlan,
+        planName: session.planName,
+        completedTasks: session.completedTasks,
+        remainingTasks: session.remainingTasks,
+        currentTask: session.currentTask,
+        workingFiles: session.workingFiles,
+        conversationSummary: session.conversationSummary,
+        keyInsights: session.keyInsights,
+        metadata: session.metadata,
+      },
+      {
+        projectDir: session.projectPath,
+      },
+    )
+
+    if (legacySources.length > 0) {
+      await markPersistedSessionLegacySources(
+        session.sessionId as UUID,
+        legacySources,
+        {
+          projectDir: session.projectPath,
+        },
+      )
+    }
+  }
+
+  private fromPersistedContinuity(
+    continuity: PersistedSessionContinuityMetadata,
+  ): SessionState {
+    return {
+      sessionId: continuity.sessionId,
+      projectPath: continuity.projectPath,
+      startedAt: continuity.startedAt,
+      lastActivity: continuity.lastActivity,
+      status: continuity.status,
+      activePlan: continuity.activePlan,
+      planName: continuity.planName,
+      completedTasks: continuity.completedTasks,
+      remainingTasks: continuity.remainingTasks,
+      currentTask: continuity.currentTask,
+      workingFiles: continuity.workingFiles,
+      conversationSummary: continuity.conversationSummary,
+      keyInsights: continuity.keyInsights,
+      metadata: continuity.metadata,
+    }
   }
 
   private async generateSessionSummary(session: SessionState): Promise<string> {

@@ -1,47 +1,37 @@
 import readline from 'node:readline'
-import cavemanMode from '../src/commands/caveman-mode/index.ts'
-import deadpoolMode from '../src/commands/deadpoolmode/index.ts'
-import {
-  FileStateCache,
-  READ_FILE_STATE_CACHE_SIZE,
-} from '../src/utils/fileStateCache.js'
-import { runHeadlessLocalSlashCommand } from '../src/utils/headlessLocalCommandRunner.js'
+import { createHeadlessSessionHarness, type HeadlessHarnessEvent } from '../src/headless/sessionHarness.js'
 
 type TransportRequest = {
   id: string
-  command: string
+  input?: string
+  command?: string
   cwd?: string
   sessionId?: string
+  permissionMode?: 'allow' | 'deny' | 'ask'
 }
 
-type SessionState = {
-  appState: Record<string, unknown>
-  messages: any[]
-  fileCache: FileStateCache
-}
+type TransportSession = ReturnType<typeof createHeadlessSessionHarness>
 
 const MAX_SESSIONS = 32
 const DEFAULT_SESSION_ID = 'default'
-const sessions = new Map<string, SessionState>()
+const sessions = new Map<string, TransportSession>()
 
-function getSession(sessionId: string): SessionState {
+function getSession(sessionId: string, cwd?: string): TransportSession {
   const existing = sessions.get(sessionId)
   if (existing) {
     return existing
   }
 
   if (sessions.size >= MAX_SESSIONS) {
-    const oldestSessionId = sessions.keys().next().value
-    if (oldestSessionId !== undefined) {
-      sessions.delete(oldestSessionId)
+    const oldest = sessions.keys().next().value
+    if (oldest !== undefined) {
+      sessions.delete(oldest)
     }
   }
 
-  const created: SessionState = {
-    appState: {},
-    messages: [],
-    fileCache: new FileStateCache(READ_FILE_STATE_CACHE_SIZE, 25 * 1024 * 1024),
-  }
+  const created = createHeadlessSessionHarness({
+    cwd: cwd ?? process.cwd(),
+  })
   sessions.set(sessionId, created)
   return created
 }
@@ -50,62 +40,88 @@ function writeMessage(payload: unknown): void {
   process.stdout.write(`${JSON.stringify(payload)}\n`)
 }
 
-function getOutputText(result: {
-  type: 'text' | 'compact' | 'skip'
-  value?: string
-  displayText?: string
-}): string {
-  if (result.type === 'text') {
-    return result.value ?? ''
-  }
-  if (result.type === 'compact') {
-    return result.displayText ?? ''
-  }
-  return ''
-}
+async function streamRequest(request: TransportRequest): Promise<void> {
+  const session = getSession(request.sessionId ?? DEFAULT_SESSION_ID, request.cwd)
+  const input = request.input ?? request.command
 
-async function handleRequest(request: TransportRequest): Promise<void> {
-  const session = getSession(request.sessionId ?? DEFAULT_SESSION_ID)
-  const cwd = request.cwd ?? process.cwd()
-
-  const resolved = await runHeadlessLocalSlashCommand(request.command, {
-    cwd,
-    appState: session.appState,
-    setAppState: updater => {
-      session.appState = updater(session.appState)
-      return session.appState
-    },
-    messages: session.messages,
-    fileCache: session.fileCache,
-    commands: [deadpoolMode, cavemanMode],
-    theme: 'dark',
-  })
-
-  if (!resolved) {
+  if (!input) {
     writeMessage({
       id: request.id,
+      type: 'error',
       ok: false,
-      error:
-        'Unsupported command for headless transport. Current transport supports /deadpoolmode and /caveman-mode.',
+      error: 'Request must include input or command',
     })
     return
   }
 
+  const turn = await session.submit(input, {
+    permissionMode: request.permissionMode ?? 'allow',
+  })
+
+  for await (const event of turn.events()) {
+    writeMessage({
+      id: request.id,
+      type: 'event',
+      event,
+    })
+  }
+
+  await turn.done
+
   writeMessage({
     id: request.id,
+    type: 'done',
     ok: true,
-    command: resolved.command.name,
-    args: resolved.parsedArgs,
-    output: getOutputText(resolved.result),
-    resultType: resolved.result.type,
+  })
+}
+
+function handlePermissionReply(payload: {
+  id: string
+  sessionId?: string
+  requestId: string
+  decision: 'allow' | 'deny'
+  reason?: string
+}): void {
+  const session = sessions.get(payload.sessionId ?? DEFAULT_SESSION_ID)
+  if (!session) {
+    writeMessage({
+      id: payload.id,
+      type: 'error',
+      ok: false,
+      error: 'Session not found',
+    })
+    return
+  }
+
+  const ok = session.respondToPermission(
+    payload.requestId,
+    payload.decision === 'allow'
+      ? { behavior: 'allow' }
+      : { behavior: 'deny', reason: payload.reason },
+  )
+
+  writeMessage({
+    id: payload.id,
+    type: 'permission_ack',
+    ok,
+  })
+}
+
+function handleInterrupt(payload: { id: string; sessionId?: string }): void {
+  const session = sessions.get(payload.sessionId ?? DEFAULT_SESSION_ID)
+  const ok = session?.interrupt() ?? false
+  writeMessage({
+    id: payload.id,
+    type: 'interrupt_ack',
+    ok,
   })
 }
 
 async function main(): Promise<void> {
   writeMessage({
     type: 'ready',
-    transport: 'headless-local-command',
-    commands: ['deadpoolmode', 'caveman-mode'],
+    transport: 'headless-session-harness',
+    protocol: 'jsonl',
   })
 
   const rl = readline.createInterface({
@@ -121,23 +137,37 @@ async function main(): Promise<void> {
       }
 
       try {
-        const request = JSON.parse(trimmed) as Partial<TransportRequest>
-        if (
-          typeof request.id !== 'string' ||
-          typeof request.command !== 'string'
-        ) {
-          throw new Error('Request must include string id and command fields')
+        const payload = JSON.parse(trimmed) as
+          | (TransportRequest & { type?: 'request' })
+          | {
+              type: 'permission_response'
+              id: string
+              sessionId?: string
+              requestId: string
+              decision: 'allow' | 'deny'
+              reason?: string
+            }
+          | { type: 'interrupt'; id: string; sessionId?: string }
+
+        if (payload.type === 'permission_response') {
+          handlePermissionReply(payload)
+          return
         }
 
-        await handleRequest({
-          id: request.id,
-          command: request.command,
-          cwd: request.cwd,
-          sessionId: request.sessionId,
-        })
+        if (payload.type === 'interrupt') {
+          handleInterrupt(payload)
+          return
+        }
+
+        if (typeof payload.id !== 'string') {
+          throw new Error('Request must include string id field')
+        }
+
+        await streamRequest(payload)
       } catch (error) {
         writeMessage({
           id: 'unknown',
+          type: 'error',
           ok: false,
           error: error instanceof Error ? error.message : String(error),
         })

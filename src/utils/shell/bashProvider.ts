@@ -202,7 +202,7 @@ export async function createBashShellProvider(
       if (skipLoginShell) {
         logForDebugging('Spawning shell without login (-l flag skipped)')
       }
-      return ['-c', ...(skipLoginShell ? [] : ['-l']), commandString]
+      return [...(skipLoginShell ? [] : ['-l']), '-c', commandString]
     },
 
     async getEnvironmentOverrides(

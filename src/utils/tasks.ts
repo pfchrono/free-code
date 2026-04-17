@@ -13,6 +13,7 @@ import { createSignal } from './signal.js'
 import { jsonParse, jsonStringify } from './slowOperations.js'
 import { getTeamName } from './teammate.js'
 import { getTeammateContext } from './teammateContext.js'
+import type { TodoItem, TodoList } from './todo/types.js'
 
 // Listeners for task list updates (used for immediate UI refresh in same process)
 const tasksUpdated = createSignal()
@@ -131,11 +132,10 @@ async function writeHighWaterMark(
 }
 
 export function isTodoV2Enabled(): boolean {
-  // Force-enable tasks in non-interactive mode (e.g. SDK users who want Task tools over TodoWrite)
-  if (isEnvTruthy(process.env.CLAUDE_CODE_ENABLE_TASKS)) {
-    return true
+  if (isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_TASKS_V2)) {
+    return false
   }
-  return !getIsNonInteractiveSession()
+  return true
 }
 
 /**
@@ -860,3 +860,236 @@ export async function unassignTeammateTasks(
 }
 
 export const DEFAULT_TASKS_MODE_TASK_LIST_ID = 'tasklist'
+
+function sortTasksForCanonicalOrder(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    const aNum = parseInt(a.id, 10)
+    const bNum = parseInt(b.id, 10)
+    if (!isNaN(aNum) && !isNaN(bNum)) {
+      return aNum - bNum
+    }
+    return a.id.localeCompare(b.id)
+  })
+}
+
+export async function listCanonicalTasks(taskListId: string): Promise<Task[]> {
+  const tasks = await listTasks(taskListId)
+  return sortTasksForCanonicalOrder(tasks).filter(t => !t.metadata?._internal)
+}
+
+export function convertTasksToTodoList(tasks: Task[]): TodoList {
+  return sortTasksForCanonicalOrder(tasks).map(task => ({
+    content: task.subject,
+    status: task.status,
+    activeForm: task.activeForm ?? task.subject,
+  }))
+}
+
+export async function getCanonicalTodoList(
+  taskListId: string,
+): Promise<TodoList> {
+  return convertTasksToTodoList(await listCanonicalTasks(taskListId))
+}
+
+export async function applyTodoListToCanonicalTasks(
+  taskListId: string,
+  todos: TodoList,
+): Promise<{
+  previous: TodoList
+  current: TodoList
+}> {
+  const existingTasks = await listCanonicalTasks(taskListId)
+  const previous = convertTasksToTodoList(existingTasks)
+
+  for (let index = 0; index < todos.length; index++) {
+    const todo = todos[index]!
+    const existingTask = existingTasks[index]
+    if (existingTask) {
+      await updateTask(taskListId, existingTask.id, {
+        subject: todo.content,
+        description: todo.content,
+        activeForm: todo.activeForm,
+        status: todo.status,
+        owner: undefined,
+      })
+    } else {
+      await createTask(taskListId, {
+        subject: todo.content,
+        description: todo.content,
+        activeForm: todo.activeForm,
+        status: todo.status,
+        owner: undefined,
+        blocks: [],
+        blockedBy: [],
+      })
+    }
+  }
+
+  for (const extraTask of existingTasks.slice(todos.length)) {
+    await deleteTask(taskListId, extraTask.id)
+  }
+
+  return {
+    previous,
+    current: await getCanonicalTodoList(taskListId),
+  }
+}
+
+export function buildTaskSnapshotFromToolUseLog(
+  messages: Array<{
+    type?: string
+    message?: { content?: unknown }
+  }>,
+): Task[] {
+  const tasks = new Map<string, Task>()
+  const pendingCreates = new Map<
+    string,
+    { subject: string; description: string; activeForm?: string }
+  >()
+  const pendingUpdates = new Map<
+    string,
+    {
+      taskId: string
+      subject?: string
+      description?: string
+      activeForm?: string
+      status?: TaskStatus | 'deleted'
+      owner?: string
+    }
+  >()
+
+  for (const message of messages) {
+    if (message.type === 'assistant' && Array.isArray(message.message?.content)) {
+      for (const block of message.message.content) {
+        if (!block || typeof block !== 'object' || !('type' in block)) {
+          continue
+        }
+        const typedBlock = block as Record<string, unknown>
+        if (typedBlock.type !== 'tool_use' || typeof typedBlock.name !== 'string') {
+          continue
+        }
+
+        if (typedBlock.name === 'TodoWrite') {
+          const inputTodos = (typedBlock.input as { todos?: TodoList } | undefined)?.todos
+          if (Array.isArray(inputTodos)) {
+            tasks.clear()
+            for (const [index, todo] of inputTodos.entries()) {
+              tasks.set(String(index + 1), {
+                id: String(index + 1),
+                subject: todo.content,
+                description: todo.content,
+                activeForm: todo.activeForm,
+                status: todo.status,
+                owner: undefined,
+                blocks: [],
+                blockedBy: [],
+              })
+            }
+          }
+        } else if (typedBlock.name === 'TaskCreate') {
+          pendingCreates.set(String(typedBlock.id), {
+            subject: String((typedBlock.input as Record<string, unknown>)?.subject ?? ''),
+            description: String((typedBlock.input as Record<string, unknown>)?.description ?? ''),
+            activeForm:
+              typeof (typedBlock.input as Record<string, unknown>)?.activeForm === 'string'
+                ? String((typedBlock.input as Record<string, unknown>)?.activeForm)
+                : undefined,
+          })
+        } else if (typedBlock.name === 'TaskUpdate') {
+          const input = typedBlock.input as Record<string, unknown>
+          if (typeof input?.taskId === 'string') {
+            pendingUpdates.set(String(typedBlock.id), {
+              taskId: input.taskId,
+              subject: typeof input.subject === 'string' ? input.subject : undefined,
+              description:
+                typeof input.description === 'string' ? input.description : undefined,
+              activeForm:
+                typeof input.activeForm === 'string' ? input.activeForm : undefined,
+              status:
+                input.status === 'pending' ||
+                input.status === 'in_progress' ||
+                input.status === 'completed' ||
+                input.status === 'deleted'
+                  ? input.status
+                  : undefined,
+              owner: typeof input.owner === 'string' ? input.owner : undefined,
+            })
+          }
+        }
+      }
+    }
+
+    if (message.type === 'user' && Array.isArray(message.message?.content)) {
+      for (const block of message.message.content) {
+        if (
+          !block ||
+          typeof block !== 'object' ||
+          (block as Record<string, unknown>).type !== 'tool_result'
+        ) {
+          continue
+        }
+
+        const toolResult = block as Record<string, unknown>
+        const toolUseId = String(toolResult.tool_use_id ?? '')
+        const content =
+          typeof toolResult.content === 'string'
+            ? toolResult.content
+            : Array.isArray(toolResult.content)
+              ? toolResult.content
+                  .map(item =>
+                    item && typeof item === 'object' && 'text' in item
+                      ? String((item as Record<string, unknown>).text ?? '')
+                      : '',
+                  )
+                  .join('\n')
+              : ''
+
+        const createMatch = content.match(/Task #(\d+) created successfully:/)
+        if (createMatch) {
+          const pendingCreate = pendingCreates.get(toolUseId)
+          if (pendingCreate) {
+            tasks.set(createMatch[1]!, {
+              id: createMatch[1]!,
+              subject: pendingCreate.subject,
+              description: pendingCreate.description,
+              activeForm: pendingCreate.activeForm,
+              status: 'pending',
+              owner: undefined,
+              blocks: [],
+              blockedBy: [],
+            })
+          }
+          continue
+        }
+
+        const pendingUpdate = pendingUpdates.get(toolUseId)
+        if (pendingUpdate && !content.includes('Task not found')) {
+          if (pendingUpdate.status === 'deleted') {
+            tasks.delete(pendingUpdate.taskId)
+            continue
+          }
+
+          const existingTask = tasks.get(pendingUpdate.taskId)
+          if (existingTask) {
+            tasks.set(pendingUpdate.taskId, {
+              ...existingTask,
+              ...(pendingUpdate.subject && { subject: pendingUpdate.subject }),
+              ...(pendingUpdate.description && {
+                description: pendingUpdate.description,
+              }),
+              ...(pendingUpdate.activeForm && {
+                activeForm: pendingUpdate.activeForm,
+              }),
+              ...(pendingUpdate.status && { status: pendingUpdate.status }),
+              ...(pendingUpdate.owner !== undefined && {
+                owner: pendingUpdate.owner,
+              }),
+            })
+          }
+        }
+      }
+    }
+  }
+
+  return sortTasksForCanonicalOrder(Array.from(tasks.values()))
+}

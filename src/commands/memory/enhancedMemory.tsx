@@ -9,9 +9,11 @@ import type { CommandResultDisplay } from '../../commands.js'
 import { Dialog } from '../../components/design-system/Dialog.js'
 import { Box, Text, Static, Newline } from '../../ink.js'
 import type { LocalJSXCommandCall } from '../../types/command.js'
+import { getSessionId } from '../../bootstrap/state.js'
 import { getMemorySystem, type MemoryEntry } from '../../services/memory/persistentMemorySystem.js'
 import { getSessionManager } from '../../services/memory/sessionContinuityManager.js'
 import { logForDebugging } from '../../utils/debug.js'
+import { loadPersistedSessionState } from '../../utils/persistedSessionState.js'
 
 interface MemoryCommandProps {
   onDone: (result?: string, options?: { display?: CommandResultDisplay }) => void
@@ -21,11 +23,18 @@ interface MemoryCommandProps {
 function MemoryCommand({ onDone, args }: MemoryCommandProps): React.ReactNode {
   const [mode, setMode] = useState<'menu' | 'search' | 'stats' | 'session'>('menu')
   const [searchResults, setSearchResults] = useState<MemoryEntry[]>([])
+  const [persistedState, setPersistedState] = useState<Awaited<ReturnType<typeof loadPersistedSessionState>>>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string>()
 
   const memorySystem = getMemorySystem()
   const sessionManager = getSessionManager()
+
+  useEffect(() => {
+    void loadPersistedSessionState(getSessionId()).then(setPersistedState).catch(error => {
+      logForDebugging(`[Memory] Failed to load persisted session state: ${error}`)
+    })
+  }, [])
 
   useEffect(() => {
     // Parse command arguments
@@ -96,7 +105,7 @@ function MemoryCommand({ onDone, args }: MemoryCommandProps): React.ReactNode {
 
   if (mode === 'stats') {
     const stats = memorySystem.getStats()
-    const currentSession = sessionManager.getCurrentSession()
+    const currentSession = persistedState?.continuityMetadata ?? sessionManager.getCurrentSession()
 
     return (
       <Dialog title="Memory System Statistics" onCancel={handleCancel} color="remember">
@@ -118,6 +127,7 @@ function MemoryCommand({ onDone, args }: MemoryCommandProps): React.ReactNode {
               <Text>  Tasks Remaining: {currentSession.remainingTasks.length}</Text>
               <Text>  Key Insights: {currentSession.keyInsights.length}</Text>
               <Text>  Working Files: {currentSession.workingFiles.length}</Text>
+              <Text>  Source: persisted session state</Text>
             </>
           ) : (
             <Text dimColor>  No active session</Text>
@@ -128,7 +138,7 @@ function MemoryCommand({ onDone, args }: MemoryCommandProps): React.ReactNode {
   }
 
   if (mode === 'session') {
-    const currentSession = sessionManager.getCurrentSession()
+    const currentSession = persistedState?.continuityMetadata ?? sessionManager.getCurrentSession()
     const recentSessions = sessionManager.getSessionHistory(5)
 
     return (
@@ -140,6 +150,7 @@ function MemoryCommand({ onDone, args }: MemoryCommandProps): React.ReactNode {
               <Text>  Project: {currentSession.projectPath}</Text>
               <Text>  Started: {formatTimestamp(currentSession.startedAt)}</Text>
               <Text>  Last Activity: {formatTimestamp(currentSession.lastActivity)}</Text>
+              <Text>  Continuity Source: persisted session state</Text>
               <Newline />
 
               {currentSession.remainingTasks.length > 0 && (

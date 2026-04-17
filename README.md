@@ -111,9 +111,9 @@ Recent updates expanded provider bootstrap, local launch workflow, provider heal
   - `free-code dev:profile:auto`
   - provider-specific `dev:profile:*` variants
 - Added provider diagnostics with `free-code doctor:provider`
-- Added gRPC dev helpers with `free-code dev:grpc` and `free-code dev:grpc:cli`
+- Added experimental gRPC dev helpers with `free-code dev:grpc` and `free-code dev:grpc:cli`
 - Added explicit gRPC cleanup helper with `free-code dev:grpc:stop`
-- Added headless transport helpers with `free-code dev:headless-transport` and `free-code test:headless-transport`
+- Added shared-harness headless transport helpers with `free-code dev:headless-transport`, `free-code test:headless-transport`, and `free-code test:headless-integration`
 - Added GitHub Copilot provider integration (OAuth/token exchange + API adapter)
 - Added `/copilot models` and `/openrouter models` to probe model support from cached capability data
 - Restored `/usage` for Codex sessions and surfaced same usage state in Settings -> Status
@@ -525,16 +525,27 @@ free-code dev:profile:minimax
 free-code dev:profile:firstparty
 ```
 
-### 5) gRPC dev helpers
+### 5) Headless automation helpers
+
+```bash
+bun run dev:headless-transport
+bun run test:headless-transport
+bun run test:headless-integration
+```
+
+Use these for automation, integration smoke, and transport-neutral regression checks. They run on top of the shared headless session harness used by current non-visual transport testing.
+
+### 6) Experimental gRPC dev helpers
 
 ```bash
 bun run dev:grpc
 bun run dev:grpc:cli
+bun run dev:grpc:stop
 ```
 
-Use these when testing local gRPC workflow or CLI transport.
+Use these only for manual/experimental transport checks. Current Bun-hosted gRPC still has protocol instability in this repo and is not the recommended automation path.
 
-### 6) Daily workflow
+### 7) Daily workflow
 
 - Start in project root
 - Initialize or confirm provider profile (`free-code profile:init`, `free-code doctor:provider`)
@@ -543,7 +554,7 @@ Use these when testing local gRPC workflow or CLI transport.
 - Keep provider scoped by repository rather than mutating global shell env each time
 - Use `/usage` or Settings -> Status to inspect Codex/Copilot context and rate-limit state when available
 
-### 7) Switch provider mode later
+### 8) Switch provider mode later
 
 Re-run any profile command:
 

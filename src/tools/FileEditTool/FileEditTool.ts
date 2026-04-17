@@ -521,6 +521,11 @@ export const FileEditTool = buildTool({
     })
 
     // 5. Write to disk
+    if (!fileExists && old_string.length > 0) {
+      throw new Error(
+        'File disappeared before edit could be written. Read file again and retry.',
+      )
+    }
     writeTextContent(absoluteFilePath, updatedFile, encoding, endings)
 
     // Notify LSP servers about file modification (didChange) and save (didSave)

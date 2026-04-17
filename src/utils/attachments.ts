@@ -29,9 +29,10 @@ import { BASH_TOOL_NAME } from '../tools/BashTool/toolName.js'
 import { SKILL_TOOL_NAME } from '../tools/SkillTool/constants.js'
 import type { TodoList } from './todo/types.js'
 import {
+  convertTasksToTodoList,
   type Task,
-  listTasks,
   getTaskListId,
+  listCanonicalTasks,
   isTodoV2Enabled,
 } from './tasks.js'
 import { getPlanFilePath, getPlan } from './plans.js'
@@ -3277,6 +3278,16 @@ async function getTodoReminderAttachments(
     return []
   }
 
+  if (
+    toolUseContext.options.tools.some(
+      t =>
+        toolMatchesName(t, TASK_CREATE_TOOL_NAME) ||
+        toolMatchesName(t, TASK_UPDATE_TOOL_NAME),
+    )
+  ) {
+    return []
+  }
+
   // When SendUserMessage is in the toolkit, it's the primary communication
   // channel and the model is always told to use it (#20467). TodoWrite
   // becomes a side channel — nudging the model about it conflicts with the
@@ -3302,9 +3313,9 @@ async function getTodoReminderAttachments(
     turnsSinceLastTodoWrite >= TODO_REMINDER_CONFIG.TURNS_SINCE_WRITE &&
     turnsSinceLastReminder >= TODO_REMINDER_CONFIG.TURNS_BETWEEN_REMINDERS
   ) {
-    const todoKey = toolUseContext.agentId ?? getSessionId()
-    const appState = toolUseContext.getAppState()
-    const todos = appState.todos[todoKey] ?? []
+    const todos = convertTasksToTodoList(
+      await listCanonicalTasks(getTaskListId()),
+    )
     return [
       {
         type: 'todo_reminder',
@@ -3344,7 +3355,8 @@ function getTaskReminderTurnCounts(messages: Message[]): {
         message.message.content.some(
           block =>
             block.type === 'tool_use' &&
-            (block.name === TASK_CREATE_TOOL_NAME ||
+            (block.name === TODO_WRITE_TOOL_NAME ||
+              block.name === TASK_CREATE_TOOL_NAME ||
               block.name === TASK_UPDATE_TOOL_NAME),
         )
       ) {
@@ -3377,10 +3389,6 @@ async function getTaskReminderAttachments(
   messages: Message[] | undefined,
   toolUseContext: ToolUseContext,
 ): Promise<Attachment[]> {
-  if (!isTodoV2Enabled()) {
-    return []
-  }
-
   // Skip for ant users
   if (process.env.USER_TYPE === 'ant') {
     return []
@@ -3397,10 +3405,12 @@ async function getTaskReminderAttachments(
     return []
   }
 
-  // Skip if TaskUpdate tool is not available
+  // Skip if task management tools are not available
   if (
-    !toolUseContext.options.tools.some(t =>
-      toolMatchesName(t, TASK_UPDATE_TOOL_NAME),
+    !toolUseContext.options.tools.some(
+      t =>
+        toolMatchesName(t, TASK_CREATE_TOOL_NAME) ||
+        toolMatchesName(t, TASK_UPDATE_TOOL_NAME),
     )
   ) {
     return []
@@ -3419,7 +3429,7 @@ async function getTaskReminderAttachments(
     turnsSinceLastTaskManagement >= TODO_REMINDER_CONFIG.TURNS_SINCE_WRITE &&
     turnsSinceLastReminder >= TODO_REMINDER_CONFIG.TURNS_BETWEEN_REMINDERS
   ) {
-    const tasks = await listTasks(getTaskListId())
+    const tasks = await listCanonicalTasks(getTaskListId())
     return [
       {
         type: 'task_reminder',

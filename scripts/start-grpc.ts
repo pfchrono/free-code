@@ -21,6 +21,9 @@ Object.assign(globalThis, {
 
 async function main(): Promise<void> {
   console.log('Starting free-code gRPC server...')
+  console.log(
+    'Note: gRPC transport is experimental/manual-only. Prefer headless transport for automation and smoke tests.',
+  )
   applyProviderRuntimeBootstrap()
   await init()
 
@@ -44,7 +47,7 @@ async function main(): Promise<void> {
   const port = process.env.GRPC_PORT ? parseInt(process.env.GRPC_PORT, 10) : 50051
   const host = process.env.GRPC_HOST || 'localhost'
   const server = new GrpcServer()
-  server.start(port, host)
+  await server.start(port, host)
   await mkdir(PID_DIR, { recursive: true })
   await writeFile(PID_PATH, `${process.pid}\n`, 'utf8')
 

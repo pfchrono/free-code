@@ -122,6 +122,9 @@ async function main(): Promise<void> {
   }
 
   console.log('\x1b[32mfree-code gRPC CLI\x1b[0m')
+  console.log(
+    '\x1b[90mExperimental/manual transport only. Prefer headless transport for automation smoke.\x1b[0m',
+  )
   console.log('\x1b[90mType /exit to quit.\x1b[0m')
   await promptUser()
 }

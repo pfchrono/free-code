@@ -1,20 +1,15 @@
-import deadpoolMode from '../src/commands/deadpoolmode/index.ts'
-import {
-  FileStateCache,
-  READ_FILE_STATE_CACHE_SIZE,
-} from '../src/utils/fileStateCache.js'
-import { runHeadlessLocalSlashCommand } from '../src/utils/headlessLocalCommandRunner.js'
+import { createHeadlessSessionHarness } from '../src/headless/sessionHarness.js'
 
 type HarnessCase = {
   name: string
-  command: string
+  input: string
   expectIncludes: string[]
 }
 
 const DEFAULT_CASES: HarnessCase[] = [
   {
     name: 'deadpool-status',
-    command: '/deadpoolmode status',
+    input: '/deadpoolmode status',
     expectIncludes: ['Deadpool mode', 'Style stack:'],
   },
 ]
@@ -22,47 +17,38 @@ const DEFAULT_CASES: HarnessCase[] = [
 async function runCase(testCase: HarnessCase): Promise<{
   name: string
   ok: boolean
-  output: string
+  outputs: string[]
 }> {
-  let appState: Record<string, unknown> = {}
-
-  const result = await runHeadlessLocalSlashCommand(testCase.command, {
+  const harness = createHeadlessSessionHarness({
     cwd: process.cwd(),
-    appState,
-    setAppState: updater => {
-      appState = updater(appState)
-      return appState
-    },
-    fileCache: new FileStateCache(READ_FILE_STATE_CACHE_SIZE, 25 * 1024 * 1024),
-    commands: [deadpoolMode],
-    theme: 'dark',
   })
+  const turn = await harness.submit(testCase.input)
+  const outputs: string[] = []
 
-  if (!result) {
-    throw new Error(`Command did not resolve to a supported local command: ${testCase.command}`)
+  for await (const event of turn.events()) {
+    if (event.type === 'message') {
+      outputs.push(event.content)
+    }
   }
 
-  const output =
-    result.result.type === 'text'
-      ? result.result.value
-      : result.result.type === 'compact'
-        ? result.result.displayText ?? ''
-        : ''
+  await turn.done
 
   return {
     name: testCase.name,
-    ok: testCase.expectIncludes.every(fragment => output.includes(fragment)),
-    output,
+    ok: testCase.expectIncludes.every(fragment =>
+      outputs.some(output => output.includes(fragment)),
+    ),
+    outputs,
   }
 }
 
 async function main(): Promise<void> {
-  const requestedCommand = process.argv[2]
-  const cases = requestedCommand
+  const requestedInput = process.argv[2]
+  const cases = requestedInput
     ? [
         {
           name: 'custom',
-          command: requestedCommand,
+          input: requestedInput,
           expectIncludes: [],
         } satisfies HarnessCase,
       ]

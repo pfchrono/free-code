@@ -50,6 +50,7 @@
         "axios": "^1.14.0",
         "bidi-js": "^1.0.3",
         "cacache": "^20.0.4",
+        "ccstatusline": "^2.2.8",
         "chalk": "^5.6.2",
         "chokidar": "^5.0.0",
         "cli-boxes": "^4.0.1",
@@ -554,6 +555,8 @@
     "call-bound": ["call-bound@1.0.4", "", { "dependencies": { "call-bind-apply-helpers": "^1.0.2", "get-intrinsic": "^1.3.0" } }, "sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg=="],
 
     "camelcase": ["camelcase@5.3.1", "", {}, "sha512-L28STB170nwWS63UjtlEOE3dldQApaJXZkOI1uMFfzf3rRuPegHaHesyee+YxQ+W6SvRDQV6UrdOdRiR153wJg=="],
+
+    "ccstatusline": ["ccstatusline@2.2.8", "", { "bin": { "ccstatusline": "dist/ccstatusline.js" } }, "sha512-Uy1NRqJucm/nAGdigjz7gb4iQ4p+WUMQAb9Bhd4GuzWuoXiHRQDKRq2eus4QZxZf+mcyvLFKTmE2c/8UUFhm3Q=="],
 
     "chalk": ["chalk@5.6.2", "", {}, "sha512-7NzBL0rN6fMUW+f7A6Io4h40qQlG+xGmtMxfbnH/K7TAtt8JQWVQK+6g0UXKMeVJoyV5EkkNsErQ8pVD3bLHbA=="],
 

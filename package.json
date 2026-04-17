@@ -1,6 +1,6 @@
 {
   "name": "free-code-source",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "private": true,
   "description": "Freecode CLI workspace for agentic coding.",
   "type": "module",
@@ -104,6 +104,7 @@
     "axios": "^1.14.0",
     "bidi-js": "^1.0.3",
     "cacache": "^20.0.4",
+    "ccstatusline": "^2.2.8",
     "chalk": "^5.6.2",
     "chokidar": "^5.0.0",
     "cli-boxes": "^4.0.1",

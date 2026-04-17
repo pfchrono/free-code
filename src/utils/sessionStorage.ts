@@ -1452,6 +1452,8 @@ export async function recordTranscript(
         checkpointMetadata: existing?.checkpointMetadata,
         resumeMetadata: existing?.resumeMetadata,
         compactionHistory: existing?.compactionHistory,
+        continuityMetadata: existing?.continuityMetadata,
+        memoryLineage: existing?.memoryLineage,
       }),
     )
     .catch(() => {})

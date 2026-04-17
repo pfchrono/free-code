@@ -37,10 +37,10 @@ import {
   logEvent,
 } from '../services/analytics/index.js'
 import type { AppState } from '../state/AppState.js'
-import { runCleanupFunctions } from './cleanupRegistry.js'
 import { logForDebugging } from './debug.js'
 import { logForDiagnosticsNoPII } from './diagLogs.js'
 import { isEnvTruthy } from './envUtils.js'
+import { runProcessLifecycleShutdown } from './processLifecycle.js'
 import { getCurrentSessionTitle, sessionIdExists } from './sessionStorage.js'
 import { sleep } from './sleep.js'
 import { profileReport } from './startupProfiler.js'
@@ -209,7 +209,7 @@ function printResumeHint(): void {
       writeSync(
         1,
         chalk.dim(
-          `\nResume this session with:\nclaude --resume ${resumeArg}\n`,
+          `\nResume this session with:\nfree-code --resume ${resumeArg}\n`,
         ),
       )
       resumeHintPrinted = true
@@ -478,30 +478,16 @@ export async function gracefulShutdown(
   // terminal is dead (SIGHUP, SSH disconnect), hooks and analytics may hang
   // on I/O to a dead TTY or unreachable network, eating into the
   // failsafe budget. Session persistence must complete before anything else.
-  let cleanupTimeoutId: ReturnType<typeof setTimeout> | undefined
   try {
-    const cleanupPromise = (async () => {
-      try {
-        await runCleanupFunctions()
-      } catch {
-        // Silently ignore cleanup errors
-      }
-    })()
-
-    await Promise.race([
-      cleanupPromise,
-      new Promise((_, reject) => {
-        cleanupTimeoutId = setTimeout(
-          rej => rej(new CleanupTimeoutError()),
-          2000,
-          reject,
-        )
-      }),
-    ])
-    clearTimeout(cleanupTimeoutId)
+    await runProcessLifecycleShutdown({
+      timeouts: {
+        interruptMs: 750,
+        cleanupMs: 2000,
+        forceKillMs: 1500,
+      },
+    })
   } catch {
-    // Silently handle timeout and other errors
-    clearTimeout(cleanupTimeoutId)
+    // Silently handle lifecycle errors
   }
 
   // Execute SessionEnd hooks. Bound both the per-hook default timeout and the
@@ -560,8 +546,3 @@ export async function gracefulShutdown(
   forceExit(exitCode)
 }
 
-class CleanupTimeoutError extends Error {
-  constructor() {
-    super('Cleanup timeout')
-  }
-}

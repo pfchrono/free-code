@@ -107,6 +107,7 @@ import {
   isPersistError,
   persistToolResult,
 } from '../../utils/toolResultStorage.js'
+import { registerOwnedProcessLifecycle } from '../../utils/processLifecycle.js'
 import {
   type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   logEvent,
@@ -1664,12 +1665,40 @@ export const connectToServer = memoize(
         }
       }
 
+      let lifecycleUnregister: (() => void) | undefined
+      if (serverRef.type === 'stdio') {
+        const stdioTransport = transport as StdioClientTransport
+        lifecycleUnregister = registerOwnedProcessLifecycle({
+          label: `mcp:${name}`,
+          getPid: () => stdioTransport.pid,
+          interrupt: async () => {
+            if (stdioTransport.pid) {
+              try {
+                process.kill(stdioTransport.pid, 'SIGINT')
+              } catch {
+                // Best-effort interrupt only.
+              }
+            }
+          },
+          forceKill: async () => {
+            if (stdioTransport.pid) {
+              try {
+                process.kill(stdioTransport.pid, 'SIGKILL')
+              } catch {
+                // Best-effort force kill only.
+              }
+            }
+          },
+        })
+      }
+
       // Register cleanup for all transport types - even network transports might need cleanup
       // This ensures all MCP servers get properly terminated, not just stdio ones
       const cleanupUnregister = registerCleanup(cleanup)
 
       // Create the wrapped cleanup that includes unregistering
       const wrappedCleanup = async () => {
+        lifecycleUnregister?.()
         cleanupUnregister?.()
         await cleanup()
       }

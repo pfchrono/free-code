@@ -140,7 +140,7 @@ export function RecentDenialsTab(t0) {
   if (denials.length === 0) {
     let t10;
     if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
-      t10 = <Text dimColor={true}>No recent denials. Commands denied by the auto mode classifier will appear here.</Text>;
+      t10 = <Text dimColor={true}>No recent denials yet. Auto-denied commands will appear here.</Text>;
       $[16] = t10;
     } else {
       t10 = $[16];
@@ -176,7 +176,7 @@ export function RecentDenialsTab(t0) {
   const options = t10;
   let t11;
   if ($[24] === Symbol.for("react.memo_cache_sentinel")) {
-    t11 = <Text>Commands recently denied by the auto mode classifier.</Text>;
+    t11 = <Text>Recently auto-denied commands.</Text>;
     $[24] = t11;
   } else {
     t11 = $[24];

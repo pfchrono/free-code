@@ -4,7 +4,10 @@ import { getSessionId } from '../../bootstrap/state.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../../services/analytics/growthbook.js'
 import { buildTool, type ToolDef } from '../../Tool.js'
 import { lazySchema } from '../../utils/lazySchema.js'
-import { isTodoV2Enabled } from '../../utils/tasks.js'
+import {
+  applyTodoListToCanonicalTasks,
+  getTaskListId,
+} from '../../utils/tasks.js'
 import { TodoListSchema } from '../../utils/todo/types.js'
 import { VERIFICATION_AGENT_TYPE } from '../AgentTool/constants.js'
 import { TODO_WRITE_TOOL_NAME } from './constants.js'
@@ -50,7 +53,7 @@ export const TodoWriteTool = buildTool({
   },
   shouldDefer: true,
   isEnabled() {
-    return !isTodoV2Enabled()
+    return true
   },
   toAutoClassifierInput(input) {
     return `${input.todos.length} items`
@@ -65,9 +68,10 @@ export const TodoWriteTool = buildTool({
   async call({ todos }, context) {
     const appState = context.getAppState()
     const todoKey = context.agentId ?? getSessionId()
-    const oldTodos = appState.todos[todoKey] ?? []
+    const { previous: oldTodos, current: canonicalTodos } =
+      await applyTodoListToCanonicalTasks(getTaskListId(), todos)
     const allDone = todos.every(_ => _.status === 'completed')
-    const newTodos = allDone ? [] : todos
+    const newTodos = allDone ? [] : canonicalTodos
 
     // Structural nudge: if the main-thread agent is closing out a 3+ item
     // list and none of those items was a verification step, append a reminder
@@ -96,7 +100,7 @@ export const TodoWriteTool = buildTool({
     return {
       data: {
         oldTodos,
-        newTodos: todos,
+        newTodos: canonicalTodos,
         verificationNudgeNeeded,
       },
     }
