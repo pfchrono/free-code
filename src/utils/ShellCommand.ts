@@ -1,8 +1,9 @@
 import type { ChildProcess } from 'child_process'
-import { stat } from 'fs/promises'
+import { stat, statfs } from 'fs/promises'
 import type { Readable } from 'stream'
 import treeKill from 'tree-kill'
 import { generateTaskId } from '../Task.js'
+import { getProjectTempDir } from './permissions/filesystem.js'
 import { formatDuration } from './format.js'
 import {
   MAX_TASK_OUTPUT_BYTES,
@@ -52,6 +53,17 @@ const SIGTERM = 143
 // Background tasks write stdout/stderr directly to a file fd (no JS involvement),
 // so a stuck append loop can fill the disk. Poll file size and kill when exceeded.
 const SIZE_WATCHDOG_INTERVAL_MS = 5_000
+const TMP_FREE_SPACE_MIN_BYTES = 512 * 1024 * 1024
+const TMP_FREE_SPACE_MIN_DISPLAY = '512MB'
+
+async function getTmpFreeBytes(): Promise<number | null> {
+  try {
+    const stats = await statfs(getProjectTempDir())
+    return Number(stats.bavail) * Number(stats.bsize)
+  } catch {
+    return null
+  }
+}
 
 function prependStderr(prefix: string, stderr: string): string {
   return stderr ? `${prefix} ${stderr}` : prefix
@@ -120,6 +132,7 @@ class ShellCommandImpl implements ShellCommand {
   #timeoutId: NodeJS.Timeout | null = null
   #sizeWatchdog: NodeJS.Timeout | null = null
   #killedForSize = false
+  #killedForTmpSpace = false
   #maxOutputBytes: number
   #abortSignal: AbortSignal
   #onTimeoutCallback:
@@ -238,22 +251,28 @@ class ShellCommandImpl implements ShellCommand {
 
   #startSizeWatchdog(): void {
     this.#sizeWatchdog = setInterval(() => {
-      void stat(this.taskOutput.path).then(
-        s => {
-          // Bail if the watchdog was cleared while this stat was in flight
-          // (process exited on its own) — otherwise we'd mislabel stderr.
-          if (
-            s.size > this.#maxOutputBytes &&
-            this.#status === 'backgrounded' &&
-            this.#sizeWatchdog !== null
-          ) {
+      void Promise.all([stat(this.taskOutput.path).catch(() => null), getTmpFreeBytes()]).then(
+        ([fileStats, tmpFreeBytes]) => {
+          // Bail if watchdog cleared while checks were in flight
+          if (this.#status !== 'backgrounded' || this.#sizeWatchdog === null) {
+            return
+          }
+
+          if (fileStats && fileStats.size > this.#maxOutputBytes) {
             this.#killedForSize = true
             this.#clearSizeWatchdog()
             this.#doKill(SIGKILL)
+            return
           }
-        },
-        () => {
-          // ENOENT before first write, or unlinked mid-run — skip this tick
+
+          if (
+            tmpFreeBytes !== null &&
+            tmpFreeBytes < TMP_FREE_SPACE_MIN_BYTES
+          ) {
+            this.#killedForTmpSpace = true
+            this.#clearSizeWatchdog()
+            this.#doKill(SIGKILL)
+          }
         },
       )
     }, SIZE_WATCHDOG_INTERVAL_MS)
@@ -318,6 +337,11 @@ class ShellCommandImpl implements ShellCommand {
     if (this.#killedForSize) {
       result.stderr = prependStderr(
         `Background command killed: output file exceeded ${MAX_TASK_OUTPUT_BYTES_DISPLAY}`,
+        result.stderr,
+      )
+    } else if (this.#killedForTmpSpace) {
+      result.stderr = prependStderr(
+        `Background command killed: /tmp free space dropped below ${TMP_FREE_SPACE_MIN_DISPLAY}`,
         result.stderr,
       )
     } else if (code === SIGTERM) {

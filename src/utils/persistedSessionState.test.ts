@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'bun:test'
-import { parsePersistedSessionState } from './persistedSessionState.js'
+import { getClaudeConfigHomeDir } from './envUtils.js'
+import {
+  getPersistedSessionStatePath,
+  parsePersistedSessionState,
+} from './persistedSessionState.js'
 import { resolveResumeMessages } from './conversationRecovery.js'
+
+describe('getPersistedSessionStatePath', () => {
+  it('stores explicit project paths under config/projects using a sanitized directory name', () => {
+    expect(
+      getPersistedSessionStatePath('session-1', {
+        projectDir: 'F:\\code\\free-code',
+      }),
+    ).toBe(
+      `${getClaudeConfigHomeDir()}/projects/F--code-free-code/session-1.state.json`,
+    )
+  })
+})
 
 describe('parsePersistedSessionState', () => {
   it('drops invalid core messages but keeps valid visible history and bounded compaction history', () => {

@@ -86,11 +86,8 @@ const PERSISTED_SESSION_STATE_FILENAME_SUFFIX = '.state.json'
 export const MAX_PERSISTED_COMPACTION_HISTORY = 5
 
 function getProjectDirForSession(projectDirOverride?: string): string {
-  return (
-    projectDirOverride ??
-    getSessionProjectDir() ??
-    join(getClaudeConfigHomeDir(), 'projects', sanitizePath(getOriginalCwd()))
-  )
+  const projectDir = projectDirOverride ?? getSessionProjectDir() ?? getOriginalCwd()
+  return join(getClaudeConfigHomeDir(), 'projects', sanitizePath(projectDir))
 }
 
 export function getPersistedSessionStatePath(
