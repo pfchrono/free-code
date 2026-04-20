@@ -44,6 +44,7 @@ type GuiRuntime = {
   toolNameByUseId: Map<string, string>;
   isTurnInFlight: boolean;
   interruptRequested: boolean;
+  activeTurnPromise: Promise<void> | null;
 };
 
 const messageHistory: GuiHistoryMessage[] = [];
@@ -71,7 +72,7 @@ export async function runGuiMode(): Promise<void> {
   try {
     await processCommands(runtime);
   } finally {
-    teardownRuntime(runtime);
+    await teardownRuntime(runtime);
     writeGuiEvent({
       type: 'status',
       message: 'GUI session ended',
@@ -97,6 +98,7 @@ async function initializeGuiRuntime(): Promise<GuiRuntime> {
     toolNameByUseId: new Map(),
     isTurnInFlight: false,
     interruptRequested: false,
+    activeTurnPromise: null,
   };
 
   runtime.engine = createEngine(runtime);
@@ -250,6 +252,15 @@ async function handleUserInput(
   runtime: GuiRuntime,
   content: string,
 ): Promise<void> {
+  if (runtime.isTurnInFlight) {
+    writeGuiEvent({
+      type: 'status',
+      message: 'Wait for the current turn to finish or interrupt it first',
+      level: 'warning',
+    });
+    return;
+  }
+
   const timestamp = Date.now();
   const startedAt = Date.now();
 
@@ -274,42 +285,87 @@ async function handleUserInput(
 
   runtime.isTurnInFlight = true;
   runtime.interruptRequested = false;
+  writeGuiEvent({
+    type: 'turn_state',
+    state: 'running',
+    timestamp: startedAt,
+  });
 
-  try {
-    for await (const message of runtime.engine.submitMessage(content)) {
-      emitGuiEventsForSdkMessage(runtime, message);
-    }
-  } catch (error) {
-    writeGuiEvent({
-      type: 'error',
-      message: `Turn failed: ${toErrorMessage(error)}`,
-      code: 'TURN_ERROR',
-    });
-    writeGuiEvent({
-      type: 'status',
-      message: 'Turn failed',
-      level: 'error',
-    });
-    writeGuiEvent({
-      type: 'completion',
-      outputTokens: 0,
-      inputTokens: Math.max(1, Math.floor(content.length / 4)),
-      durationMs: Date.now() - startedAt,
-    });
-  } finally {
-    runtime.isTurnInFlight = false;
-    runtime.readFileCache = runtime.engine.getReadFileState();
+  const activeTurnPromise = (async () => {
+    let turnOutcome: 'success' | 'error' | 'cancelled' = 'success';
 
-    if (runtime.interruptRequested) {
-      recreateEngine(runtime);
-      runtime.interruptRequested = false;
+    try {
+      for await (const message of runtime.engine.submitMessage(content)) {
+        emitGuiEventsForSdkMessage(runtime, message);
+      }
+    } catch (error) {
+      if (runtime.interruptRequested) {
+        turnOutcome = 'cancelled';
+        writeGuiEvent({
+          type: 'status',
+          message: 'Turn cancelled',
+          level: 'info',
+        });
+        writeGuiEvent({
+          type: 'completion',
+          outcome: 'cancelled',
+          outputTokens: 0,
+          inputTokens: Math.max(1, Math.floor(content.length / 4)),
+          durationMs: Date.now() - startedAt,
+        });
+      } else {
+        turnOutcome = 'error';
+        writeGuiEvent({
+          type: 'error',
+          message: `Turn failed: ${toErrorMessage(error)}`,
+          code: 'TURN_ERROR',
+        });
+        writeGuiEvent({
+          type: 'status',
+          message: 'Turn failed',
+          level: 'error',
+        });
+        writeGuiEvent({
+          type: 'completion',
+          outcome: 'error',
+          outputTokens: 0,
+          inputTokens: Math.max(1, Math.floor(content.length / 4)),
+          durationMs: Date.now() - startedAt,
+        });
+      }
+    } finally {
+      runtime.isTurnInFlight = false;
+      runtime.activeTurnPromise = null;
+      runtime.readFileCache = runtime.engine.getReadFileState();
+
+      if (runtime.interruptRequested) {
+        recreateEngine(runtime);
+        runtime.interruptRequested = false;
+        writeGuiEvent({
+          type: 'status',
+          message: 'Interrupt complete',
+          level: 'info',
+        });
+      }
+
       writeGuiEvent({
-        type: 'status',
-        message: 'Interrupt complete',
-        level: 'info',
+        type: 'turn_state',
+        state: turnOutcome === 'cancelled' ? 'cancelled' : 'idle',
+        timestamp: Date.now(),
       });
+
+      if (turnOutcome === 'cancelled') {
+        writeGuiEvent({
+          type: 'turn_state',
+          state: 'idle',
+          timestamp: Date.now(),
+        });
+      }
     }
-  }
+  })();
+
+  runtime.activeTurnPromise = activeTurnPromise;
+  await activeTurnPromise;
 }
 
 function handleInterrupt(runtime: GuiRuntime): void {
@@ -325,6 +381,11 @@ function handleInterrupt(runtime: GuiRuntime): void {
   runtime.interruptRequested = true;
   runtime.engine.interrupt();
 
+  writeGuiEvent({
+    type: 'turn_state',
+    state: 'interrupting',
+    timestamp: Date.now(),
+  });
   writeGuiEvent({
     type: 'status',
     message: 'Interrupt requested',
@@ -541,6 +602,7 @@ function emitResultEvents(message: SDKResultMessage): void {
 
   writeGuiEvent({
     type: 'completion',
+    outcome: message.subtype === 'success' ? 'success' : 'error',
     outputTokens: getUsageNumber(message.usage, 'output'),
     inputTokens: getUsageNumber(message.usage, 'input'),
     durationMs: message.duration_ms,
@@ -615,9 +677,17 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function teardownRuntime(runtime: GuiRuntime): void {
-  if (runtime.isTurnInFlight) {
-    runtime.interruptRequested = true;
-    runtime.engine.interrupt();
+async function teardownRuntime(runtime: GuiRuntime): Promise<void> {
+  if (!runtime.isTurnInFlight) {
+    return;
+  }
+
+  runtime.interruptRequested = true;
+  runtime.engine.interrupt();
+
+  try {
+    await runtime.activeTurnPromise;
+  } catch {
+    // Active turn errors are already surfaced through GUI events.
   }
 }

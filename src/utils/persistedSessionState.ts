@@ -19,8 +19,18 @@ export type SessionResumeSource =
   | 'core_persisted_memory'
   | 'checkpointed_state'
 
+export type PersistedSessionCompactionPolicySource = 'persisted' | 'live_config'
+
+export type ResolvedPersistedCompactionPolicy = {
+  policy: string
+  source: PersistedSessionCompactionPolicySource
+}
+
 export type PersistedSessionCheckpointMetadata = {
   strategy?: string
+  strategySource?: PersistedSessionCompactionPolicySource
+  policy?: string
+  policySource?: PersistedSessionCompactionPolicySource
   lastSummarizedMessageId?: string
   transcriptPath?: string
   persistedAt: string
@@ -34,7 +44,8 @@ export type PersistedSessionResumeMetadata = {
 
 export type PersistedCompactionEvent = {
   trigger: 'auto' | 'manual'
-  strategy: string
+  strategy?: string
+  policy: string
   occurredAt: string
   beforeTokens?: number
   afterTokens?: number
@@ -154,6 +165,20 @@ export function parsePersistedSessionState(
           typeof checkpoint.strategy === 'string'
             ? checkpoint.strategy
             : undefined,
+        strategySource:
+          checkpoint.strategySource === 'persisted' ||
+          checkpoint.strategySource === 'live_config'
+            ? checkpoint.strategySource
+            : undefined,
+        policy:
+          typeof checkpoint.policy === 'string'
+            ? checkpoint.policy
+            : undefined,
+        policySource:
+          checkpoint.policySource === 'persisted' ||
+          checkpoint.policySource === 'live_config'
+            ? checkpoint.policySource
+            : undefined,
         lastSummarizedMessageId:
           typeof checkpoint.lastSummarizedMessageId === 'string'
             ? checkpoint.lastSummarizedMessageId
@@ -187,20 +212,29 @@ export function parsePersistedSessionState(
   }
   if (Array.isArray(candidate.compactionHistory)) {
     state.compactionHistory = candidate.compactionHistory
-      .filter(
-        item =>
-          typeof item === 'object' &&
-          item !== null &&
-          typeof (item as Record<string, unknown>).occurredAt === 'string' &&
-          typeof (item as Record<string, unknown>).strategy === 'string' &&
-          typeof (item as Record<string, unknown>).trigger === 'string',
-      )
+      .filter(item => {
+        if (typeof item !== 'object' || item === null) {
+          return false
+        }
+        const event = item as Record<string, unknown>
+        return (
+          typeof event.occurredAt === 'string' &&
+          typeof event.trigger === 'string' &&
+          (typeof event.policy === 'string' || typeof event.strategy === 'string')
+        )
+      })
       .map(item => {
         const event = item as Record<string, unknown>
+        const policy =
+          typeof event.policy === 'string'
+            ? event.policy
+            : (event.strategy as string)
         return {
           trigger:
             event.trigger === 'auto' ? 'auto' : 'manual',
-          strategy: event.strategy as string,
+          strategy:
+            typeof event.strategy === 'string' ? event.strategy : undefined,
+          policy,
           occurredAt: event.occurredAt as string,
           beforeTokens:
             typeof event.beforeTokens === 'number'
@@ -314,6 +348,28 @@ export function parsePersistedSessionState(
   }
 
   return state
+}
+
+export function resolvePersistedCompactionPolicy(
+  state: PersistedSessionState | null | undefined,
+): ResolvedPersistedCompactionPolicy | null {
+  const policy =
+    state?.checkpointMetadata?.policy ??
+    state?.checkpointMetadata?.strategy ??
+    state?.compactionHistory?.at(-1)?.policy ??
+    state?.compactionHistory?.at(-1)?.strategy
+
+  if (!policy) {
+    return null
+  }
+
+  return {
+    policy,
+    source:
+      state?.checkpointMetadata?.policySource ??
+      state?.checkpointMetadata?.strategySource ??
+      'persisted',
+  }
 }
 
 export async function loadPersistedSessionState(

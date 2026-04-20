@@ -21,6 +21,7 @@ import {
 import { getSessionMemoryConfig } from '../../services/SessionMemory/sessionMemoryUtils.js'
 import {
   loadPersistedSessionState,
+  resolvePersistedCompactionPolicy,
   type PersistedCompactionEvent,
 } from '../../utils/persistedSessionState.js'
 import {
@@ -60,7 +61,8 @@ export type StatusSnapshot = {
     health: StatusSectionHealth
     enabled: boolean
     thresholdText: string
-    strategy: string
+    policy: string
+    policySource: 'persisted' | 'live_config'
     sessionMemoryText: string
     history: PersistedCompactionEvent[]
     warnings: string[]
@@ -187,6 +189,16 @@ export async function buildStatusSnapshot(
   const sessionMemoryConfig = getSessionMemoryConfig()
   const sessionMemoryCompactConfig = getSessionMemoryCompactConfig()
   const compactionHistory = persistedSessionState?.compactionHistory ?? []
+  const resolvedPersistedCompactionPolicy = resolvePersistedCompactionPolicy(
+    persistedSessionState,
+  )
+  const liveCompactionPolicy = shouldUseSessionMemoryCompactionFn()
+    ? 'checkpointed_state'
+    : 'rolling_summary'
+  const effectiveCompactionPolicy =
+    resolvedPersistedCompactionPolicy?.policy ?? liveCompactionPolicy
+  const effectiveCompactionPolicySource =
+    resolvedPersistedCompactionPolicy?.source ?? 'live_config'
   const lifecycleSnapshot = getProcessLifecycleSnapshotFn()
 
   let sessionHealth: StatusSectionHealth = 'ok'
@@ -280,9 +292,8 @@ export async function buildStatusSnapshot(
         effectiveThreshold !== undefined
           ? `${effectiveThreshold.toLocaleString()} tok`
           : 'Disabled',
-      strategy: shouldUseSessionMemoryCompactionFn()
-        ? 'session_memory'
-        : 'summary',
+      policy: effectiveCompactionPolicy,
+      policySource: effectiveCompactionPolicySource,
       sessionMemoryText:
         `init ${sessionMemoryConfig.minimumMessageTokensToInit.toLocaleString()} tok, ` +
         `update +${sessionMemoryConfig.minimumTokensBetweenUpdate.toLocaleString()} tok, ` +
@@ -360,12 +371,14 @@ export function renderStatusSnapshot(snapshot: StatusSnapshot): string {
   lines.push('### Compaction')
   lines.push(`- Enabled: ${snapshot.compaction.enabled ? 'yes' : 'no'}`)
   lines.push(`- Threshold: ${snapshot.compaction.thresholdText}`)
-  lines.push(`- Strategy: ${snapshot.compaction.strategy}`)
+  lines.push(
+    `- Policy: ${snapshot.compaction.policy} (${snapshot.compaction.policySource})`,
+  )
   lines.push(`- Session memory: ${snapshot.compaction.sessionMemoryText}`)
   if (snapshot.compaction.history.length > 0) {
     for (const event of snapshot.compaction.history) {
       lines.push(
-        `- Recent: ${event.occurredAt} ${event.trigger}/${event.strategy} ` +
+        `- Recent: ${event.occurredAt} ${event.trigger}/${event.policy ?? event.strategy} ` +
           `${formatCountDelta(event.beforeMessages, event.afterMessages, 'msgs')} ` +
           `${formatCountDelta(event.beforeTokens, event.afterTokens, 'tok')}`.trim(),
       )

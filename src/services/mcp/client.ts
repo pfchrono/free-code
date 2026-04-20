@@ -2444,7 +2444,7 @@ export async function getMcpToolsCommandsAndResources(
         return
       }
 
-      const client = await connectToServer(name, config, serverStats)
+      let client = await connectToServer(name, config, serverStats)
 
       if (client.type !== 'connected') {
         onConnectionAttempt({
@@ -2491,10 +2491,11 @@ export async function getMcpToolsCommandsAndResources(
         `Error fetching tools/commands/resources: ${errorMessage(error)}`,
       )
 
-      // Still update with the client but no tools/commands
+      // Preserve auth-required state from the connection attempt instead of
+      // collapsing every reconnect error into a generic failed status.
       onConnectionAttempt({
-        client: { name, type: 'failed' as const, config },
-        tools: [],
+        client,
+        tools: client.type === 'needs-auth' ? [createMcpAuthTool(name, config)] : [],
         commands: [],
       })
     }

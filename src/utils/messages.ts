@@ -5331,8 +5331,51 @@ export function ensureToolResultPairing(
 
     result.push(assistantMsg)
 
-    // Collect tool_use IDs from this assistant message
+    // Collect tool_use IDs from this assistant run. On resume/recovery we can
+    // see consecutive assistant messages, each with tool_use blocks, followed by
+    // one user message carrying all tool_results. Treat that assistant run as a
+    // single pairing unit so sibling tool_results are not misclassified as
+    // orphaned merely because they belong to the previous assistant sibling.
     const toolUseIds = [...seenToolUseIds]
+    let assistantRunEnd = i
+
+    while (assistantRunEnd + 1 < messages.length) {
+      const maybeNextAssistant = messages[assistantRunEnd + 1]
+      if (maybeNextAssistant?.type !== 'assistant') {
+        break
+      }
+
+      const serverResultIds = new Set<string>()
+      for (const c of maybeNextAssistant.message.content) {
+        if ('tool_use_id' in c && typeof c.tool_use_id === 'string') {
+          serverResultIds.add(c.tool_use_id)
+        }
+      }
+
+      const additionalToolUseIds = maybeNextAssistant.message.content
+        .filter(block => {
+          if (block.type === 'tool_use') {
+            return !allSeenToolUseIds.has(block.id)
+          }
+          if (
+            (block.type === 'server_tool_use' || block.type === 'mcp_tool_use') &&
+            !serverResultIds.has((block as { id: string }).id)
+          ) {
+            return false
+          }
+          return (
+            block.type === 'server_tool_use' || block.type === 'mcp_tool_use'
+          )
+        })
+        .map(block => (block as ToolUseBlock | ToolUseBlockParam | { id: string }).id)
+
+      if (additionalToolUseIds.length === 0) {
+        break
+      }
+
+      toolUseIds.push(...additionalToolUseIds)
+      assistantRunEnd++
+    }
 
     // Check the next message for matching tool_results. Also track duplicate
     // tool_result blocks (same tool_use_id appearing twice) — for transcripts
@@ -5342,7 +5385,7 @@ export function ensureToolResultPairing(
     // tool_use dedup above strips the second X; without also stripping the
     // second tr_X, the API rejects with a duplicate-tool_result 400 and the
     // session stays stuck.
-    const nextMsg = messages[i + 1]
+    const nextMsg = messages[assistantRunEnd + 1]
     const existingToolResultIds = new Set<string>()
     let hasDuplicateToolResults = false
 
@@ -5430,7 +5473,7 @@ export function ensureToolResultPairing(
             content: patchedContent,
           },
         }
-        i++
+        i = assistantRunEnd + 1
         // Prepending synthetics to existing content can produce a
         // [tool_result, text] sibling the smoosh inside normalize never saw
         // (pairing runs after normalize). Re-smoosh just this one message.
@@ -5445,7 +5488,7 @@ export function ensureToolResultPairing(
         // the assistant placeholder we just pushed would be immediately
         // followed by the NEXT assistant message, which the API rejects with
         // a role-alternation 400 (not the duplicate-id 400 we handle).
-        i++
+        i = assistantRunEnd + 1
         result.push(
           createUserMessage({
             content: NO_CONTENT_MESSAGE,

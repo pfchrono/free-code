@@ -769,12 +769,13 @@ export async function compactConversation(
       visibleMessages: buildPostCompactMessages(compactionResult),
       coreMessages: buildPostCompactMessages(compactionResult),
       checkpointMetadata: {
-        strategy: 'summary',
+        policy: 'rolling_summary',
+        policySource: 'persisted',
         transcriptPath,
       },
       event: {
         trigger: isAutoCompact ? 'auto' : 'manual',
-        strategy: 'summary',
+        policy: 'rolling_summary',
         occurredAt: new Date().toISOString(),
         beforeTokens: preCompactTokenCount,
         afterTokens: truePostCompactTokenCount,
@@ -1143,12 +1144,13 @@ export async function partialCompactConversation(
       visibleMessages: buildPostCompactMessages(compactionResult),
       coreMessages: buildPostCompactMessages(compactionResult),
       checkpointMetadata: {
-        strategy: `partial_${direction}`,
+        policy: `partial_${direction}`,
+        policySource: 'persisted',
         transcriptPath,
       },
       event: {
         trigger: 'manual',
-        strategy: `partial_${direction}`,
+        policy: `partial_${direction}`,
         occurredAt: new Date().toISOString(),
         beforeTokens: preCompactTokenCount,
         afterTokens: postCompactTokenCount,

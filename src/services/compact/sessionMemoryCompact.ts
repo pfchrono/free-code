@@ -625,13 +625,14 @@ export async function trySessionMemoryCompaction(
       visibleMessages: buildPostCompactMessages(finalResult),
       coreMessages: buildPostCompactMessages(finalResult),
       checkpointMetadata: {
-        strategy: 'session_memory',
+        policy: 'checkpointed_state',
+        policySource: 'persisted',
         lastSummarizedMessageId,
         transcriptPath,
       },
       event: {
         trigger: autoCompactThreshold !== undefined ? 'auto' : 'manual',
-        strategy: 'session_memory',
+        policy: 'checkpointed_state',
         occurredAt: new Date().toISOString(),
         beforeTokens: compactionResult.preCompactTokenCount,
         afterTokens: postCompactTokenCount,
@@ -639,8 +640,8 @@ export async function trySessionMemoryCompaction(
         afterMessages: buildPostCompactMessages(finalResult).length,
         retainedSummary:
           messagesToKeep.length > 0
-            ? `${messagesToKeep.length} messages kept after session memory summary`
-            : 'session memory summary only',
+            ? `${messagesToKeep.length} messages kept after checkpointed state compaction`
+            : 'checkpointed state compaction only',
         droppedSummary: `${Math.max(messages.length - buildPostCompactMessages(finalResult).length, 0)} messages summarized`,
       },
       transcriptPath,

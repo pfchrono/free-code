@@ -46,12 +46,12 @@ describe('parsePersistedSessionState', () => {
       compactionHistory: [
         {
           trigger: 'manual',
-          strategy: 'summary',
+          policy: 'rolling_summary',
           occurredAt: '1',
         },
         {
           trigger: 'auto',
-          strategy: 'session_memory',
+          strategy: 'checkpointed_state',
           occurredAt: '2',
         },
       ],
@@ -88,7 +88,7 @@ describe('resolveResumeMessages', () => {
       version: 1,
       checkpointMetadata: {
         persistedAt: '2026-04-16T00:00:00.000Z',
-        strategy: 'summary',
+        policy: 'rolling_summary',
       },
     })
 

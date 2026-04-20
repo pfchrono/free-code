@@ -31,9 +31,16 @@ export interface ToolResultEvent {
 
 export interface CompletionEvent {
   type: 'completion'
+  outcome?: 'success' | 'error' | 'cancelled'
   outputTokens: number
   inputTokens: number
   durationMs: number
+}
+
+export interface TurnStateEvent {
+  type: 'turn_state'
+  state: 'idle' | 'running' | 'interrupting' | 'cancelled'
+  timestamp: number
 }
 
 export interface ErrorEvent {
@@ -72,6 +79,7 @@ export type CliToGuiEvent =
   | ToolUseEvent
   | ToolResultEvent
   | CompletionEvent
+  | TurnStateEvent
   | ErrorEvent
   | StatusEvent
   | ModelsListEvent

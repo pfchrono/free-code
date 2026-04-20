@@ -15,14 +15,20 @@ openclaw/
 !.bunfig.toml
 
 benchmark-results/*
-.claude/settings.local.json
-.claude/worktrees/
+.claude/
+.codex/
+.code/
+.env
+.env.*
+!.env.example
+!.env.*.example
 ~/.claude/sessions/
 temp-uncommitted/
 .openspec/
 openspec/tmp/
 openspec/
 @openspec*/
-.claude/agents/
 killbunfreecode.ps1
 gui/src-tauri/target/
+# Added by code-review-graph
+.code-review-graph/

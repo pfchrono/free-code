@@ -1448,7 +1448,7 @@ export async function recordTranscript(
       savePersistedSessionState(sessionId, {
         version: 1,
         visibleMessages,
-        coreMessages: existing?.coreMessages,
+        coreMessages: visibleMessages,
         checkpointMetadata: existing?.checkpointMetadata,
         resumeMetadata: existing?.resumeMetadata,
         compactionHistory: existing?.compactionHistory,

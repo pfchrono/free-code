@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Stdio};
+use std::time::Duration;
 use std::sync::Mutex;
 use tauri::State;
 
@@ -105,9 +106,30 @@ async fn read_cli_events(
 async fn stop_cli(session_id: String, state: State<'_, CliState>) -> Result<(), String> {
     let mut processes = state.processes.lock().unwrap();
     let child = processes.remove(&session_id);
+    drop(processes);
+
     if let Some(mut c) = child {
-        c.kill().map_err(|e| e.to_string())?;
+        shutdown_child(&mut c)?;
     }
+
+    Ok(())
+}
+
+fn shutdown_child(child: &mut Child) -> Result<(), String> {
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.flush().map_err(|e| e.to_string())?;
+        drop(stdin);
+    }
+
+    for _ in 0..10 {
+        match child.try_wait().map_err(|e| e.to_string())? {
+            Some(_) => return Ok(()),
+            None => std::thread::sleep(Duration::from_millis(100)),
+        }
+    }
+
+    child.kill().map_err(|e| e.to_string())?;
+    child.wait().map_err(|e| e.to_string())?;
     Ok(())
 }
 
