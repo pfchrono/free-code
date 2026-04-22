@@ -81,11 +81,11 @@ The upstream binary phones home through OpenTelemetry/gRPC, GrowthBook analytics
 - GrowthBook feature flag evaluation still works locally (needed for runtime feature gates) but does not report back
 - No crash reports, no usage analytics, no session fingerprinting
 
-### Security-prompt guardrails mostly removed
+### Security-prompt overlays reduced
 
-The upstream product injects system-level instructions into every conversation that constrain assistant behavior beyond what the model itself enforces. These include hardcoded refusal patterns, injected "cyber risk" instruction blocks, and managed-settings security overlays pushed from hosted services.
+The upstream product injects additional system-level instructions into conversations that constrain assistant behavior beyond the base model and local tool/runtime enforcement. These include hardcoded refusal patterns, injected "cyber risk" instruction blocks, and managed-settings security overlays pushed from hosted services.
 
-This build strips those injections. The model's own safety training still applies -- this removes the extra prompt-layer restrictions that the CLI wraps around it while keeping hard blocks for critical system paths/files.
+This build removes or bypasses many of those extra CLI prompt-layer overlays. Provider-side/model-side safety systems still apply, and local hard blocks for critical system paths/files remain in place.
 
 ### Experimental features unlocked
 
@@ -93,7 +93,7 @@ The upstream CLI ships with 88 feature flags gated behind `bun:bundle` compile-t
 
 ## Latest Changes
 
-Recent updates expanded provider bootstrap, local launch workflow, provider health checks, status visibility, Windows/path handling, local skill workflow support, and config-home-aware persistence:
+Recent updates expanded provider bootstrap, local launch workflow, provider health checks, status visibility, Windows/path handling, local skill workflow support, config-home-aware persistence, and internal provider/memory tooling:
 
 - Added provider bootstrap commands for repo-local setup:
   - `free-code profile:init`
@@ -114,9 +114,14 @@ Recent updates expanded provider bootstrap, local launch workflow, provider heal
 - Added experimental gRPC dev helpers with `free-code dev:grpc` and `free-code dev:grpc:cli`
 - Added explicit gRPC cleanup helper with `free-code dev:grpc:stop`
 - Added shared-harness headless transport helpers with `free-code dev:headless-transport`, `free-code test:headless-transport`, and `free-code test:headless-integration`
+- Added `Archivist` internal provider wiring for memory, code intel, and checkpoints while keeping external MCP compatibility with the official `token-savior` server name
 - Added GitHub Copilot provider integration (OAuth/token exchange + API adapter)
 - Added `/copilot models` and `/openrouter models` to probe model support from cached capability data
 - Restored `/usage` for Codex sessions and surfaced same usage state in Settings -> Status
+- Added `/deadpoolmode` and `/ralphmode` toggles for response-style overlays
+- Fixed `/codex off` provider restore behavior so disabling Codex returns to the expected provider state
+- Corrected message pruning to preserve system messages plus the last timeline-recent messages
+- Hardened Codex stream handling so final text is still emitted when it arrives after `response.done`
 - Added `gpt-5.3-codex-spark` support, including `chatgpt-5.3-codex-spark` alias normalization
 - Standardized Haiku/Sonnet/Opus routing to provider-equivalent models on third-party backends
 - Improved provider-aware status and settings displays so active model/provider state resolves more consistently across the UI
@@ -447,6 +452,17 @@ Provider control commands (inside free-code):
 ```
 
 `/codex`, `/openai`, `/copilot`, `/openrouter`, `/zen`, and `/minimax` switch current session and persist repo-local preference. `/lmstudio` persists preference and restarts session.
+
+Response-style overlays:
+
+```text
+/deadpoolmode on
+/deadpoolmode status
+/ralphmode on
+/ralphmode status
+```
+
+`/deadpoolmode` adds the snarky antihero voice layer. `/ralphmode` adds loop-until-done execution guidance. They can stack with `/caveman-mode`.
 
 ---
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import type { Command } from '../types/command.js'
 import type { QueryEngineConfig } from '../QueryEngine.js'
 import deadpoolMode from '../commands/deadpoolmode/index.ts'
+import ralphMode from '../commands/ralphmode/index.ts'
 import { createHeadlessHarnessFileCache, createHeadlessSessionHarness } from './sessionHarness.js'
 
 class FakeQueryEngine {
@@ -53,6 +54,36 @@ describe('HeadlessSessionHarness', () => {
 
     const turn = await harness.submit('/deadpoolmode status')
     const events = await collectEvents(turn)
+
+    expect(events[0]).toMatchObject({
+      type: 'message',
+      role: 'user',
+      content: '/deadpoolmode status',
+    })
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: 'message',
+        role: 'assistant',
+        content: expect.stringContaining('Deadpool mode'),
+      }),
+    )
+    expect(events.at(-1)).toMatchObject({
+      type: 'completion',
+      status: 'success',
+    })
+  })
+
+  it('supports stacked local style overlays through shared harness events', async () => {
+    const harness = createHeadlessSessionHarness({
+      cwd: process.cwd(),
+      commands: [deadpoolMode, ralphMode],
+    })
+
+    const enableTurn = await harness.submit('/ralphmode on')
+    await collectEvents(enableTurn)
+
+    const statusTurn = await harness.submit('/deadpoolmode status')
+    const events = await collectEvents(statusTurn)
 
     expect(events[0]).toMatchObject({
       type: 'message',
