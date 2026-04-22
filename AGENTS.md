@@ -65,7 +65,7 @@ bun run dev:grpc:stop
   - `scripts/headless-transport-smoke.ts`
   - `scripts/headless-integration.ts`
 - Current known-good use cases:
-  - `/deadpoolmode` and `/caveman-mode` regression checks
+  - `/deadpoolmode`, `/ralphmode`, and `/caveman-mode` regression checks
   - scripted permission prompts
   - interrupt/event ordering smoke on shared harness
 - Use `bun run test:headless-transport` and `bun run test:headless-integration` before trying broader transport experiments.
@@ -234,6 +234,12 @@ describe('createCopilotFetch', () => {
   })
 })
 ```
+
+## Provider Naming Notes
+
+- Internal built-in provider/memory integration uses `Archivist` naming under `src/services/providers/archivist/`.
+- External MCP config and real server identity stay `token-savior` for compatibility with the upstream MCP package/server.
+- When updating docs or prompts, preserve that distinction instead of renaming the external MCP server.
 
 ## Architecture Notes
 

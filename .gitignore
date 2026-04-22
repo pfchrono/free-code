@@ -34,3 +34,4 @@ fixtures/
 # Added by code-review-graph
 .code-review-graph/
 .full-review/
+.omc/

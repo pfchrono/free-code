@@ -2,6 +2,15 @@
 
 All notable changes to free-code are documented here.
 
+## [Unreleased]
+
+<!-- GENERATED_RECENT_COMMITS_START -->
+### Recent commits
+- 2026-04-21 docs: update changelog, readme, and agent instructions for Archivist and new local modes
+- 2026-04-21 fix: restore codex provider switching, pruning semantics, and codex stream finalization
+- 2026-04-21 feat: add Archivist-backed code intel, Ralph mode, Deadpool mode, and session continuity updates
+<!-- GENERATED_RECENT_COMMITS_END -->
+
 ## [0.6.4] - 2026-04-16
 
 <!-- GENERATED_RECENT_COMMITS_START -->
