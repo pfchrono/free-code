@@ -10,6 +10,15 @@ const DISABLE_ARGS = new Set(['off', 'disable', 'disabled'])
 const ENABLE_ARGS = new Set(['on', 'enable', 'enabled'])
 const STATUS_ARGS = new Set(['status', 'state'])
 
+function isValidArg(arg: string): boolean {
+  return (
+    arg.length === 0 ||
+    DISABLE_ARGS.has(arg) ||
+    ENABLE_ARGS.has(arg) ||
+    STATUS_ARGS.has(arg)
+  )
+}
+
 function isDeadpoolModeEnabled(): boolean {
   return getInitialSettings().deadpoolModeEnabled === true
 }
@@ -38,6 +47,14 @@ function getStyleStackMessage(overrides?: {
 export const call: LocalCommandCall = async (args = '', _context) => {
   const normalizedArg = args.trim().toLowerCase()
   const wasEnabled = isDeadpoolModeEnabled()
+
+  if (!isValidArg(normalizedArg)) {
+    return {
+      type: 'text' as const,
+      value:
+        'Invalid argument. Use /deadpoolmode, /deadpoolmode on, /deadpoolmode off, or /deadpoolmode status.',
+    }
+  }
 
   if (STATUS_ARGS.has(normalizedArg)) {
     return {

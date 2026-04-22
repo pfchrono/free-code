@@ -20,6 +20,7 @@ import cost from './commands/cost/index.js'
 import diff from './commands/diff/index.js'
 import ctx_viz from './commands/ctx_viz/index.js'
 import doctor from './commands/doctor/index.js'
+import memory from './commands/memory/index.js'
 import enhancedMemoryCommand from './commands/memory/enhancedMemoryCommand.js'
 import help from './commands/help/index.js'
 import ide from './commands/ide/index.js'
@@ -174,6 +175,7 @@ import exportCommand from './commands/export/index.js'
 import model from './commands/model/index.js'
 import copilot from './commands/copilot/index.js'
 import codex from './commands/codex/index.js'
+import code from './commands/code/index.js'
 import openai from './commands/openai/index.js'
 import openrouter from './commands/openrouter/index.ts'
 import lmstudio from './commands/lmstudio/index.ts'
@@ -184,6 +186,7 @@ import sidebar from './commands/sidebar/index.ts'
 import palette from './commands/palette/index.ts'
 import cavemanMode from './commands/caveman-mode/index.ts'
 import deadpoolMode from './commands/deadpoolmode/index.ts'
+import ralphMode from './commands/ralphmode/index.ts'
 import dependencyGraph from './commands/dependency-graph/index.ts'
 import tag from './commands/tag/index.js'
 import outputStyle from './commands/output-style/index.js'
@@ -271,6 +274,7 @@ const COMMANDS = memoize((): Command[] => [
   advisor,
   copilot,
   codex,
+  code,
   dependencyGraph,
   agents,
   branch,
@@ -300,6 +304,7 @@ const COMMANDS = memoize((): Command[] => [
   installGitHubApp,
   installSlackApp,
   mcp,
+  memory,
   enhancedMemoryCommand,
   mobile,
    model,
@@ -310,6 +315,7 @@ const COMMANDS = memoize((): Command[] => [
    minimax,
    cavemanMode,
    deadpoolMode,
+   ralphMode,
   outputStyle,
   remoteEnv,
   plugin,

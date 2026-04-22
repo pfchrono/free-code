@@ -13,6 +13,7 @@ type AnthropicHostedRequestParams = {
   baseUrl?: string
   context?: string
   operation?: string
+  allowed?: boolean
 }
 
 function isAnthropicHostedHost(hostname: string): boolean {
@@ -113,6 +114,7 @@ function buildWarningMessage(
     `url=${url.origin}${url.pathname}` +
     (params.context ? ` context=${params.context}` : '') +
     (params.operation ? ` operation=${params.operation}` : '') +
+    (params.allowed ? ' allowed=1' : '') +
     (diagnostics.caller ? ` caller=${diagnostics.caller}` : '') +
     (diagnostics.stack?.length
       ? ` stack=${diagnostics.stack.join(' <- ')}`
@@ -124,7 +126,7 @@ export function reportAnthropicHostedRequest(
   params: AnthropicHostedRequestParams,
 ): void {
   const resolved = resolveAnthropicHostedRequest(params)
-  if (!resolved) {
+  if (!resolved || params.allowed) {
     return
   }
 
@@ -157,24 +159,23 @@ function enforceAnthropicHostedRequestPolicy(
     return
   }
 
+  const allowed =
+    (params.context === 'openai-adapter-intercept' &&
+      params.operation === 'anthropic-messages->openai-responses') ||
+    (params.context === 'configureGlobalAgents' && params.operation === 'GET') ||
+    params.allowed === true
+
   const { provider, url } = resolved
   const diagnostics = getLeakDiagnostics()
-  const warning = buildWarningMessage(provider, params, url, diagnostics)
-  reportAnthropicHostedRequest(params)
+  const warning = buildWarningMessage(
+    provider,
+    { ...params, allowed },
+    url,
+    diagnostics,
+  )
+  reportAnthropicHostedRequest({ ...params, allowed })
 
-  // Allow known safe proxy operations
-  if (
-    params.context === 'openai-adapter-intercept' &&
-    params.operation === 'anthropic-messages->openai-responses'
-  ) {
-    return
-  }
-
-  // Allow agent configuration operations
-  if (
-    params.context === 'configureGlobalAgents' &&
-    params.operation === 'GET'
-  ) {
+  if (allowed) {
     return
   }
 

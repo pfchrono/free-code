@@ -32,7 +32,7 @@ describe('pruneOldMessages', () => {
     expect(result.length).toBe(2)
   })
 
-  it('keeps most recent N non-system messages plus all system messages', () => {
+  it('keeps all system messages plus the last N-message recency window', () => {
     const messages: Message[] = [
       { id: '1', source: 'user', content: 'old1', timestamp: '2024-01-01T00:00:00Z' },
       { id: '2', source: 'system', content: 'system1', timestamp: '2024-01-01T00:01:00Z' },
@@ -43,12 +43,9 @@ describe('pruneOldMessages', () => {
     ]
     const result = pruneOldMessages(messages, 2)
 
-    // Should keep: systems (1,5), and 2 most recent user messages (4,6)
-    expect(result.length).toBe(4)
-    expect(result.map(m => m.id)).toContain('1') // system
-    expect(result.map(m => m.id)).toContain('5') // system
-    expect(result.map(m => m.id)).toContain('4') // recent user
-    expect(result.map(m => m.id)).toContain('6') // recent user
+    // Should keep: systems (2,5), and the last two messages in the timeline (5,6)
+    expect(result.length).toBe(3)
+    expect(result.map(m => m.id)).toEqual(['2', '5', '6'])
   })
 
   it('preserves message order after pruning', () => {
@@ -61,6 +58,21 @@ describe('pruneOldMessages', () => {
     const result = pruneOldMessages(messages, 2)
     const ids = result.map(m => m.id)
     expect(ids).toEqual(['1', '3', '4']) // system, then chronological user order
+  })
+
+  it('keeps the last N messages by recency window plus all system messages', () => {
+    const messages: Message[] = [
+      { id: '1', source: 'user', content: 'old-user', timestamp: '2024-01-01T00:00:00Z' },
+      { id: '2', source: 'system', content: 'old-system', timestamp: '2024-01-01T00:01:00Z' },
+      { id: '3', source: 'system', content: 'recent-system-a', timestamp: '2024-01-01T00:02:00Z' },
+      { id: '4', source: 'system', content: 'recent-system-b', timestamp: '2024-01-01T00:03:00Z' },
+      { id: '5', source: 'user', content: 'recent-user', timestamp: '2024-01-01T00:04:00Z' },
+    ]
+
+    const result = pruneOldMessages(messages, 2)
+
+    expect(result.map(m => m.id)).toEqual(['2', '3', '4', '5'])
+    expect(result.map(m => m.id)).not.toContain('1')
   })
 
   it('handles all non-system message types equally', () => {
@@ -102,8 +114,14 @@ describe('stripStaleToolResults', () => {
         content: '[tool result: old data here]',
         timestamp: '2024-01-01T00:00:00Z',
       },
+      {
+        id: '2',
+        source: 'user',
+        content: 'recent message',
+        timestamp: '2024-01-01T00:01:00Z',
+      },
     ]
-    const result = stripStaleToolResults(messages, 10)
+    const result = stripStaleToolResults(messages, 1)
     expect(result[0].content).toBe('[tool result omitted for context length]')
   })
 
@@ -128,8 +146,14 @@ describe('stripStaleToolResults', () => {
         content: '[tool result: data1]\n[tool result: data2]',
         timestamp: '2024-01-01T00:00:00Z',
       },
+      {
+        id: '2',
+        source: 'user',
+        content: 'recent message',
+        timestamp: '2024-01-01T00:01:00Z',
+      },
     ]
-    const result = stripStaleToolResults(messages, 10)
+    const result = stripStaleToolResults(messages, 1)
     expect(result[0].content).toBe('[tool result omitted for context length]')
   })
 
@@ -183,8 +207,14 @@ describe('stripStaleToolResults', () => {
         color: 'blue',
         timestamp: '2024-01-01T00:00:00Z',
       },
+      {
+        id: '124',
+        source: 'user',
+        content: 'recent message',
+        timestamp: '2024-01-01T00:01:00Z',
+      },
     ]
-    const result = stripStaleToolResults(messages, 10)
+    const result = stripStaleToolResults(messages, 1)
     expect(result[0].id).toBe('123')
     expect(result[0].source).toBe('user')
     expect(result[0].from).toBe('alice')
@@ -256,10 +286,10 @@ describe('pruneMessagesForTokens', () => {
       { id: '1', source: 'user', content: 'msg', timestamp: '2024-01-01T00:00:00Z' },
       { id: '2', source: 'system', content: 'sys', timestamp: '2024-01-01T00:01:00Z' },
     ]
-    // Should keep only system messages
+    // Keeps system messages and zero recent non-system messages
     const result = pruneMessagesForTokens(messages, 0, 10)
     expect(result.length).toBe(1)
-    expect(result[0].source).toBe('system')
+    expect(result[0].id).toBe('2')
   })
 
   it('handles edge case where keepToolResultsCount is 0', () => {

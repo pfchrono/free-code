@@ -1,12 +1,13 @@
 import { isEnvDefinedFalsy, isEnvTruthy } from '../../utils/envUtils.js'
-import { AGENT_TOOL_NAME } from '../AgentTool/constants.js'
-import { BASH_TOOL_NAME } from '../BashTool/toolName.js'
-import { FILE_EDIT_TOOL_NAME } from '../FileEditTool/constants.js'
-import { FILE_READ_TOOL_NAME } from '../FileReadTool/prompt.js'
-import { FILE_WRITE_TOOL_NAME } from '../FileWriteTool/prompt.js'
-import { GLOB_TOOL_NAME } from '../GlobTool/prompt.js'
-import { GREP_TOOL_NAME } from '../GrepTool/prompt.js'
-import { NOTEBOOK_EDIT_TOOL_NAME } from '../NotebookEditTool/constants.js'
+
+const AGENT_TOOL_NAME = 'Agent'
+const BASH_TOOL_NAME = 'Bash'
+const FILE_EDIT_TOOL_NAME = 'Edit'
+const FILE_READ_TOOL_NAME = 'Read'
+const FILE_WRITE_TOOL_NAME = 'Write'
+const GLOB_TOOL_NAME = 'Glob'
+const GREP_TOOL_NAME = 'Grep'
+const NOTEBOOK_EDIT_TOOL_NAME = 'NotebookEdit'
 
 export const REPL_TOOL_NAME = 'REPL'
 

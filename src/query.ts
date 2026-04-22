@@ -119,6 +119,8 @@ import {
 } from './bootstrap/state.js'
 import { createBudgetTracker, checkTokenBudget } from './query/tokenBudget.js'
 import { count } from './utils/array.js'
+import { getMemorySystem, type MemoryEntry } from './services/memory/persistentMemorySystem.js'
+import { getSessionManager } from './services/memory/sessionContinuityManager.js'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const snipModule = feature('HISTORY_SNIP')
@@ -242,6 +244,117 @@ function isWithheldMaxOutputTokens(
   msg: Message | StreamEvent | undefined,
 ): msg is AssistantMessage {
   return msg?.type === 'assistant' && msg.apiError === 'max_output_tokens'
+}
+
+function getLastUserText(messages: Message[]): string {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i]
+    if (message?.type === 'user' && typeof message.message.content === 'string') {
+      return message.message.content
+    }
+  }
+
+  return ''
+}
+
+function shouldInjectSessionResumeContext(query: string): boolean {
+  return /\b(resume|continue|last time|what changed|pick up|picked up|where was i|where we left off)\b/i.test(
+    query,
+  )
+}
+
+function shouldInjectChangeImpactContext(query: string): boolean {
+  return /\b(impact|impacted|regression|regressions|depends|dependency|dependents|where used|uses of|changed files|failing tests|broken by|blast radius)\b/i.test(
+    query,
+  )
+}
+
+const QUERY_AUGMENTATION_MARKER = '<fc-query-augmentation>'
+
+function truncateForQueryAugmentation(text: string, maxLength: number): string {
+  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1)}…`
+}
+
+function formatMemoryEntry(entry: MemoryEntry): string {
+  const summary = entry.summary?.trim()
+  const content = entry.content.trim()
+  return `- ${truncateForQueryAugmentation(summary && summary.length > 0 ? summary : content, 160)}`
+}
+
+async function buildQueryAugmentationMessage(
+  messages: Message[],
+  querySource: QuerySource,
+  turnCount: number,
+): Promise<Message | null> {
+  if (!querySource.startsWith('repl_main_thread') || turnCount !== 1) {
+    return null
+  }
+
+  const lastMessage = messages.at(-1)
+  if (
+    lastMessage?.type === 'system' &&
+    typeof lastMessage.content === 'string' &&
+    lastMessage.content.includes(QUERY_AUGMENTATION_MARKER)
+  ) {
+    return null
+  }
+
+  const lastUserText = getLastUserText(messages).trim()
+  if (!lastUserText) {
+    return null
+  }
+
+  const wantsResume = shouldInjectSessionResumeContext(lastUserText)
+  const wantsImpact = shouldInjectChangeImpactContext(lastUserText)
+  if (!wantsResume && !wantsImpact) {
+    return null
+  }
+
+  const sessionManager = getSessionManager()
+  const session = sessionManager.getCurrentSession()
+  if (!session) {
+    return null
+  }
+
+  const sections: string[] = []
+
+  if (wantsResume) {
+    const resumeContext = sessionManager.buildResumeContext()
+    if (resumeContext) {
+      sections.push(truncateForQueryAugmentation(resumeContext, 500))
+    }
+  }
+
+  if (wantsImpact) {
+    const changedFiles = sessionManager.getChangedWorkSinceLastSession().slice(0, 5)
+    const memoryEntries = await getMemorySystem().getRecentRelevantMemory({
+      projectPath: session.projectPath,
+      sessionId: session.sessionId,
+      query: lastUserText,
+      limit: 3,
+    })
+
+    const lines = ['## Change Context']
+    if (changedFiles.length > 0) {
+      lines.push(`- Recent changed files: ${changedFiles.join(', ')}`)
+    }
+    if (memoryEntries.length > 0) {
+      lines.push('- Relevant memory:')
+      lines.push(...memoryEntries.map(formatMemoryEntry))
+    }
+
+    if (lines.length > 1) {
+      sections.push(lines.join('\n'))
+    }
+  }
+
+  if (sections.length === 0) {
+    return null
+  }
+
+  return createSystemMessage(
+    `${QUERY_AUGMENTATION_MARKER}\n${truncateForQueryAugmentation(sections.join('\n\n'), 900)}`,
+  )
 }
 
 export type QueryParams = {
@@ -473,7 +586,7 @@ async function* queryLoop(
     let snipTokensFreed = 0
     if (feature('HISTORY_SNIP')) {
       queryCheckpoint('query_snip_start')
-      const snipResult = snipModule!.snipCompactIfNeeded(messagesForQuery)
+      const snipResult = await snipModule!.snipCompactIfNeeded(messagesForQuery)
       messagesForQuery = snipResult.messages
       snipTokensFreed = snipResult.tokensFreed
       if (snipResult.boundaryMessage) {
@@ -517,6 +630,15 @@ async function* queryLoop(
         querySource,
       )
       messagesForQuery = collapseResult.messages
+    }
+
+    const queryAugmentationMessage = await buildQueryAugmentationMessage(
+      messagesForQuery,
+      querySource,
+      turnCount,
+    )
+    if (queryAugmentationMessage) {
+      messagesForQuery = [...messagesForQuery, queryAugmentationMessage]
     }
 
     const fullSystemPrompt = asSystemPrompt(
@@ -1444,7 +1566,7 @@ async function* queryLoop(
       // error → hook blocking → retry → error → …
       if (lastMessage?.isApiErrorMessage) {
         void executeStopFailureHooks(lastMessage, toolUseContext)
-        return { reason: 'completed' }
+        return { reason: 'api_error' }
       }
 
       const stopHookResult = yield* handleStopHooks(

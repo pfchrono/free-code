@@ -18,6 +18,7 @@ import { agenticSessionSearch } from '../../utils/agenticSessionSearch.js';
 import { checkCrossProjectResume } from '../../utils/crossProjectResume.js';
 import { getWorktreePaths } from '../../utils/getWorktreePaths.js';
 import { logError } from '../../utils/log.js';
+import { loadPersistedSessionState, type PersistedSessionState } from '../../utils/persistedSessionState.js';
 import { getLastSessionLog, getSessionIdFromLog, isCustomTitleEnabled, isLiteLog, loadAllProjectsMessageLogs, loadFullLog, loadSameRepoMessageLogs, searchSessionsByCustomTitle } from '../../utils/sessionStorage.js';
 import { validateUuid } from '../../utils/uuid.js';
 type ResumeResult = {
@@ -35,6 +36,54 @@ function resumeHelpMessage(result: ResumeResult): string {
     case 'multipleMatches':
       return `Found ${result.count} sessions matching ${chalk.bold(result.arg)}. Please use /resume to pick a specific session.`;
   }
+}
+const MAX_RESUME_SUMMARY_HYDRATION = 25;
+export function buildResumePickerSummary(persistedState?: PersistedSessionState | null): string | undefined {
+  const continuity = persistedState?.continuityMetadata;
+  const latestCompaction = persistedState?.compactionHistory?.at(-1);
+  const summaryParts: string[] = [];
+  if (continuity?.currentTask) {
+    summaryParts.push(`Task: ${continuity.currentTask}`);
+  } else if (continuity?.remainingTasks.length) {
+    summaryParts.push(`Next: ${continuity.remainingTasks[0]}`);
+  }
+  if (continuity?.workingFiles.length) {
+    summaryParts.push(`Files: ${continuity.workingFiles.slice(0, 2).join(', ')}`);
+  } else if (continuity?.recentFiles?.length) {
+    summaryParts.push(`Files: ${continuity.recentFiles.slice(0, 2).join(', ')}`);
+  }
+  if (continuity?.recentDecisions?.length) {
+    summaryParts.push(`Decision: ${continuity.recentDecisions[0]}`);
+  } else if (continuity?.keyInsights.length) {
+    summaryParts.push(`Insight: ${continuity.keyInsights[0]}`);
+  }
+  if (latestCompaction?.retainedSummary) {
+    summaryParts.push(`Compact: ${latestCompaction.retainedSummary}`);
+  }
+  return summaryParts.length > 0 ? summaryParts.join(' • ') : undefined;
+}
+export async function hydrateResumeSummaries(logs: LogOption[]): Promise<LogOption[]> {
+  const hydrated = [...logs];
+  const limit = Math.min(hydrated.length, MAX_RESUME_SUMMARY_HYDRATION);
+  const enriched = await Promise.all(hydrated.slice(0, limit).map(async log => {
+    const sessionId = getSessionIdFromLog(log);
+    if (!sessionId) {
+      return log;
+    }
+    const persistedState = await loadPersistedSessionState(sessionId, {
+      transcriptPath: log.fullPath
+    });
+    const summary = buildResumePickerSummary(persistedState);
+    if (!summary) {
+      return log;
+    }
+    return {
+      ...log,
+      summary
+    };
+  }));
+  hydrated.splice(0, limit, ...enriched);
+  return hydrated;
 }
 function ResumeError(t0) {
   const $ = _c(10);
@@ -108,7 +157,7 @@ function ResumeCommand({
     setLoading(true);
     try {
       const allLogs = allProjects ? await loadAllProjectsMessageLogs() : await loadSameRepoMessageLogs(paths);
-      const resumable = filterResumableSessions(allLogs, getSessionId());
+      const resumable = await hydrateResumeSummaries(filterResumableSessions(allLogs, getSessionId()));
       if (resumable.length === 0) {
         onDone('No conversations found to resume');
         return;

@@ -41,6 +41,7 @@ import { useHasSelection, useSelection } from '../../ink/hooks/use-selection.js'
 import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js';
 import { getPlatform } from '../../utils/platform.js';
 import { PrBadge } from '../PrBadge.js';
+import { useSettings } from '../../hooks/useSettings.js';
 
 // Dead code elimination: conditional import for proactive mode
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -248,6 +249,7 @@ function ModeIndicator({
   const {
     columns
   } = useTerminalSize();
+  const settings = useSettings();
   const modeCycleShortcut = useShortcutDisplay('chat:cycleMode', 'Chat', 'shift+tab');
   const tasks = useAppState(s => s.tasks);
   const teamContext = useAppState(s_0 => s_0.teamContext);
@@ -319,13 +321,14 @@ function ModeIndicator({
   }
   const currentMode = toolPermissionContext?.mode;
   const hasActiveMode = !isDefaultMode(currentMode);
+  const ralphModeEnabled = settings.ralphModeEnabled === true;
   const viewedTask = viewingAgentTaskId ? tasks[viewingAgentTaskId] : undefined;
   const isViewingTeammate = viewSelectionMode === 'viewing-agent' && viewedTask?.type === 'in_process_teammate';
   const isViewingCompletedTeammate = isViewingTeammate && viewedTask != null && viewedTask.status !== 'running';
   const hasBackgroundTasks = runningTaskCount > 0 || isViewingTeammate;
 
-  // Count primary items (permission mode or coordinator mode, background tasks, and teams)
-  const primaryItemCount = (isCoordinator || hasActiveMode ? 1 : 0) + (hasBackgroundTasks ? 1 : 0) + (hasTeams ? 1 : 0);
+  // Count primary items (ralph mode, permission mode or coordinator mode, background tasks, and teams)
+  const primaryItemCount = (ralphModeEnabled ? 1 : 0) + (isCoordinator || hasActiveMode ? 1 : 0) + (hasBackgroundTasks ? 1 : 0) + (hasTeams ? 1 : 0);
 
   // PR indicator is short (~10 chars) — unlike the old diff indicator the
   // >=100 threshold was tuned for. Now that auto mode is effectively the
@@ -345,6 +348,9 @@ function ModeIndicator({
   // the local permission mode shown here doesn't reflect the agent's state.
   // Rendered before the tasks pill so a long pill label (e.g. ultraplan URL)
   // doesn't push the mode indicator off-screen.
+  const ralphModePart = ralphModeEnabled ? <Text color="warning" key="ralph-mode">
+        ralph mode on
+      </Text> : null;
   const modePart = currentMode && hasActiveMode && !getIsRemoteMode() ? <Text color={getModeColor(currentMode)} key="mode">
         {permissionModeSymbol(currentMode)}{' '}
         {permissionModeTitle(currentMode).toLowerCase()} on
@@ -387,7 +393,7 @@ function ModeIndicator({
   if (hasTeammatePills) {
     // Don't append spinner hints when viewing a completed teammate —
     // the "esc to return to team lead" hint already replaces "esc to interrupt"
-    const otherParts = [...(modePart ? [modePart] : []), ...parts, ...(isViewingCompletedTeammate ? [] : hintParts)];
+    const otherParts = [...(ralphModePart ? [ralphModePart] : []), ...(modePart ? [modePart] : []), ...parts, ...(isViewingCompletedTeammate ? [] : hintParts)];
     return <Box flexDirection="column">
         <Box>
           <BackgroundTaskStatus tasksSelected={tasksSelected} isViewingTeammate={isViewingTeammate} teammateFooterIndex={teammateFooterIndex} isLeaderIdle={!isLoading} onOpenDialog={onOpenTasksDialog} />
@@ -461,13 +467,17 @@ function ModeIndicator({
   // part (e.g. the selection copy/native-select hints) grow the column
   // from 0→1 row. Always render 1 row in fullscreen; return a space when
   // empty so Yoga reserves the row without painting anything visible.
-  if (parts.length === 0 && !tasksPart && !modePart) {
+  if (parts.length === 0 && !tasksPart && !modePart && !ralphModePart) {
     return isFullscreenEnvEnabled() ? <Text> </Text> : null;
   }
 
   // flexShrink=0 keeps mode + pill at natural width; the remaining parts
   // truncate at the tail as one string inside the Text wrapper.
   return <Box height={1} overflow="hidden">
+      {ralphModePart && <Box flexShrink={0}>
+          {ralphModePart}
+          {(modePart || tasksPart || parts.length > 0) && <Text dimColor> · </Text>}
+        </Box>}
       {modePart && <Box flexShrink={0}>
           {modePart}
           {(tasksPart || parts.length > 0) && <Text dimColor> · </Text>}

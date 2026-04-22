@@ -195,7 +195,9 @@ function extractAccountId(token: string): string {
   try {
     const parts = token.split('.')
     if (parts.length !== 3) throw new Error('Invalid token')
-    const payload = JSON.parse(atob(parts[1]))
+    const payload = JSON.parse(
+      Buffer.from(parts[1], 'base64url').toString('utf8'),
+    )
     const accountId = payload?.[JWT_CLAIM_PATH]?.chatgpt_account_id
     if (!accountId) throw new Error('No account ID in token')
     return accountId
@@ -678,6 +680,40 @@ function formatSSE(event: string, data: string): string {
   return `event: ${event}\ndata: ${data}\n\n`
 }
 
+function extractTextFromContentPart(part: Record<string, unknown>): string {
+  if (part.type === 'output_text' || part.type === 'text') {
+    return typeof part.text === 'string' ? part.text : ''
+  }
+  return ''
+}
+
+function extractFinalTextFromItem(item: Record<string, unknown>): string {
+  const content = item.content
+  if (!Array.isArray(content)) return ''
+  return content
+    .map(part => extractTextFromContentPart(part as Record<string, unknown>))
+    .filter(Boolean)
+    .join('\n')
+}
+
+function extractFinalTextFromResponse(response: Record<string, unknown>): string {
+  const output = response.output
+  if (!Array.isArray(output)) return ''
+
+  return output
+    .flatMap(item => {
+      const record = item as Record<string, unknown>
+      if (record.type === 'message') {
+        return extractFinalTextFromItem(record)
+      }
+
+      const text = extractTextFromContentPart(record)
+      return text ? [text] : []
+    })
+    .filter(Boolean)
+    .join('\n')
+}
+
 /**
  * Translates Codex streaming response to Anthropic format.
  * Converts Codex SSE events into Anthropic-compatible streaming events.
@@ -749,8 +785,10 @@ async function translateCodexStreamToAnthropic(
       let inToolCall = false
       let hadToolCalls = false
       let inReasoningBlock = false
+      let textBlockFinalized = false
       let pendingReasoningItems: CodexReasoningItem[] = []
       let shouldFinishAfterToolCall = false
+      let shouldFinishAfterResponse = false
 
       function attachPendingReasoningToToolCall(callId: string) {
         if (!callId || pendingReasoningItems.length === 0) return
@@ -774,6 +812,38 @@ async function translateCodexStreamToAnthropic(
           ),
         )
         emittedToolCallArgs = currentToolCallArgs
+      }
+
+      function emitCompletedTextBlock(text: string) {
+        if (!text) return
+        textBlockFinalized = true
+        controller.enqueue(
+          encoder.encode(
+            formatSSE('content_block_start', JSON.stringify({
+              type: 'content_block_start',
+              index: contentBlockIndex,
+              content_block: { type: 'text', text: '' },
+            })),
+          ),
+        )
+        controller.enqueue(
+          encoder.encode(
+            formatSSE('content_block_delta', JSON.stringify({
+              type: 'content_block_delta',
+              index: contentBlockIndex,
+              delta: { type: 'text_delta', text },
+            })),
+          ),
+        )
+        controller.enqueue(
+          encoder.encode(
+            formatSSE('content_block_stop', JSON.stringify({
+              type: 'content_block_stop',
+              index: contentBlockIndex,
+            })),
+          ),
+        )
+        contentBlockIndex++
       }
 
       function closeCurrentToolCallBlock() {
@@ -854,6 +924,7 @@ async function translateCodexStreamToAnthropic(
                   ),
                 )
               } else if (item?.type === 'message') {
+                textBlockFinalized = false
                 // New text message block starting
                 if (inToolCall) {
                   closeCurrentToolCallBlock()
@@ -920,6 +991,7 @@ async function translateCodexStreamToAnthropic(
               const text = event.delta as string
               if (typeof text === 'string' && text.length > 0) {
                 if (!currentTextBlockStarted) {
+                  textBlockFinalized = false
                   // Start a new text content block
                   controller.enqueue(
                     encoder.encode(
@@ -942,6 +1014,19 @@ async function translateCodexStreamToAnthropic(
                   ),
                 )
                 outputTokens += 1
+              }
+            }
+
+            // Finalized text content
+            else if (eventType === 'response.output_text.done') {
+              const text = event.text as string
+              if (
+                typeof text === 'string' &&
+                text.length > 0 &&
+                !currentTextBlockStarted &&
+                !textBlockFinalized
+              ) {
+                emitCompletedTextBlock(text)
               }
             }
             
@@ -1019,6 +1104,10 @@ async function translateCodexStreamToAnthropic(
                 shouldFinishAfterToolCall = true
                 toolCallTerminateReason ??= 'response.output_item.done(function_call)'
               } else if (item?.type === 'message') {
+                if (!currentTextBlockStarted && !textBlockFinalized) {
+                  const finalText = extractFinalTextFromItem(item)
+                  emitCompletedTextBlock(finalText)
+                }
                 if (currentTextBlockStarted) {
                   controller.enqueue(
                     encoder.encode(
@@ -1030,6 +1119,7 @@ async function translateCodexStreamToAnthropic(
                   )
                   contentBlockIndex++
                   currentTextBlockStarted = false
+                  textBlockFinalized = true
                 }
               } else if (item?.type === 'reasoning') {
                 if (inReasoningBlock) {
@@ -1048,8 +1138,17 @@ async function translateCodexStreamToAnthropic(
               }
             }
 
+            // Finalized content part without incremental text deltas
+            else if (eventType === 'response.content_part.done') {
+              const part = event.part as Record<string, unknown>
+              const finalizedText = extractTextFromContentPart(part)
+              if (finalizedText.length > 0 && !currentTextBlockStarted && !textBlockFinalized) {
+                emitCompletedTextBlock(finalizedText)
+              }
+            }
+
             // Response completed — extract usage
-            else if (eventType === 'response.completed') {
+            else if (eventType === 'response.completed' || eventType === 'response.done') {
               const response = event.response as Record<string, unknown>
               const usage = response?.usage as Record<string, number> | undefined
               if (usage) {
@@ -1080,6 +1179,15 @@ async function translateCodexStreamToAnthropic(
                     initialRateLimits.length > 0 ? initialRateLimits : undefined,
                 })
               }
+
+              if (!currentTextBlockStarted && !textBlockFinalized) {
+                const finalText = extractFinalTextFromResponse(response)
+                if (finalText.length > 0) {
+                  emitCompletedTextBlock(finalText)
+                }
+              }
+
+              shouldFinishAfterResponse = true
             }
 
             if (shouldFinishAfterToolCall) {
@@ -1093,9 +1201,16 @@ async function translateCodexStreamToAnthropic(
               })
               break
             }
+
+            if (shouldFinishAfterResponse) {
+              continue
+            }
           }
 
           if (shouldFinishAfterToolCall) {
+            break
+          }
+          if (shouldFinishAfterResponse) {
             break
           }
         }
@@ -1134,6 +1249,7 @@ async function translateCodexStreamToAnthropic(
             })),
           ),
         )
+        textBlockFinalized = true
       }
       if (inReasoningBlock) {
         controller.enqueue(
@@ -1292,6 +1408,7 @@ export function createCodexFetch(
       url,
       context: 'codex-adapter-intercept',
       operation: 'anthropic-messages->codex-response',
+      allowed: true,
     })
 
     try {

@@ -40,7 +40,7 @@ import { type Tools, type ToolUseContext, toolMatchesName } from './Tool.js'
 import type { AgentDefinition } from './tools/AgentTool/loadAgentsDir.js'
 import { SYNTHETIC_OUTPUT_TOOL_NAME } from './tools/SyntheticOutputTool/SyntheticOutputTool.js'
 import type { Message } from './types/message.js'
-import type { OrphanedPermission } from './types/textInputTypes.js'
+import type { OrphanedPermission, PromptInputMode } from './types/textInputTypes.js'
 import { createAbortController } from './utils/abortController.js'
 import type { AttributionState } from './utils/commitAttribution.js'
 import { getGlobalConfig } from './utils/config.js'
@@ -220,7 +220,7 @@ export class QueryEngine {
 
   async *submitMessage(
     prompt: string | ContentBlockParam[],
-    options?: { uuid?: string; isMeta?: boolean },
+    options?: { uuid?: string; isMeta?: boolean; mode?: PromptInputMode },
   ): AsyncGenerator<SDKMessage, void, unknown> {
     const {
       cwd,
@@ -246,6 +246,7 @@ export class QueryEngine {
       setSDKStatus,
       orphanedPermission,
     } = this.config
+    const inputMode = options?.mode ?? 'prompt'
 
     this.discoveredSkillNames.clear()
     setCwd(cwd)
@@ -429,7 +430,7 @@ export class QueryEngine {
       resultText,
     } = await processUserInput({
       input: prompt,
-      mode: 'prompt',
+      mode: inputMode,
       setToolJSX: () => {},
       context: {
         ...processUserInputContext,
@@ -688,7 +689,7 @@ export class QueryEngine {
       ? countToolCalls(this.mutableMessages, SYNTHETIC_OUTPUT_TOOL_NAME)
       : 0
 
-    for await (const message of query({
+    const queryIterator = query({
       messages,
       systemPrompt,
       userContext,
@@ -699,78 +700,86 @@ export class QueryEngine {
       querySource: 'sdk',
       maxTurns,
       taskBudget,
-    })) {
-      // Record assistant, user, and compact boundary messages
-      if (
-        message.type === 'assistant' ||
-        message.type === 'user' ||
-        (message.type === 'system' && message.subtype === 'compact_boundary')
-      ) {
-        // Before writing a compact boundary, flush any in-memory-only
-        // messages up through the preservedSegment tail. Attachments and
-        // progress are now recorded inline (their switch cases below), but
-        // this flush still matters for the preservedSegment tail walk.
-        // If the SDK subprocess restarts before then (claude-desktop kills
-        // between turns), tailUuid points to a never-written message →
-        // applyPreservedSegmentRelinks fails its tail→head walk → returns
-        // without pruning → resume loads full pre-compact history.
+    })
+
+    let queryResult:
+      | Awaited<ReturnType<typeof queryIterator.next>>['value']
+      | undefined
+
+    try {
+      for await (const message of queryIterator) {
+        queryResult = message
+        // Record assistant, user, and compact boundary messages
         if (
-          persistSession &&
-          message.type === 'system' &&
-          message.subtype === 'compact_boundary'
+          message.type === 'assistant' ||
+          message.type === 'user' ||
+          (message.type === 'system' && message.subtype === 'compact_boundary')
         ) {
-          const tailUuid = message.compactMetadata?.preservedSegment?.tailUuid
-          if (tailUuid) {
-            const tailIdx = this.mutableMessages.findLastIndex(
-              m => m.uuid === tailUuid,
-            )
-            if (tailIdx !== -1) {
-              await recordTranscript(this.mutableMessages.slice(0, tailIdx + 1))
+          // Before writing a compact boundary, flush any in-memory-only
+          // messages up through the preservedSegment tail. Attachments and
+          // progress are now recorded inline (their switch cases below), but
+          // this flush still matters for the preservedSegment tail walk.
+          // If the SDK subprocess restarts before then (claude-desktop kills
+          // between turns), tailUuid points to a never-written message →
+          // applyPreservedSegmentRelinks fails its tail→head walk → returns
+          // without pruning → resume loads full pre-compact history.
+          if (
+            persistSession &&
+            message.type === 'system' &&
+            message.subtype === 'compact_boundary'
+          ) {
+            const tailUuid = message.compactMetadata?.preservedSegment?.tailUuid
+            if (tailUuid) {
+              const tailIdx = this.mutableMessages.findLastIndex(
+                m => m.uuid === tailUuid,
+              )
+              if (tailIdx !== -1) {
+                await recordTranscript(this.mutableMessages.slice(0, tailIdx + 1))
+              }
             }
           }
-        }
-        messages.push(message)
-        if (persistSession) {
-          // Fire-and-forget for assistant messages. claude.ts yields one
-          // assistant message per content block, then mutates the last
-          // one's message.usage/stop_reason on message_delta — relying on
-          // the write queue's 100ms lazy jsonStringify. Awaiting here
-          // blocks ask()'s generator, so message_delta can't run until
-          // every block is consumed; the drain timer (started at block 1)
-          // elapses first. Interactive CC doesn't hit this because
-          // useLogMessages.ts fire-and-forgets. enqueueWrite is
-          // order-preserving so fire-and-forget here is safe.
-          if (message.type === 'assistant') {
-            void recordTranscript(messages)
-          } else {
-            await recordTranscript(messages)
-          }
-        }
-
-        // Acknowledge initial user messages after first transcript recording
-        if (!hasAcknowledgedInitialMessages && messagesToAck.length > 0) {
-          hasAcknowledgedInitialMessages = true
-          for (const msgToAck of messagesToAck) {
-            if (msgToAck.type === 'user') {
-              yield {
-                type: 'user',
-                message: msgToAck.message,
-                session_id: getSessionId(),
-                parent_tool_use_id: null,
-                uuid: msgToAck.uuid,
-                timestamp: msgToAck.timestamp,
-                isReplay: true,
-              } as SDKUserMessageReplay
+          messages.push(message)
+          if (persistSession) {
+            // Fire-and-forget for assistant messages. claude.ts yields one
+            // assistant message per content block, then mutates the last
+            // one's message.usage/stop_reason on message_delta — relying on
+            // the write queue's 100ms lazy jsonStringify. Awaiting here
+            // blocks ask()'s generator, so message_delta can't run until
+            // every block is consumed; the drain timer (started at block 1)
+            // elapses first. Interactive CC doesn't hit this because
+            // useLogMessages.ts fire-and-forgets. enqueueWrite is
+            // order-preserving so fire-and-forget here is safe.
+            if (message.type === 'assistant') {
+              void recordTranscript(messages)
+            } else {
+              await recordTranscript(messages)
             }
           }
+
+          // Acknowledge initial user messages after first transcript recording
+          if (!hasAcknowledgedInitialMessages && messagesToAck.length > 0) {
+            hasAcknowledgedInitialMessages = true
+            for (const msgToAck of messagesToAck) {
+              if (msgToAck.type === 'user') {
+                yield {
+                  type: 'user',
+                  message: msgToAck.message,
+                  session_id: getSessionId(),
+                  parent_tool_use_id: null,
+                  uuid: msgToAck.uuid,
+                  timestamp: msgToAck.timestamp,
+                  isReplay: true,
+                } as SDKUserMessageReplay
+              }
+            }
+          }
+
+          if (message.type === 'user') {
+            turnCount++
+          }
         }
-      }
 
-      if (message.type === 'user') {
-        turnCount++
-      }
-
-      switch (message.type) {
+        switch (message.type) {
         case 'tombstone':
           // Tombstone messages are control signals for removing messages, skip them
           break
@@ -1017,51 +1026,74 @@ export class QueryEngine {
         return
       }
 
-      // Check if structured output retry limit exceeded (only on user messages)
-      if (message.type === 'user' && jsonSchema) {
-        const currentCalls = countToolCalls(
-          this.mutableMessages,
-          SYNTHETIC_OUTPUT_TOOL_NAME,
-        )
-        const callsThisQuery = currentCalls - initialStructuredOutputCalls
-        const maxRetries = parseInt(
-          process.env.MAX_STRUCTURED_OUTPUT_RETRIES || '5',
-          10,
-        )
-        if (callsThisQuery >= maxRetries) {
-          if (persistSession) {
-            if (
-              isEnvTruthy(process.env.CLAUDE_CODE_EAGER_FLUSH) ||
-              isEnvTruthy(process.env.CLAUDE_CODE_IS_COWORK)
-            ) {
-              await flushSessionStorage()
+        // Check if structured output retry limit exceeded (only on user messages)
+        if (message.type === 'user' && jsonSchema) {
+          const currentCalls = countToolCalls(
+            this.mutableMessages,
+            SYNTHETIC_OUTPUT_TOOL_NAME,
+          )
+          const callsThisQuery = currentCalls - initialStructuredOutputCalls
+          const maxRetries = parseInt(
+            process.env.MAX_STRUCTURED_OUTPUT_RETRIES || '5',
+            10,
+          )
+          if (callsThisQuery >= maxRetries) {
+            if (persistSession) {
+              if (
+                isEnvTruthy(process.env.CLAUDE_CODE_EAGER_FLUSH) ||
+                isEnvTruthy(process.env.CLAUDE_CODE_IS_COWORK)
+              ) {
+                await flushSessionStorage()
+              }
             }
+            yield {
+              type: 'result',
+              subtype: 'error_max_structured_output_retries',
+              duration_ms: Date.now() - startTime,
+              duration_api_ms: getTotalAPIDuration(),
+              is_error: true,
+              num_turns: turnCount,
+              stop_reason: lastStopReason,
+              session_id: getSessionId(),
+              total_cost_usd: getTotalCost(),
+              usage: this.totalUsage,
+              modelUsage: getModelUsage(),
+              permission_denials: this.permissionDenials,
+              fast_mode_state: getFastModeState(
+                mainLoopModel,
+                initialAppState.fastMode,
+              ),
+              uuid: randomUUID(),
+              errors: [
+                `Failed to provide valid structured output after ${maxRetries} attempts`,
+              ],
+            }
+            return
           }
-          yield {
-            type: 'result',
-            subtype: 'error_max_structured_output_retries',
-            duration_ms: Date.now() - startTime,
-            duration_api_ms: getTotalAPIDuration(),
-            is_error: true,
-            num_turns: turnCount,
-            stop_reason: lastStopReason,
-            session_id: getSessionId(),
-            total_cost_usd: getTotalCost(),
-            usage: this.totalUsage,
-            modelUsage: getModelUsage(),
-            permission_denials: this.permissionDenials,
-            fast_mode_state: getFastModeState(
-              mainLoopModel,
-              initialAppState.fastMode,
-            ),
-            uuid: randomUUID(),
-            errors: [
-              `Failed to provide valid structured output after ${maxRetries} attempts`,
-            ],
-          }
-          return
         }
       }
+    } catch (error) {
+      yield {
+        type: 'result',
+        subtype: 'error_during_execution',
+        duration_ms: Date.now() - startTime,
+        duration_api_ms: getTotalAPIDuration(),
+        is_error: true,
+        num_turns: turnCount,
+        stop_reason: lastStopReason,
+        session_id: getSessionId(),
+        total_cost_usd: getTotalCost(),
+        usage: this.totalUsage,
+        modelUsage: getModelUsage(),
+        permission_denials: this.permissionDenials,
+        fast_mode_state: getFastModeState(
+          mainLoopModel,
+          initialAppState.fastMode,
+        ),
+        uuid: randomUUID(),
+        errors: [error instanceof Error ? error.message : String(error)],
+      }
+      return
     }
 
     // Stop hooks now emit a compact summary message after execution
@@ -1094,7 +1126,7 @@ export class QueryEngine {
       }
     }
 
-    if (!isResultSuccessful(result, lastStopReason)) {
+    if (!isResultSuccessful(result, lastStopReason, queryResult?.reason)) {
       yield {
         type: 'result',
         subtype: 'error_during_execution',
@@ -1203,6 +1235,7 @@ export async function* ask({
   prompt,
   promptUuid,
   isMeta,
+  mode = 'prompt',
   cwd,
   tools,
   mcpClients,
@@ -1234,6 +1267,7 @@ export async function* ask({
   prompt: string | Array<ContentBlockParam>
   promptUuid?: string
   isMeta?: boolean
+  mode?: PromptInputMode
   cwd: string
   tools: Tools
   verbose?: boolean
@@ -1303,6 +1337,7 @@ export async function* ask({
     yield* engine.submitMessage(prompt, {
       uuid: promptUuid,
       isMeta,
+      mode,
     })
   } finally {
     setReadFileCache(engine.getReadFileState())

@@ -62,7 +62,9 @@ import type { TodoList } from './todo/types.js'
 import { TodoListSchema } from './todo/types.js'
 import type { ContentReplacementRecord } from './toolResultStorage.js'
 import {
+  loadPersistedSessionState,
   recordPersistedResumeMetadata,
+  type PersistedSessionState,
   type SessionResumeSource,
 } from './persistedSessionState.js'
 import {
@@ -425,6 +427,75 @@ export function exitRestoredWorktree(): void {
  * mode persistence, and initial state computation. Called by both --continue
  * and --resume paths in main.tsx.
  */
+export function buildPersistedResumeSnapshot(
+  continuity?: PersistedSessionState['continuityMetadata'],
+  latestCompaction?: PersistedSessionState['compactionHistory'] extends Array<infer T>
+    ? T
+    : undefined,
+): string | null {
+  if (!continuity && !latestCompaction) {
+    return null
+  }
+
+  const summaryLines = ['## Resume Snapshot']
+
+  if (continuity) {
+    summaryLines.push(`- Workspace: ${continuity.projectPath}`)
+    if (continuity.currentTask) {
+      summaryLines.push(`- Current task: ${continuity.currentTask}`)
+    }
+    if (continuity.remainingTasks.length > 0) {
+      summaryLines.push(
+        `- Remaining tasks: ${continuity.remainingTasks.slice(0, 3).join(', ')}`,
+      )
+    }
+    if (continuity.recentTasks && continuity.recentTasks.length > 0) {
+      summaryLines.push(
+        `- Recent tasks: ${continuity.recentTasks.slice(0, 3).join(', ')}`,
+      )
+    }
+    if (continuity.workingFiles.length > 0) {
+      summaryLines.push(
+        `- Working files: ${continuity.workingFiles.slice(0, 5).join(', ')}`,
+      )
+    }
+    if (continuity.recentFiles && continuity.recentFiles.length > 0) {
+      summaryLines.push(
+        `- Recent files: ${continuity.recentFiles.slice(0, 5).join(', ')}`,
+      )
+    }
+    if (continuity.recentSymbols && continuity.recentSymbols.length > 0) {
+      summaryLines.push(
+        `- Recent symbols: ${continuity.recentSymbols.slice(0, 5).join(', ')}`,
+      )
+    }
+    if (continuity.recentDecisions && continuity.recentDecisions.length > 0) {
+      summaryLines.push(
+        `- Recent decisions: ${continuity.recentDecisions.slice(0, 3).join(' | ')}`,
+      )
+    }
+    if (continuity.keyInsights.length > 0) {
+      summaryLines.push(
+        `- Key insights: ${continuity.keyInsights.slice(0, 3).join(' | ')}`,
+      )
+    }
+    if (continuity.conversationSummary) {
+      summaryLines.push(`- Session summary: ${continuity.conversationSummary}`)
+    }
+  }
+
+  if (latestCompaction) {
+    summaryLines.push(
+      `- Last compaction: ${latestCompaction.trigger} ${latestCompaction.beforeMessages ?? '?'}→${latestCompaction.afterMessages ?? '?'} messages, ${latestCompaction.beforeTokens ?? '?'}→${latestCompaction.afterTokens ?? '?'} tokens`,
+    )
+    if (latestCompaction.retainedSummary) {
+      summaryLines.push(`- Retained summary: ${latestCompaction.retainedSummary}`)
+    }
+  }
+
+  return summaryLines.join('\n')
+}
+
 export async function processResumedConversation(
   result: ResumeLoadResult,
   opts: {
@@ -450,6 +521,17 @@ export async function processResumedConversation(
       result.resumeDetail,
       { transcriptPath: opts.transcriptPath },
     )
+
+    const persistedState = await loadPersistedSessionState(result.sessionId, {
+      transcriptPath: opts.transcriptPath,
+    })
+    const summary = buildPersistedResumeSnapshot(
+      persistedState?.continuityMetadata,
+      persistedState?.compactionHistory?.at(-1),
+    )
+    if (summary) {
+      result.messages.push(createSystemMessage(summary))
+    }
   }
 
   // Match coordinator/normal mode to the resumed session

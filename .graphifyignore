@@ -1,0 +1,9 @@
+# .graphifyignore
+vendor/
+node_modules/
+dist/
+*.generated.py
+*.log
+*.tmp
+tmp/*
+graphify-out/cache/

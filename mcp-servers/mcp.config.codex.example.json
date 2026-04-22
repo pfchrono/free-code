@@ -7,6 +7,18 @@
     "code-summarizer": {
       "command": "code-summarizer",
       "args": []
+    },
+    "token-savior": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "token-savior-recall[mcp,memory-vector]",
+        "token-savior"
+      ],
+      "env": {
+        "WORKSPACE_ROOTS": "/path/to/project",
+        "TOKEN_SAVIOR_CLIENT": "codex"
+      }
     }
   }
 }

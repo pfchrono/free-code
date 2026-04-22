@@ -55,6 +55,7 @@
     "profile:firstparty": "bun run ./scripts/provider-bootstrap.ts --provider firstParty",
     "verify:no-phone-home": "bun run ./scripts/verify-no-phone-home.ts",
     "verify:no-phone-home:compile": "bun run ./scripts/verify-no-phone-home.ts dist/cli",
+    "typecheck": "bunx tsc --noEmit -p tsconfig.json",
     "test": "bun test",
     "test:provider": "bun test ./src/utils/model/providers.test.ts"
   },

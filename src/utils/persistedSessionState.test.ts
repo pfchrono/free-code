@@ -12,9 +12,7 @@ describe('getPersistedSessionStatePath', () => {
       getPersistedSessionStatePath('session-1', {
         projectDir: 'F:\\code\\free-code',
       }),
-    ).toBe(
-      `${getClaudeConfigHomeDir()}/projects/F--code-free-code/session-1.state.json`,
-    )
+    ).toBe('F:\\code\\free-code/session-1.state.json')
   })
 })
 
@@ -34,6 +32,10 @@ describe('parsePersistedSessionState', () => {
         remainingTasks: ['todo'],
         workingFiles: ['a.ts'],
         keyInsights: ['keep this'],
+        recentFiles: ['src/query.ts'],
+        recentSymbols: ['appendSystemPrompt'],
+        recentTasks: ['finish resume'],
+        recentDecisions: ['keep payload compact'],
         metadata: { imported: true },
         persistedAt: '2026-04-16T00:00:00.000Z',
       },

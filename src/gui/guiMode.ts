@@ -47,6 +47,8 @@ type GuiRuntime = {
   activeTurnPromise: Promise<void> | null;
 };
 
+const GUI_TEARDOWN_TIMEOUT_MS = 2_000;
+
 const messageHistory: GuiHistoryMessage[] = [];
 
 export async function runGuiMode(): Promise<void> {
@@ -685,9 +687,29 @@ async function teardownRuntime(runtime: GuiRuntime): Promise<void> {
   runtime.interruptRequested = true;
   runtime.engine.interrupt();
 
+  const activeTurnPromise = runtime.activeTurnPromise;
+  if (!activeTurnPromise) {
+    return;
+  }
+
   try {
-    await runtime.activeTurnPromise;
+    await Promise.race([
+      activeTurnPromise,
+      new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('Timed out waiting for active GUI turn to stop'));
+        }, GUI_TEARDOWN_TIMEOUT_MS);
+      }),
+    ]);
   } catch {
-    // Active turn errors are already surfaced through GUI events.
+    writeGuiEvent({
+      type: 'status',
+      message: 'GUI shutdown forced after interrupt timeout',
+      level: 'warning',
+    });
   }
 }
+
+export const testExports = {
+  teardownRuntime,
+};

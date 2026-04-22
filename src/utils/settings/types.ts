@@ -989,6 +989,12 @@ export const SettingsSchema = lazySchema(() =>
         .describe(
           'Enable deadpool mode - witty antihero personality in plain-language replies only. Does not change code or structured output.',
         ),
+      ralphModeEnabled: z
+        .boolean()
+        .optional()
+        .describe(
+          'Enable Ralph loop mode guidance in the system prompt for plain-language replies.',
+        ),
       skipDangerousModePermissionPrompt: z
         .boolean()
         .optional()

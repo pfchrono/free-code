@@ -62,6 +62,20 @@
         "serve"
       ],
       "type": "stdio"
+    },
+    "token-savior": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "token-savior-recall[mcp,memory-vector]",
+        "token-savior"
+      ],
+      "env": {
+        "WORKSPACE_ROOTS": "/home/pfchrono/code/free-code",
+        "TOKEN_SAVIOR_CLIENT": "codex"
+      },
+      "type": "stdio",
+      "description": "Archivist code navigation and persistent memory MCP server from Mibayy/token-savior"
     }
   }
 }

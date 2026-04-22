@@ -9,7 +9,7 @@ import type {
   LocalJSXCommandContext,
   LocalJSXCommandOnDone,
 } from '../../types/command.js'
-import { getAPIProvider } from '../../utils/model/providers.js'
+import { getAPIProvider, type APIProvider } from '../../utils/model/providers.js'
 import { switchProviderDirectly } from '../../hooks/useProviderSwitch.js'
 import {
   getSettingsForSource,
@@ -17,6 +17,7 @@ import {
 } from '../../utils/settings/settings.js'
 
 type StoredApiProvider = 'firstParty' | 'codex'
+type RestoredApiProvider = Exclude<ReturnType<typeof getAPIProvider>, 'codex'>
 
 const DISABLE_ARGS = new Set(['off', 'disable', 'disabled', 'reset'])
 const ENABLE_ARGS = new Set(['', 'on', 'enable', 'enabled'])
@@ -24,6 +25,16 @@ const ENABLE_ARGS = new Set(['', 'on', 'enable', 'enabled'])
 function getStoredProvider(): StoredApiProvider | null {
   const value = getSettingsForSource('projectSettings')?.apiProvider
   return value === 'codex' || value === 'firstParty' ? value : null
+}
+
+function getRestoredProvider(): RestoredApiProvider {
+  const storedProvider = getStoredProvider()
+  if (storedProvider === 'firstParty') {
+    return 'firstParty'
+  }
+
+  const activeProvider = getAPIProvider()
+  return activeProvider === 'codex' ? 'firstParty' : activeProvider
 }
 
 function buildStatusMessage(): string {
@@ -75,12 +86,13 @@ export async function call(
     return null
   }
 
-  const nextProvider: StoredApiProvider = DISABLE_ARGS.has(normalizedArg)
-    ? 'firstParty'
-    : 'codex'
+  const enablingCodex = ENABLE_ARGS.has(normalizedArg)
+  const nextProvider: APIProvider = enablingCodex ? 'codex' : getRestoredProvider()
 
   switchProviderDirectly(nextProvider)
-  updateSettingsForSource('projectSettings', { apiProvider: nextProvider })
+  updateSettingsForSource('projectSettings', {
+    apiProvider: nextProvider,
+  })
 
   logEvent('tengu_api_provider_preference_changed', {
     provider: nextProvider as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,

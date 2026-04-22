@@ -11,11 +11,12 @@ import {
   AGENT_TOOL_NAME,
   VERIFICATION_AGENT_TYPE,
 } from '../tools/AgentTool/constants.js'
-import { FILE_WRITE_TOOL_NAME } from '../tools/FileWriteTool/prompt.js'
-import { FILE_READ_TOOL_NAME } from '../tools/FileReadTool/prompt.js'
 import { FILE_EDIT_TOOL_NAME } from '../tools/FileEditTool/constants.js'
 import { TODO_WRITE_TOOL_NAME } from '../tools/TodoWriteTool/constants.js'
 import { TASK_CREATE_TOOL_NAME } from '../tools/TaskCreateTool/constants.js'
+
+const FILE_WRITE_TOOL_NAME = 'Write'
+const FILE_READ_TOOL_NAME = 'Read'
 import type { Tools } from '../Tool.js'
 import type { Command } from '../types/command.js'
 import { BASH_TOOL_NAME } from '../tools/BashTool/toolName.js'
@@ -614,6 +615,7 @@ ${CYBER_RISK_INSTRUCTION}`,
             'summarize_tool_results',
             () => SUMMARIZE_TOOL_RESULTS_SECTION,
           ),
+          systemPromptSection('ralph_mode', () => getRalphModeSection()),
         ]
       : [
           systemPromptSection('session_guidance', () =>
@@ -651,6 +653,7 @@ ${CYBER_RISK_INSTRUCTION}`,
             'summarize_tool_results',
             () => SUMMARIZE_TOOL_RESULTS_SECTION,
           ),
+          systemPromptSection('ralph_mode', () => getRalphModeSection()),
           systemPromptSection('deadpool_mode', () => getDeadpoolModeSection()),
           // Caveman mode - ultra-compressed communication
           systemPromptSection('caveman_mode', () => getCavemanModeSection()),
@@ -989,6 +992,30 @@ Old tool results will be automatically cleared from context to free up space. Th
 
 const SUMMARIZE_TOOL_RESULTS_SECTION = `When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`
 
+function getRalphModeSection(): string | null {
+  const settings = getInitialSettings()
+  if (!settings.ralphModeEnabled) return null
+
+  return `# Ralph Mode
+
+You are in Ralph mode. Keep working until task is done.
+
+Rules:
+- Treat each turn as continuation of current task, not separate chat
+- After every tool result, pick next concrete action and continue if work remains
+- Stop only when task is finished or you are blocked
+- If blocked, say exactly what is missing and what smallest unblocker needed
+- Keep user-facing prose direct, compact, and implementation-focused
+- Preserve code, JSON, XML/tags, shell commands, file paths, stack traces, and exact quoted errors verbatim
+- Do not let tone change tool calls, structured output, or correctness
+
+Example:
+  Normal: "I investigated the failing test and updated the parser."
+  Ralph mode: "Updated parser and verified failing test. Continuing until remaining checks pass."
+
+Apply to explanations, summaries, status updates, and final user-facing prose only. Preserve all structured and machine-readable content exactly.`
+}
+
 function getCavemanModeSection(): string | null {
   const settings = getInitialSettings()
   if (!settings.cavemanModeEnabled) return null
@@ -1116,4 +1143,3 @@ The user context may include a \`terminalFocus\` field indicating whether the us
 - **Unfocused**: The user is away. Lean heavily into autonomous action — make decisions, explore, commit, push. Only pause for genuinely irreversible or high-risk actions.
 - **Focused**: The user is watching. Be more collaborative — surface choices, ask before committing to large changes, and keep your output concise so it's easy to follow in real time.${BRIEF_PROACTIVE_SECTION && briefToolModule?.isBriefEnabled() ? `\n\n${BRIEF_PROACTIVE_SECTION}` : ''}`
 }
-

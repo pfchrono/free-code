@@ -523,11 +523,16 @@ async function countSlashCommandTokens(
   tools: Tools,
   getToolPermissionContext: () => Promise<ToolPermissionContext>,
   agentInfo: AgentDefinitionsResult | null,
+  slashCommandInfoOverride?: {
+    totalCommands: number
+    includedCommands: number
+  },
 ): Promise<{
   slashCommandTokens: number
   commandInfo: { totalCommands: number; includedCommands: number }
 }> {
-  const info = await getSlashCommandInfo(getCwd())
+  const info =
+    slashCommandInfoOverride ?? (await getSlashCommandInfo(getCwd()))
 
   const slashCommandTool = findSkillTool(tools)
   if (!slashCommandTool) {
@@ -936,7 +941,9 @@ export async function analyzeContextUsage(
   const contextWindow = getContextWindowForModel(runtimeModel, getSdkBetas())
 
   // Build the effective system prompt using the shared utility
-  const defaultSystemPrompt = await getSystemPrompt(tools, runtimeModel)
+  const defaultSystemPrompt =
+    toolUseContext?.options.systemPromptOverride ??
+    (await getSystemPrompt(tools, runtimeModel))
   const effectiveSystemPrompt = buildEffectiveSystemPrompt({
     mainThreadAgentDefinition,
     toolUseContext: toolUseContext ?? {
@@ -979,7 +986,12 @@ export async function analyzeContextUsage(
       messages,
     ),
     countCustomAgentTokens(agentDefinitions),
-    countSlashCommandTokens(tools, getToolPermissionContext, agentDefinitions),
+    countSlashCommandTokens(
+      tools,
+      getToolPermissionContext,
+      agentDefinitions,
+      toolUseContext.options.slashCommandInfoOverride,
+    ),
     approximateMessageTokens(messages),
   ])
 

@@ -30,5 +30,7 @@ openspec/
 @openspec*/
 killbunfreecode.ps1
 gui/src-tauri/target/
+graphify-out/
+fixtures/
 # Added by code-review-graph
 .code-review-graph/

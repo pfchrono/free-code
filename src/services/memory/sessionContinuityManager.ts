@@ -6,13 +6,11 @@
 import { z } from 'zod'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-import type { UUID } from 'crypto'
 import { logForDebugging } from '../../utils/debug.js'
 import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
 import { getMemorySystem, type MemoryEntry } from './persistentMemorySystem.js'
 import {
   loadPersistedSessionState,
-  markPersistedSessionLegacySources,
   type PersistedSessionContinuityMetadata,
   updatePersistedSessionContinuity,
 } from '../../utils/persistedSessionState.js'
@@ -36,6 +34,10 @@ const sessionStateSchema = z.object({
   workingFiles: z.array(z.string()).default([]),
   conversationSummary: z.string().optional(),
   keyInsights: z.array(z.string()).default([]),
+  recentFiles: z.array(z.string()).default([]),
+  recentSymbols: z.array(z.string()).default([]),
+  recentTasks: z.array(z.string()).default([]),
+  recentDecisions: z.array(z.string()).default([]),
 
   // Metadata
   metadata: z.record(z.string(), z.unknown()).default({}),
@@ -49,6 +51,28 @@ const sessionHistorySchema = z.object({
 
 export type SessionState = z.infer<typeof sessionStateSchema>
 export type SessionHistory = z.infer<typeof sessionHistorySchema>
+
+export interface ResumeSnapshot {
+  sessionId: string
+  workspaceId: string
+  branchName?: string
+  lastActiveAt: number
+  recentFiles: string[]
+  recentSymbols: string[]
+  recentTasks: string[]
+  recentDecisions: string[]
+  changedFilesSinceLastSession?: string[]
+  impactedTests?: string[]
+  suggestedResumeNotes?: string[]
+  checkpointId?: string
+}
+
+export interface SessionActivityRecord {
+  files?: string[]
+  symbols?: string[]
+  task?: string
+  decision?: string
+}
 
 interface SessionContinuityConfig {
   sessionDir: string
@@ -124,6 +148,10 @@ class SessionContinuityManager {
       remainingTasks: [],
       workingFiles: [],
       keyInsights: [],
+      recentFiles: [],
+      recentSymbols: [],
+      recentTasks: [],
+      recentDecisions: [],
       metadata,
     }
 
@@ -279,18 +307,162 @@ class SessionContinuityManager {
 
     if (!this.currentSession.workingFiles.includes(filePath)) {
       this.currentSession.workingFiles.push(filePath)
-      await this.updateSession({ workingFiles: this.currentSession.workingFiles })
-
-      // Add to memory
-      const memorySystem = getMemorySystem()
-      await memorySystem.addEntry({
-        type: 'context',
-        content: `Working on file: ${filePath}`,
-        sessionId: this.currentSession.sessionId,
-        projectPath: this.currentSession.projectPath,
-        metadata: { action: 'file_access', filePath },
-      })
     }
+
+    this.currentSession.recentFiles = this.mergeRecentItems(
+      this.currentSession.recentFiles,
+      [filePath],
+    )
+    this.currentSession.lastActivity = Date.now()
+    this.debouncedSave()
+    await this.persistCurrentSession()
+
+    // Add to memory
+    const memorySystem = getMemorySystem()
+    await memorySystem.addEntry({
+      type: 'context',
+      content: `Working on file: ${filePath}`,
+      sessionId: this.currentSession.sessionId,
+      projectPath: this.currentSession.projectPath,
+      metadata: { action: 'file_access', filePath },
+    })
+  }
+
+  async recordActivity(activity: SessionActivityRecord): Promise<void> {
+    if (!this.currentSession) {
+      throw new Error('No active session to record activity for')
+    }
+
+    const recentFiles = this.mergeRecentItems(
+      this.currentSession.recentFiles,
+      activity.files,
+    )
+    const recentSymbols = this.mergeRecentItems(
+      this.currentSession.recentSymbols,
+      activity.symbols,
+    )
+    const recentTasks = this.mergeRecentItems(
+      this.currentSession.recentTasks,
+      activity.task ? [activity.task] : undefined,
+    )
+    const recentDecisions = this.mergeRecentItems(
+      this.currentSession.recentDecisions,
+      activity.decision ? [activity.decision] : undefined,
+    )
+
+    await this.updateSession({
+      workingFiles: this.currentSession.workingFiles,
+      recentFiles,
+      recentSymbols,
+      recentTasks,
+      recentDecisions,
+      ...(activity.task ? { currentTask: activity.task } : {}),
+    })
+  }
+
+  buildResumeSnapshot(): ResumeSnapshot | null {
+    if (!this.currentSession) {
+      return null
+    }
+
+    const metadata = this.currentSession.metadata as Record<string, unknown>
+
+    return {
+      sessionId: this.currentSession.sessionId,
+      workspaceId: this.currentSession.projectPath,
+      branchName:
+        typeof metadata.branchName === 'string' ? metadata.branchName : undefined,
+      lastActiveAt: this.currentSession.lastActivity,
+      recentFiles: [...this.currentSession.recentFiles],
+      recentSymbols: [...this.currentSession.recentSymbols],
+      recentTasks: [...this.currentSession.recentTasks],
+      recentDecisions: [...this.currentSession.recentDecisions],
+      changedFilesSinceLastSession: [...this.currentSession.recentFiles],
+      suggestedResumeNotes: this.getResumeSuggestions(),
+      checkpointId:
+        typeof metadata.checkpointId === 'string'
+          ? metadata.checkpointId
+          : undefined,
+    }
+  }
+
+  getChangedWorkSinceLastSession(): string[] {
+    if (!this.currentSession) {
+      return []
+    }
+
+    return [...this.currentSession.recentFiles]
+  }
+
+  getResumeSuggestions(): string[] {
+    if (!this.currentSession) {
+      return []
+    }
+
+    const suggestions: string[] = []
+
+    if (this.currentSession.remainingTasks.length > 0) {
+      suggestions.push(`Continue task: ${this.currentSession.remainingTasks[0]}`)
+    }
+
+    if (this.currentSession.recentDecisions.length > 0) {
+      suggestions.push(
+        `Recall last decision: ${this.currentSession.recentDecisions[0]}`,
+      )
+    }
+
+    if (this.currentSession.recentFiles.length > 0) {
+      suggestions.push(
+        `Reopen file: ${this.currentSession.recentFiles[0]}`,
+      )
+    }
+
+    return suggestions.slice(0, 3)
+  }
+
+  buildResumeContext(): string | null {
+    const snapshot = this.buildResumeSnapshot()
+    if (!snapshot) {
+      return null
+    }
+
+    const sections = [
+      `## Resume Snapshot`,
+      `- Session: ${snapshot.sessionId}`,
+      `- Workspace: ${snapshot.workspaceId}`,
+    ]
+
+    if (snapshot.recentTasks.length > 0) {
+      sections.push(
+        `- Recent tasks: ${snapshot.recentTasks.join(', ')}`,
+      )
+    }
+
+    if (snapshot.recentFiles.length > 0) {
+      sections.push(
+        `- Recent files: ${snapshot.recentFiles.join(', ')}`,
+      )
+    }
+
+    if (snapshot.recentSymbols.length > 0) {
+      sections.push(
+        `- Recent symbols: ${snapshot.recentSymbols.join(', ')}`,
+      )
+    }
+
+    if (snapshot.recentDecisions.length > 0) {
+      sections.push(
+        `- Recent decisions: ${snapshot.recentDecisions.join(', ')}`,
+      )
+    }
+
+    if (snapshot.suggestedResumeNotes && snapshot.suggestedResumeNotes.length > 0) {
+      sections.push(
+        `- Suggested next steps: ${snapshot.suggestedResumeNotes.join(' | ')}`,
+      )
+    }
+
+    return sections.join('\n')
   }
 
   /**
@@ -520,8 +692,17 @@ class SessionContinuityManager {
     }
 
     if (legacySession) {
-      this.currentSession = legacySession
-      await this.persistSession(legacySession, ['session-history'])
+      this.currentSession = {
+        ...legacySession,
+        recentFiles: legacySession.workingFiles,
+        recentSymbols: [],
+        recentTasks: [],
+        recentDecisions: [],
+        metadata: {
+          ...legacySession.metadata,
+          legacySources: ['session-history'],
+        },
+      }
     }
   }
 
@@ -536,8 +717,14 @@ class SessionContinuityManager {
     session: SessionState,
     legacySources: string[] = [],
   ): Promise<void> {
+    const metadataLegacySources = Array.isArray(session.metadata?.legacySources)
+      ? session.metadata.legacySources.filter(
+          (source): source is string => typeof source === 'string',
+        )
+      : []
+
     await updatePersistedSessionContinuity(
-      session.sessionId as UUID,
+      session.sessionId,
       {
         sessionId: session.sessionId,
         projectPath: session.projectPath,
@@ -552,22 +739,17 @@ class SessionContinuityManager {
         workingFiles: session.workingFiles,
         conversationSummary: session.conversationSummary,
         keyInsights: session.keyInsights,
+        recentFiles: session.recentFiles,
+        recentSymbols: session.recentSymbols,
+        recentTasks: session.recentTasks,
+        recentDecisions: session.recentDecisions,
         metadata: session.metadata,
       },
       {
         projectDir: session.projectPath,
+        legacySources: [...metadataLegacySources, ...legacySources],
       },
     )
-
-    if (legacySources.length > 0) {
-      await markPersistedSessionLegacySources(
-        session.sessionId as UUID,
-        legacySources,
-        {
-          projectDir: session.projectPath,
-        },
-      )
-    }
   }
 
   private fromPersistedContinuity(
@@ -587,8 +769,20 @@ class SessionContinuityManager {
       workingFiles: continuity.workingFiles,
       conversationSummary: continuity.conversationSummary,
       keyInsights: continuity.keyInsights,
+      recentFiles: continuity.recentFiles ?? continuity.workingFiles,
+      recentSymbols: continuity.recentSymbols ?? [],
+      recentTasks: continuity.recentTasks ?? [],
+      recentDecisions: continuity.recentDecisions ?? [],
       metadata: continuity.metadata,
     }
+  }
+
+  private mergeRecentItems(existing: string[], incoming?: string[]): string[] {
+    if (!incoming || incoming.length === 0) {
+      return existing
+    }
+
+    return Array.from(new Set([...incoming, ...existing])).slice(0, 10)
   }
 
   private async generateSessionSummary(session: SessionState): Promise<string> {

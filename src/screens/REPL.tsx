@@ -146,6 +146,7 @@ import { queryCheckpoint, logQueryProfileReport } from '../utils/queryProfiler.j
 import type { Message as MessageType, UserMessage, ProgressMessage, HookResultMessage, PartialCompactDirection } from '../types/message.js';
 import { query } from '../query.js';
 import { mergeClients, useMergedClients } from '../hooks/useMergedClients.js';
+import { syncArchivistClient } from '../services/providers/archivist/archivistClient.js';
 import { getQuerySourceForREPL } from '../utils/promptCategory.js';
 import { useMergedTools } from '../hooks/useMergedTools.js';
 import { mergeAndFilterTools } from '../utils/toolPool.js';
@@ -735,6 +736,11 @@ export function REPL({
   // eslint-disable-next-line prefer-const
   let trySuggestBgPRIntercept = SUGGEST_BG_PR_NOOP;
   const mcpClients = useMergedClients(initialMcpClients, mcp.clients);
+
+  useEffect(() => {
+    syncArchivistClient(mcpClients);
+    return () => syncArchivistClient([]);
+  }, [mcpClients]);
 
   // IDE integration
   const [ideSelection, setIDESelection] = useState<IDESelection | undefined>(undefined);
@@ -2553,7 +2559,7 @@ export function REPL({
         toolUseContext,
         customSystemPrompt,
         defaultSystemPrompt,
-        appendSystemPrompt
+        appendSystemPrompt,
       });
       toolUseContext.renderedSystemPrompt = systemPrompt;
       const notificationAttachments = await getQueuedCommandAttachments(removedNotifications).catch(() => []);
@@ -2798,7 +2804,7 @@ export function REPL({
       toolUseContext,
       customSystemPrompt,
       defaultSystemPrompt,
-      appendSystemPrompt
+      appendSystemPrompt,
     });
     toolUseContext.renderedSystemPrompt = systemPrompt;
     queryCheckpoint('query_query_start');
@@ -4954,7 +4960,7 @@ export function REPL({
               toolUseContext: context,
               customSystemPrompt: context.options.customSystemPrompt,
               defaultSystemPrompt: defaultSysPrompt,
-              appendSystemPrompt: context.options.appendSystemPrompt
+              appendSystemPrompt: context.options.appendSystemPrompt,
             });
             const [userContext, systemContext] = await Promise.all([getUserContext(), getSystemContext()]);
             const result = await partialCompactConversation(compactMessages, messageIndex, context, {

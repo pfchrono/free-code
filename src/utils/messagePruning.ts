@@ -1,37 +1,33 @@
-import type { Message } from '../types/message.js'
+import type { Message } from './mailbox.js'
 import { logForDebugging } from './debug.js'
+
+const STRIPPED_TOOL_RESULT_PLACEHOLDER = '[tool result omitted for context length]'
+const PURE_TOOL_RESULT_PATTERN = /^\s*(\[tool result:[\s\S]*?\]\s*)+$/i
 
 /**
  * Aggressively prune old messages from conversation history.
  * Keeps only the most recent N messages to limit token bloat.
- *
- * Strategy:
- * - Keep system messages (type = 'system')
- * - Keep last N non-system messages to preserve context for current query
- * - Strip messages that are pure tool results (often redundant/stale)
  */
 export function pruneOldMessages(messages: Message[], keepRecent = 40): Message[] {
   if (messages.length <= keepRecent) {
     return messages
   }
 
-  const systemMessages: Message[] = []
-  const nonSystemMessages: Message[] = []
-
-  // Separate system and non-system messages
-  for (const msg of messages) {
-    if (msg.type === 'system') {
-      systemMessages.push(msg)
-    } else {
-      nonSystemMessages.push(msg)
+  if (keepRecent <= 0) {
+    const systemMessages = messages.filter(msg => msg.source === 'system')
+    const prunedCount = messages.length - systemMessages.length
+    if (prunedCount > 0) {
+      logForDebugging(
+        `messagePruning: stripped ${prunedCount} old messages (${messages.length} → ${systemMessages.length})`
+      )
     }
+    return systemMessages
   }
 
-  // Keep only the most recent N non-system messages
-  const recentMessages = nonSystemMessages.slice(-keepRecent)
-
-  // Reconstruct: system messages first, then recent messages
-  const prunedMessages = [...systemMessages, ...recentMessages]
+  const recentWindowStart = Math.max(messages.length - keepRecent, 0)
+  const prunedMessages = messages.filter(
+    (msg, index) => msg.source === 'system' || index >= recentWindowStart
+  )
 
   const prunedCount = messages.length - prunedMessages.length
   if (prunedCount > 0) {
@@ -44,71 +40,40 @@ export function pruneOldMessages(messages: Message[], keepRecent = 40): Message[
 }
 
 /**
- * Strip stale tool results from messages.
- * Tool result blocks that are old or no longer relevant waste tokens.
- *
- * Heuristic: Keep tool results only if they're within the last 15 messages
- * (assumes tool results are typically generated within 15 messages of their use).
+ * Strip stale tool results from old user messages.
  */
-export function stripStaleToolResults(messages: Message[]): Message[] {
+export function stripStaleToolResults(messages: Message[], keepToolResultsCount = 15): Message[] {
   if (messages.length === 0) {
     return messages
   }
 
-  const RECENT_WINDOW = 15 // Keep tool results only in recent window
+  const thresholdIndex = Math.max(0, messages.length - keepToolResultsCount)
 
   return messages.map((msg, idx) => {
-    // Only process user messages that might contain tool results
-    if (msg.type !== 'user') {
+    if (msg.source !== 'user' || idx >= thresholdIndex) {
       return msg
     }
 
-    // Check if this message is old (outside the recent window)
-    const isOld = idx < messages.length - RECENT_WINDOW
-
-    // If message is old and appears to be a pure tool result block, strip it
-    if (isOld && msg.message?.content) {
-      const content = msg.message.content
-
-      // Check if this is primarily tool result blocks
-      const hasOnlyToolResults =
-        Array.isArray(content) &&
-        content.every(
-          block =>
-            block.type === 'tool_result' ||
-            (block.type === 'text' && typeof block.text === 'string' && block.text.trim().length < 50)
-        )
-
-      if (hasOnlyToolResults) {
-        // Return message but replace tool results with minimal acknowledgment
-        return {
-          ...msg,
-          message: {
-            ...msg.message,
-            content: [
-              {
-                type: 'text',
-                text: '[tool result omitted for context length]',
-              },
-            ],
-          },
-        }
-      }
+    if (!PURE_TOOL_RESULT_PATTERN.test(msg.content)) {
+      return msg
     }
 
-    return msg
+    return {
+      ...msg,
+      content: STRIPPED_TOOL_RESULT_PLACEHOLDER,
+    }
   })
 }
 
 /**
  * Comprehensive message pruning combining multiple strategies.
  */
-export function pruneMessagesForTokens(messages: Message[]): Message[] {
-  // Step 1: Keep only recent messages (helps with 87k+ bloat)
-  let pruned = pruneOldMessages(messages, 40)
-
-  // Step 2: Strip stale tool results from older messages
-  pruned = stripStaleToolResults(pruned)
-
+export function pruneMessagesForTokens(
+  messages: Message[],
+  keepRecent = 40,
+  keepToolResultsCount = 15
+): Message[] {
+  let pruned = pruneOldMessages(messages, keepRecent)
+  pruned = stripStaleToolResults(pruned, keepToolResultsCount)
   return pruned
 }

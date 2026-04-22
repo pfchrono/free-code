@@ -56,7 +56,9 @@ const ASK_READ_FILE_STATE_CACHE_SIZE = 10
 export function isResultSuccessful(
   message: Message | undefined,
   stopReason: string | null = null,
+  resultReason?: string,
 ): message is Message {
+  if (resultReason === 'api_error') return false
   if (!message) return false
 
   if (message.type === 'assistant') {

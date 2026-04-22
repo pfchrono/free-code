@@ -30,6 +30,12 @@ describe('SessionContinuityManager', () => {
       conversationSummary: 'Canonical summary',
       keyInsights: ['Insight A'],
     })
+    await manager.recordActivity({
+      files: ['src/query.ts'],
+      symbols: ['appendSystemPrompt'],
+      task: 'Finish resume output',
+      decision: 'Keep payload compact',
+    })
 
     const persistedPath = join(projectDir, `${sessionId}.state.json`)
     const raw = await readFile(persistedPath, 'utf8')
@@ -40,6 +46,16 @@ describe('SessionContinuityManager', () => {
       'Canonical summary',
     )
     expect(parsed?.continuityMetadata?.keyInsights).toEqual(['Insight A'])
+    expect(parsed?.continuityMetadata?.recentFiles).toEqual(['src/query.ts'])
+    expect(parsed?.continuityMetadata?.recentSymbols).toEqual([
+      'appendSystemPrompt',
+    ])
+    expect(parsed?.continuityMetadata?.recentTasks).toEqual([
+      'Finish resume output',
+    ])
+    expect(parsed?.continuityMetadata?.recentDecisions).toEqual([
+      'Keep payload compact',
+    ])
     expect(parsed?.memoryLineage?.authoritativeSource).toBe(
       'persisted_session_state',
     )
@@ -73,6 +89,7 @@ describe('SessionContinuityManager', () => {
 
     const manager = new SessionContinuityManager({ sessionDir })
     await manager.initialize()
+    await manager.updateSession({ conversationSummary: 'Imported legacy session' })
 
     const current = manager.getCurrentSession()
     expect(current?.sessionId).toBe('legacy-session')
@@ -83,8 +100,37 @@ describe('SessionContinuityManager', () => {
     )
     const parsed = parsePersistedSessionState(JSON.parse(raw))
     expect(parsed?.continuityMetadata?.sessionId).toBe('legacy-session')
-    expect(parsed?.memoryLineage?.importedLegacySources).toEqual([
-      'session-history',
+    expect(parsed?.continuityMetadata?.workingFiles).toEqual(['a.ts'])
+  })
+
+  it('builds resume snapshot and context from recorded activity', async () => {
+    const manager = new SessionContinuityManager({ sessionDir })
+    await manager.initialize()
+    await manager.startSession(projectDir, { sessionId: 'session-resume-123' })
+    await manager.recordActivity({
+      files: ['src/services/memory/sessionContinuityManager.ts'],
+      symbols: ['buildResumeContext'],
+      task: 'Wire richer resume output',
+      decision: 'Defer checkpoint restore',
+    })
+    await manager.addTask('Ship /resume snapshot')
+
+    const snapshot = manager.buildResumeSnapshot()
+    const context = manager.buildResumeContext()
+
+    expect(snapshot?.recentFiles).toEqual([
+      'src/services/memory/sessionContinuityManager.ts',
     ])
+    expect(snapshot?.recentSymbols).toEqual(['buildResumeContext'])
+    expect(snapshot?.recentTasks).toEqual(['Wire richer resume output'])
+    expect(snapshot?.recentDecisions).toEqual(['Defer checkpoint restore'])
+    expect(snapshot?.suggestedResumeNotes).toContain(
+      'Continue task: Ship /resume snapshot',
+    )
+    expect(manager.getChangedWorkSinceLastSession()).toEqual([
+      'src/services/memory/sessionContinuityManager.ts',
+    ])
+    expect(context).toContain('## Resume Snapshot')
+    expect(context).toContain('Wire richer resume output')
   })
 })

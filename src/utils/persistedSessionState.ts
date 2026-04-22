@@ -1,4 +1,3 @@
-import type { UUID } from 'crypto'
 import { dirname, join } from 'path'
 import {
   mkdir,
@@ -69,6 +68,10 @@ export type PersistedSessionContinuityMetadata = {
   workingFiles: string[]
   conversationSummary?: string
   keyInsights: string[]
+  recentFiles?: string[]
+  recentSymbols?: string[]
+  recentTasks?: string[]
+  recentDecisions?: string[]
   metadata: Record<string, unknown>
   persistedAt: string
 }
@@ -97,7 +100,11 @@ const PERSISTED_SESSION_STATE_FILENAME_SUFFIX = '.state.json'
 export const MAX_PERSISTED_COMPACTION_HISTORY = 5
 
 function getProjectDirForSession(projectDirOverride?: string): string {
-  const projectDir = projectDirOverride ?? getSessionProjectDir() ?? getOriginalCwd()
+  if (projectDirOverride) {
+    return projectDirOverride
+  }
+
+  const projectDir = getSessionProjectDir() ?? getOriginalCwd()
   return join(getClaudeConfigHomeDir(), 'projects', sanitizePath(projectDir))
 }
 
@@ -319,6 +326,18 @@ export function parsePersistedSessionState(
         keyInsights: Array.isArray(continuity.keyInsights)
           ? continuity.keyInsights.filter(item => typeof item === 'string')
           : [],
+        recentFiles: Array.isArray(continuity.recentFiles)
+          ? continuity.recentFiles.filter(item => typeof item === 'string')
+          : undefined,
+        recentSymbols: Array.isArray(continuity.recentSymbols)
+          ? continuity.recentSymbols.filter(item => typeof item === 'string')
+          : undefined,
+        recentTasks: Array.isArray(continuity.recentTasks)
+          ? continuity.recentTasks.filter(item => typeof item === 'string')
+          : undefined,
+        recentDecisions: Array.isArray(continuity.recentDecisions)
+          ? continuity.recentDecisions.filter(item => typeof item === 'string')
+          : undefined,
         metadata:
           typeof continuity.metadata === 'object' && continuity.metadata !== null
             ? (continuity.metadata as Record<string, unknown>)
@@ -393,7 +412,7 @@ export async function loadPersistedSessionState(
 }
 
 export async function savePersistedSessionState(
-  sessionId: UUID,
+  sessionId: string,
   state: PersistedSessionState,
   opts: {
     transcriptPath?: string
@@ -416,7 +435,7 @@ export function mergePersistedCompactionHistory(
 }
 
 export async function recordPersistedResumeMetadata(
-  sessionId: UUID,
+  sessionId: string,
   source: SessionResumeSource,
   detail?: string,
   opts: {
@@ -441,7 +460,7 @@ export async function recordPersistedResumeMetadata(
 }
 
 export async function persistCompactedSessionState(
-  sessionId: UUID,
+  sessionId: string,
   params: {
     visibleMessages: Message[]
     coreMessages?: Message[]
@@ -483,14 +502,21 @@ export async function persistCompactedSessionState(
 }
 
 export async function updatePersistedSessionContinuity(
-  sessionId: UUID,
+  sessionId: string,
   continuityMetadata: Omit<PersistedSessionContinuityMetadata, 'persistedAt'>,
   opts: {
     transcriptPath?: string
     projectDir?: string
+    legacySources?: string[]
   } = {},
 ): Promise<void> {
   const existing = await loadPersistedSessionState(sessionId, opts)
+  const importedLegacySources = Array.from(
+    new Set([
+      ...(existing?.memoryLineage?.importedLegacySources ?? []),
+      ...(opts.legacySources ?? []),
+    ]),
+  )
   await savePersistedSessionState(
     sessionId,
     {
@@ -502,9 +528,8 @@ export async function updatePersistedSessionContinuity(
       },
       memoryLineage: {
         authoritativeSource: 'persisted_session_state',
-        importedLegacySources: existing?.memoryLineage?.importedLegacySources,
-        legacySidecarDetected:
-          existing?.memoryLineage?.legacySidecarDetected ?? false,
+        importedLegacySources,
+        legacySidecarDetected: importedLegacySources.length > 0,
         persistedAt: new Date().toISOString(),
       },
     },
@@ -513,7 +538,7 @@ export async function updatePersistedSessionContinuity(
 }
 
 export async function markPersistedSessionLegacySources(
-  sessionId: UUID,
+  sessionId: string,
   legacySources: string[],
   opts: {
     transcriptPath?: string

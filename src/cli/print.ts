@@ -95,6 +95,7 @@ import {
   mergeFileStateCaches,
   READ_FILE_STATE_CACHE_SIZE,
 } from 'src/utils/fileStateCache.js'
+import { runHeadlessLocalSlashCommand } from 'src/utils/headlessLocalCommandRunner.js'
 import { expandPath } from 'src/utils/path.js'
 import { extractReadFilesFromMessages } from 'src/utils/queryHelpers.js'
 import { registerHookEventHandler } from 'src/utils/hooks/hookEvents.js'
@@ -488,7 +489,6 @@ export async function runHeadless(
     workload: string | undefined
     setupTrigger?: 'init' | 'maintenance' | undefined
     sessionStartHooksPromise?: ReturnType<typeof processSessionStartHooks>
-    startupInitialUserMessage?: NormalizedUserMessage
     setSDKStatus?: (status: SDKStatus) => void
   },
 ): Promise<void> {
@@ -656,7 +656,7 @@ export async function runHeadless(
             }
         }
       })()
-      void structuredIO.write(message)
+      structuredIO.outbound.enqueue(message)
     })
   }
 
@@ -684,10 +684,9 @@ export async function runHeadless(
   // SessionStart hooks can emit initialUserMessage — the first user turn for
   // headless orchestrator sessions where stdin is empty and additionalContext
   // alone (an attachment, not a turn) would leave the REPL with nothing to
-  // respond to. The hook promise is awaited inside loadInitialMessages, so the
-  // module-level pending value is set by the time we get here.
-  const hookInitialUserMessage =
-    options.startupInitialUserMessage ?? takeInitialUserMessage()
+  // respond to. loadInitialMessages awaits sessionStartHooksPromise first, so
+  // the module-level pending value has been populated by the time we get here.
+  const hookInitialUserMessage = takeInitialUserMessage()
   if (hookInitialUserMessage) {
     structuredIO.prependUserMessage(hookInitialUserMessage)
   }
@@ -2131,6 +2130,82 @@ function runHeadlessStreaming(
           // const-capture: TS loses `while ((command = dequeue()))` narrowing
           // inside the closure.
           const cmd = command
+
+          if (
+            options.replayUserMessages &&
+            typeof input === 'string' &&
+            cmd.mode === 'prompt'
+          ) {
+            const localResult = await runHeadlessLocalSlashCommand(input, {
+              cwd: cwd(),
+              appState: getAppState(),
+              setAppState,
+              messages: mutableMessages,
+              fileCache: readFileState,
+              commands: uniqBy(
+                [...currentCommands, ...appState.mcp.commands],
+                'name',
+              ),
+              theme: 'dark',
+              canUseTool,
+              abortController,
+            })
+
+            if (localResult) {
+              const outputText =
+                localResult.result.type === 'text'
+                  ? localResult.result.value
+                  : localResult.result.type === 'compact'
+                    ? (localResult.result.displayText ?? '')
+                    : ''
+
+              if (outputText) {
+                output.enqueue({
+                  type: 'assistant',
+                  message: {
+                    id: randomUUID(),
+                    type: 'message',
+                    role: 'assistant',
+                    content: [{ type: 'text', text: outputText }],
+                    model: 'local-command',
+                    stop_reason: null,
+                    stop_sequence: null,
+                    usage: { input_tokens: 0, output_tokens: 0 },
+                    context_management: null,
+                  },
+                  parent_tool_use_id: null,
+                  session_id: getSessionId(),
+                  uuid: randomUUID(),
+                })
+              }
+
+              output.enqueue({
+                type: 'result',
+                subtype: 'success',
+                duration_ms: Date.now() - turnStartTime,
+                duration_api_ms: 0,
+                is_error: false,
+                num_turns: 1,
+                result: outputText,
+                session_id: getSessionId(),
+                total_cost_usd: 0,
+                usage: {
+                  input_tokens: 0,
+                  output_tokens: 0,
+                  cache_creation_input_tokens: 0,
+                  cache_read_input_tokens: 0,
+                },
+                uuid: randomUUID(),
+              })
+
+              for (const uuid of batchUuids) {
+                notifyCommandLifecycle(uuid, 'completed')
+              }
+
+              continue
+            }
+          }
+
           await runWithWorkload(cmd.workload ?? options.workload, async () => {
             for await (const message of ask({
               commands: uniqBy(
@@ -2140,6 +2215,7 @@ function runHeadlessStreaming(
               prompt: input,
               promptUuid: cmd.uuid,
               isMeta: cmd.isMeta,
+              mode: cmd.mode,
               cwd: cwd(),
               tools: allTools,
               verbose: options.verbose,
@@ -2623,6 +2699,20 @@ function runHeadlessStreaming(
     }
 
     if (inputClosed) {
+      if (options.replayUserMessages) {
+        if (suggestionState.inflightPromise) {
+          await Promise.race([suggestionState.inflightPromise, sleep(5000)])
+        }
+        suggestionState.abortController?.abort()
+        suggestionState.abortController = null
+        await finalizePendingAsyncHooks()
+        unsubscribeSkillChanges()
+        unsubscribeAuthStatus?.()
+        statusListeners.delete(rateLimitListener)
+        output.done()
+        return
+      }
+
       // Check for active swarm that needs shutdown
       const hasActiveSwarm = await (async () => {
         // Wait for any working in-process team members to finish
@@ -2799,9 +2889,10 @@ function runHeadlessStreaming(
   // The process is complete when the input stream completes and
   // the last generation of the queue has complete.
   void (async () => {
-    let initialized = false
-    logForDiagnosticsNoPII('info', 'cli_message_loop_started')
-    for await (const message of structuredIO.structuredInput) {
+    try {
+      let initialized = false
+      logForDiagnosticsNoPII('info', 'cli_message_loop_started')
+      for await (const message of structuredIO.structuredInput) {
       // Non-user events are handled inline (no queue). started→completed in
       // the same tick carries no information, so only fire completed.
       // control_response is reported by StructuredIO.processLine (which also
@@ -4087,11 +4178,121 @@ function runHeadlessStreaming(
         trackReceivedMessageUuid(message.uuid)
       }
 
+      const resolvedContent = await resolveAndPrepend(
+        message,
+        message.message.content,
+      )
+
+      if (
+        options.replayUserMessages &&
+        typeof resolvedContent === 'string'
+      ) {
+        let replayLocalCommands = uniqBy(
+          [...currentCommands, ...getAppState().mcp.commands],
+          'name',
+        )
+        let replayLocalResult = await runHeadlessLocalSlashCommand(
+          resolvedContent,
+          {
+            cwd: cwd(),
+            appState: getAppState(),
+            setAppState,
+            messages: mutableMessages,
+            fileCache: readFileState,
+            commands: replayLocalCommands,
+            theme: 'dark',
+            canUseTool,
+          },
+        )
+
+        if (!replayLocalResult) {
+          currentCommands = await getCommands(cwd())
+          replayLocalCommands = uniqBy(
+            [...currentCommands, ...getAppState().mcp.commands],
+            'name',
+          )
+          replayLocalResult = await runHeadlessLocalSlashCommand(
+            resolvedContent,
+            {
+              cwd: cwd(),
+              appState: getAppState(),
+              setAppState,
+              messages: mutableMessages,
+              fileCache: readFileState,
+              commands: replayLocalCommands,
+              theme: 'dark',
+              canUseTool,
+            },
+          )
+        }
+
+        if (replayLocalResult) {
+          const outputText =
+            replayLocalResult.result.type === 'text'
+              ? replayLocalResult.result.value
+              : replayLocalResult.result.type === 'compact'
+                ? (replayLocalResult.result.displayText ?? '')
+                : ''
+
+          output.enqueue({
+            type: 'user',
+            message: message.message,
+            session_id: sessionId,
+            parent_tool_use_id: null,
+            uuid: message.uuid,
+            timestamp: message.timestamp,
+            isReplay: true,
+          } as SDKUserMessageReplay)
+
+          if (outputText) {
+            output.enqueue({
+              type: 'assistant',
+              message: {
+                id: randomUUID(),
+                type: 'message',
+                role: 'assistant',
+                content: [{ type: 'text', text: outputText }],
+                model: 'local-command',
+                stop_reason: null,
+                stop_sequence: null,
+                usage: { input_tokens: 0, output_tokens: 0 },
+                context_management: null,
+              },
+              parent_tool_use_id: null,
+              session_id: sessionId,
+              uuid: randomUUID(),
+            })
+          }
+
+          output.enqueue({
+            type: 'result',
+            subtype: 'success',
+            duration_ms: 0,
+            duration_api_ms: 0,
+            is_error: false,
+            num_turns: 1,
+            result: outputText,
+            session_id: sessionId,
+            total_cost_usd: 0,
+            usage: {
+              input_tokens: 0,
+              output_tokens: 0,
+              cache_creation_input_tokens: 0,
+              cache_read_input_tokens: 0,
+            },
+            uuid: randomUUID(),
+          })
+
+          notifyCommandLifecycle(message.uuid, 'completed')
+          continue
+        }
+      }
+
       enqueue({
         mode: 'prompt' as const,
         // file_attachments rides the protobuf catchall from the web composer.
         // Same-ref no-op when absent (no 'file_attachments' key).
-        value: await resolveAndPrepend(message, message.message.content),
+        value: resolvedContent,
         uuid: message.uuid,
         priority: message.priority,
       })
@@ -4108,22 +4309,25 @@ function runHeadlessStreaming(
         }))
       }
       void run()
-    }
-    inputClosed = true
-    cronScheduler?.stop()
-    if (!running) {
-      // If a push-suggestion is in-flight, wait for it to emit before closing
-      // the output stream (5 s safety timeout to prevent hanging).
-      if (suggestionState.inflightPromise) {
-        await Promise.race([suggestionState.inflightPromise, sleep(5000)])
       }
-      suggestionState.abortController?.abort()
-      suggestionState.abortController = null
-      await finalizePendingAsyncHooks()
-      unsubscribeSkillChanges()
-      unsubscribeAuthStatus?.()
-      statusListeners.delete(rateLimitListener)
-      output.done()
+      inputClosed = true
+      cronScheduler?.stop()
+      if (!running) {
+        // If a push-suggestion is in-flight, wait for it to emit before closing
+        // the output stream (5 s safety timeout to prevent hanging).
+        if (suggestionState.inflightPromise) {
+          await Promise.race([suggestionState.inflightPromise, sleep(5000)])
+        }
+        suggestionState.abortController?.abort()
+        suggestionState.abortController = null
+        await finalizePendingAsyncHooks()
+        unsubscribeSkillChanges()
+        unsubscribeAuthStatus?.()
+        statusListeners.delete(rateLimitListener)
+        output.done()
+      }
+    } catch (error) {
+      output.error(error)
     }
   })()
 
@@ -5184,7 +5388,7 @@ async function loadInitialMessages(
   }
 }
 
-function getStructuredIO(
+export function getStructuredIO(
   inputPrompt: string | AsyncIterable<string>,
   options: {
     sdkUrl: string | undefined

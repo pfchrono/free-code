@@ -232,6 +232,25 @@ function logManagedSettings(): void {
   }
 }
 
+export function buildContinueLaunchAppProps({
+  getFpsMetrics,
+  stats,
+  initialState,
+  appendSystemPrompt,
+}: {
+  getFpsMetrics: () => FpsMetrics | undefined;
+  stats: StatsStore | undefined;
+  initialState: AppState;
+  appendSystemPrompt?: string;
+}) {
+  return {
+    getFpsMetrics,
+    stats,
+    initialState,
+    appendSystemPrompt,
+  };
+}
+
 // Check if running in debug/inspection mode
 function isBeingDebugged() {
   const isBun = isRunningWithBun();
@@ -1019,14 +1038,20 @@ export async function main() {
   await run();
   profileCheckpoint('main_after_run');
 }
-async function getInputPrompt(prompt: string, inputFormat: 'text' | 'stream-json'): Promise<string | AsyncIterable<string>> {
+async function* streamStdinUtf8(): AsyncGenerator<string> {
+  for await (const chunk of process.stdin) {
+    yield typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+  }
+}
+
+export async function getInputPrompt(prompt: string, inputFormat: 'text' | 'stream-json'): Promise<string | AsyncIterable<string>> {
   if (!process.stdin.isTTY &&
   // Input hijacking breaks MCP.
   !process.argv.includes('mcp')) {
-    if (inputFormat === 'stream-json') {
-      return process.stdin;
-    }
     process.stdin.setEncoding('utf8');
+    if (inputFormat === 'stream-json') {
+      return streamStdinUtf8();
+    }
     let data = '';
     const onData = (chunk: string) => {
       data += chunk;
@@ -2814,7 +2839,6 @@ async function run(): Promise<CommanderCommand> {
       // loadInitialMessages awaits it. Downstream await still observes the
       // rejection — this just prevents the spurious global handler fire.
       sessionStartHooksPromise?.catch(() => {});
-      const startupInitialUserMessage = sessionStartHooksPromise ? takeInitialUserMessage() : undefined;
       profileCheckpoint('before_validateForceLoginOrg');
       // Validate org restriction for non-interactive sessions
       const orgValidation = await validateForceLoginOrg();
@@ -3085,18 +3109,10 @@ async function run(): Promise<CommanderCommand> {
           agent: agentCli,
           workload: options.workload,
           setupTrigger: setupTrigger ?? undefined,
-          sessionStartHooksPromise,
-          startupInitialUserMessage
+          sessionStartHooksPromise
         };
-        const headlessPromise = runHeadless(inputPrompt, () => headlessStore.getState(), headlessStore.setState, commandsHeadless, tools, sdkMcpConfigs, activeAgents, headlessOptions);
-        startupRawTrace('action: after runHeadless call started');
-        void headlessPromise.catch(error => {
-          logForDebugging(
-            `[STARTUP] runHeadless rejected: ${error instanceof Error ? error.stack ?? error.message : String(error)}`,
-            { level: 'error' },
-          )
-        })
-        startupRawTrace('action: after catch handler attached');
+        await runHeadless(inputPrompt, () => headlessStore.getState(), headlessStore.setState, commandsHeadless, tools, sdkMcpConfigs, activeAgents, headlessOptions);
+        startupRawTrace('action: after runHeadless completed');
       }
       catch (error) {
         throw error
@@ -3423,11 +3439,12 @@ async function run(): Promise<CommanderCommand> {
           resume_duration_ms: Math.round(performance.now() - resumeStart)
         });
         resumeSucceeded = true;
-        await launchRepl(root, {
+        await launchRepl(root, buildContinueLaunchAppProps({
           getFpsMetrics,
           stats,
-          initialState: loaded.initialState
-        }, {
+          initialState: loaded.initialState,
+          appendSystemPrompt,
+        }), {
           ...sessionConfig,
           mainThreadAgentDefinition: loaded.restoredAgentDef ?? mainThreadAgentDefinition,
           initialMessages: loaded.messages,
@@ -4025,7 +4042,8 @@ async function run(): Promise<CommanderCommand> {
         await launchRepl(root, {
           getFpsMetrics,
           stats,
-          initialState: resumeData.initialState
+          initialState: resumeData.initialState,
+          appendSystemPrompt
         }, {
           ...sessionConfig,
           mainThreadAgentDefinition: resumeData.restoredAgentDef ?? mainThreadAgentDefinition,

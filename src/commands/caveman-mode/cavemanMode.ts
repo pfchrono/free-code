@@ -8,6 +8,16 @@ import {
 
 const DISABLE_ARGS = new Set(['off', 'disable', 'disabled'])
 const ENABLE_ARGS = new Set(['on', 'enable', 'enabled'])
+const STATUS_ARGS = new Set(['status', 'state'])
+
+function isValidArg(arg: string): boolean {
+  return (
+    arg.length === 0 ||
+    DISABLE_ARGS.has(arg) ||
+    ENABLE_ARGS.has(arg) ||
+    STATUS_ARGS.has(arg)
+  )
+}
 
 function isCavemanModeEnabled(): boolean {
   return getInitialSettings().cavemanModeEnabled === true
@@ -16,6 +26,21 @@ function isCavemanModeEnabled(): boolean {
 export const call: LocalCommandCall = async (args = '', _context) => {
   const normalizedArg = args.trim().toLowerCase()
   const wasEnabled = isCavemanModeEnabled()
+
+  if (!isValidArg(normalizedArg)) {
+    return {
+      type: 'text' as const,
+      value:
+        'Invalid argument. Use /cavemanmode, /cavemanmode on, /cavemanmode off, or /cavemanmode status.',
+    }
+  }
+
+  if (STATUS_ARGS.has(normalizedArg)) {
+    return {
+      type: 'text' as const,
+      value: wasEnabled ? 'Caveman mode is ON.' : 'Caveman mode is OFF.',
+    }
+  }
 
   let newState: boolean
 

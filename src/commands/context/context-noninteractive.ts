@@ -28,6 +28,11 @@ type CollectContextDataInput = {
     agentDefinitions: AgentDefinitionsResult
     customSystemPrompt?: string
     appendSystemPrompt?: string
+    systemPromptOverride?: string[]
+    slashCommandInfoOverride?: {
+      totalCommands: number
+      includedCommands: number
+    }
   }
 }
 
@@ -43,6 +48,8 @@ export async function collectContextData(
       agentDefinitions,
       customSystemPrompt,
       appendSystemPrompt,
+      systemPromptOverride,
+      slashCommandInfoOverride,
     },
   } = context
 
@@ -57,6 +64,11 @@ export async function collectContextData(
 
   const { messages: compactedMessages } = await microcompactMessages(apiView)
   const appState = getAppState()
+  const mainThreadAgentDefinition = appState.agent
+    ? appState.agentDefinitions.activeAgents.find(
+        a => a.agentType === appState.agent,
+      )
+    : undefined
 
   return analyzeContextUsage(
     compactedMessages,
@@ -67,11 +79,15 @@ export async function collectContextData(
     undefined, // terminalWidth
     // analyzeContextUsage only reads options.{customSystemPrompt,appendSystemPrompt}
     // but its signature declares the full Pick<ToolUseContext, 'options'>.
-    { options: { customSystemPrompt, appendSystemPrompt } } as Pick<
-      ToolUseContext,
-      'options'
-    >,
-    undefined, // mainThreadAgentDefinition
+    {
+      options: {
+        customSystemPrompt,
+        appendSystemPrompt,
+        systemPromptOverride,
+        slashCommandInfoOverride,
+      },
+    } as Pick<ToolUseContext, 'options'>,
+    mainThreadAgentDefinition,
     apiView, // original messages for API usage extraction
   )
 }

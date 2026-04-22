@@ -132,6 +132,15 @@ export type SDKSystemMessage = SDKBaseMessage & {
 
 export type SDKCompactBoundaryMessage = SDKSystemMessage & {
   subtype: 'compact_boundary' | 'microcompact_boundary'
+  compact_metadata?: {
+    trigger: 'manual' | 'auto'
+    pre_tokens: number
+    preserved_segment?: {
+      head_uuid?: string
+      anchor_uuid?: string
+      tail_uuid?: string
+    }
+  }
 }
 
 export type SDKToolProgressMessage = SDKBaseMessage & {

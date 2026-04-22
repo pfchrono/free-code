@@ -176,6 +176,11 @@ export type ToolUseContext = {
     querySource?: QuerySource
     /** Optional callback to get the latest tools (e.g., after MCP servers connect mid-query) */
     refreshTools?: () => Tools
+    /** Test-only override for slash-command inventory used by context accounting. */
+    slashCommandInfoOverride?: {
+      totalCommands: number
+      includedCommands: number
+    }
   }
   abortController: AbortController
   readFileState: FileStateCache
