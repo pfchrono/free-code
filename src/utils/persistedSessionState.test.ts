@@ -7,12 +7,24 @@ import {
 import { resolveResumeMessages } from './conversationRecovery.js'
 
 describe('getPersistedSessionStatePath', () => {
-  it('stores explicit project paths under config/projects using a sanitized directory name', () => {
+  it('stores explicit Windows project paths under config/projects using a sanitized directory name', () => {
     expect(
       getPersistedSessionStatePath('session-1', {
         projectDir: 'F:\\code\\free-code',
       }),
-    ).toBe('F:\\code\\free-code/session-1.state.json')
+    ).toBe(
+      `${getClaudeConfigHomeDir()}/projects/F--code-free-code/session-1.state.json`,
+    )
+  })
+
+  it('stores explicit POSIX project paths under config/projects using a sanitized directory name', () => {
+    expect(
+      getPersistedSessionStatePath('session-1', {
+        projectDir: '/home/pfchrono/code/free-code',
+      }),
+    ).toBe(
+      `${getClaudeConfigHomeDir()}/projects/-home-pfchrono-code-free-code/session-1.state.json`,
+    )
   })
 })
 

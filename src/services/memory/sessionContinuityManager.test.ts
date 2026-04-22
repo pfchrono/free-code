@@ -2,7 +2,11 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
-import { parsePersistedSessionState } from '../../utils/persistedSessionState.js'
+import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
+import {
+  getPersistedSessionStatePath,
+  parsePersistedSessionState,
+} from '../../utils/persistedSessionState.js'
 import { SessionContinuityManager } from './sessionContinuityManager.js'
 
 describe('SessionContinuityManager', () => {
@@ -37,7 +41,9 @@ describe('SessionContinuityManager', () => {
       decision: 'Keep payload compact',
     })
 
-    const persistedPath = join(projectDir, `${sessionId}.state.json`)
+    const persistedPath = getPersistedSessionStatePath(sessionId, {
+      projectDir,
+    })
     const raw = await readFile(persistedPath, 'utf8')
     const parsed = parsePersistedSessionState(JSON.parse(raw))
 
@@ -95,12 +101,38 @@ describe('SessionContinuityManager', () => {
     expect(current?.sessionId).toBe('legacy-session')
 
     const raw = await readFile(
-      join(projectDir, 'legacy-session.state.json'),
+      getPersistedSessionStatePath('legacy-session', {
+        projectDir,
+      }),
       'utf8',
     )
     const parsed = parsePersistedSessionState(JSON.parse(raw))
     expect(parsed?.continuityMetadata?.sessionId).toBe('legacy-session')
     expect(parsed?.continuityMetadata?.workingFiles).toEqual(['a.ts'])
+  })
+
+  it('stores continuity state for Windows-style project paths under the sanitized config directory', async () => {
+    const manager = new SessionContinuityManager({ sessionDir })
+    await manager.initialize()
+
+    const windowsProjectPath = 'F:\\code\\free-code'
+    const sessionId = 'session-windows-123'
+    await manager.startSession(windowsProjectPath, { sessionId })
+    await manager.updateSession({ conversationSummary: 'Windows path summary' })
+
+    const persistedPath = getPersistedSessionStatePath(sessionId, {
+      projectDir: windowsProjectPath,
+    })
+    const raw = await readFile(persistedPath, 'utf8')
+    const parsed = parsePersistedSessionState(JSON.parse(raw))
+
+    expect(persistedPath).toBe(
+      `${getClaudeConfigHomeDir()}/projects/F--code-free-code/${sessionId}.state.json`,
+    )
+    expect(parsed?.continuityMetadata?.projectPath).toBe(windowsProjectPath)
+    expect(parsed?.continuityMetadata?.conversationSummary).toBe(
+      'Windows path summary',
+    )
   })
 
   it('builds resume snapshot and context from recorded activity', async () => {
