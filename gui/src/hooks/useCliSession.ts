@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 
 export interface CliMessage {
@@ -68,29 +68,72 @@ export function useCliSession() {
   const [status, setStatus] = useState<string>('Disconnected')
   const [error, setError] = useState<string | null>(null)
   const [turnState, setTurnState] = useState<TurnState>('idle')
+  const pollingRef = useRef<number | null>(null)
+
+  const stopPolling = useCallback(() => {
+    if (pollingRef.current !== null) {
+      window.clearInterval(pollingRef.current)
+      pollingRef.current = null
+    }
+  }, [])
+
+  const pollEvents = useCallback(async (activeSessionId: string) => {
+    try {
+      const polledEvents = await invoke<string[]>('read_cli_events', {
+        sessionId: activeSessionId,
+        maxEvents: 50,
+      })
+
+      const nextTurnState = parseEvents(
+        polledEvents,
+        setSessionInfo,
+        setEvents,
+        setCommands,
+        setStatus,
+        setError,
+        setTurnState,
+      )
+
+      if (nextTurnState === 'idle' || nextTurnState === 'cancelled') {
+        stopPolling()
+      }
+    } catch (err) {
+      stopPolling()
+      setError(String(err))
+      setStatus('Error')
+      setTurnState('idle')
+    }
+  }, [setCommands, setError, setEvents, setSessionInfo, setStatus, setTurnState, stopPolling])
+
+  const startPolling = useCallback((activeSessionId: string) => {
+    stopPolling()
+    pollEvents(activeSessionId)
+    pollingRef.current = window.setInterval(() => {
+      void pollEvents(activeSessionId)
+    }, 100)
+  }, [pollEvents, stopPolling])
 
   const startSession = useCallback(async () => {
     try {
       setError(null)
       setStatus('Starting CLI...')
-      
+
       const id = `session_${Date.now()}`
       await invoke('start_cli', { sessionId: id })
-      
+
       setSessionId(id)
       setStatus('Connected')
       setTurnState('idle')
 
-      // Read initial events
-      const events = await invoke<string[]>('read_cli_events', { sessionId: id, maxEvents: 20 })
-      parseEvents(events, setSessionInfo, setEvents, setCommands, setStatus, setError, setTurnState)
+      const initialEvents = await invoke<string[]>('read_cli_events', { sessionId: id, maxEvents: 20 })
+      parseEvents(initialEvents, setSessionInfo, setEvents, setCommands, setStatus, setError, setTurnState)
       await requestCommands(id, setCommands, setSessionInfo, setEvents, setStatus, setError, setTurnState)
-      
+      startPolling(id)
     } catch (err) {
       setError(String(err))
       setStatus('Error')
     }
-  }, [])
+  }, [startPolling])
 
   const sendCommand = useCallback(async (command: CliMessage) => {
     if (!sessionId) return
@@ -109,31 +152,23 @@ export function useCliSession() {
       })
 
       if (command.type === 'interrupt') {
+        startPolling(sessionId)
         setStatus('Stopping current turn...')
         return
       }
 
-      await drainEventsUntilTurnSettles(
-        sessionId,
-        setSessionInfo,
-        setEvents,
-        setCommands,
-        setStatus,
-        setError,
-        setTurnState,
-        'running',
-      )
-
+      startPolling(sessionId)
     } catch (err) {
       setError(String(err))
       setTurnState('idle')
     }
-  }, [sessionId])
+  }, [sessionId, startPolling])
 
   const stopSession = useCallback(async () => {
     if (!sessionId) return
 
     try {
+      stopPolling()
       await invoke('stop_cli', { sessionId })
       setSessionId(null)
       setStatus('Disconnected')
@@ -141,14 +176,16 @@ export function useCliSession() {
     } catch (err) {
       setError(String(err))
     }
-  }, [sessionId])
+  }, [sessionId, stopPolling])
 
   useEffect(() => {
     if (!sessionId) {
+      stopPolling()
       return
     }
 
     const stopCurrentSession = () => {
+      stopPolling()
       invoke('stop_cli', { sessionId }).catch(() => {})
     }
 
@@ -158,7 +195,7 @@ export function useCliSession() {
       window.removeEventListener('beforeunload', stopCurrentSession)
       stopCurrentSession()
     }
-  }, [sessionId])
+  }, [sessionId, stopPolling])
 
   return {
     sessionId,
@@ -190,39 +227,6 @@ async function requestCommands(
 
   const commandEvents = await invoke<string[]>('read_cli_events', { sessionId, maxEvents: 20 })
   parseEvents(commandEvents, setSessionInfo, setEvents, setCommands, setStatus, setError, setTurnState)
-}
-
-async function drainEventsUntilTurnSettles(
-  sessionId: string,
-  setSessionInfo: (info: SessionInfo | null) => void,
-  setEvents: React.Dispatch<React.SetStateAction<ConversationEvent[]>>,
-  setCommands: React.Dispatch<React.SetStateAction<SlashCommand[]>>,
-  setStatus: React.Dispatch<React.SetStateAction<string>>,
-  setError: React.Dispatch<React.SetStateAction<string | null>>,
-  setTurnState: React.Dispatch<React.SetStateAction<TurnState>>,
-  initialTurnState: TurnState = 'running',
-) {
-  let currentTurnState: TurnState = initialTurnState
-
-  while (true) {
-    const polledEvents = await invoke<string[]>('read_cli_events', { sessionId, maxEvents: 50 })
-    currentTurnState = parseEvents(
-      polledEvents,
-      setSessionInfo,
-      setEvents,
-      setCommands,
-      setStatus,
-      setError,
-      setTurnState,
-      currentTurnState,
-    )
-
-    if (currentTurnState === 'idle' || currentTurnState === 'cancelled') {
-      return
-    }
-
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
 }
 
 export function parseEvents(
