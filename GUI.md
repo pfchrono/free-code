@@ -8,7 +8,7 @@ Build cross-platform Windows GUI app that integrates free-code CLI, similar to O
 
 ---
 
-## Current Status (Updated: 2026-04-16)
+## Current Status (Updated: 2026-04-22)
 
 ### ✅ Phase 1: Subprocess Bridge - COMPLETE
 
@@ -17,41 +17,40 @@ Build cross-platform Windows GUI app that integrates free-code CLI, similar to O
 **Completed:**
 - [x] `--gui` flag in CLI (`src/entrypoints/cli.tsx`)
 - [x] GUI mode protocol types (`src/gui/guiProtocol.ts`)
-- [x] GUI mode handler (`src/gui/guiMode.ts`)
+- [x] GUI mode handler with persistent `QueryEngine` runtime (`src/gui/guiMode.ts`)
 - [x] Working event/command flow over stdio
 - [x] Message history tracking
 - [x] Slash command detection and routing
 - [x] Tauri app scaffolded and builds
 - [x] Rust backend with CLI process management
 - [x] React frontend with auto-connect hook
-- [x] App binary built: `gui/src-tauri/target/release/free-code-gui.exe` (10.3 MB)
-- [x] NSIS installer built: `gui/src-tauri/target/release/bundle/nsis/Free-Code GUI_0.1.0_x64-setup.exe` (2.4 MB)
+- [x] App binary built: `gui/src-tauri/target/release/free-code-gui.exe`
+- [x] NSIS installer built: `gui/src-tauri/target/release/bundle/nsis/`
 - [x] Persistent `QueryEngine` runtime in GUI mode
 - [x] Real `user_input` execution through `QueryEngine.submitMessage()`
-- [x] Real `message`, `tool_use`, `tool_result`, `status`, and `completion` event emission
+- [x] Real `message`, `tool_use`, `tool_result`, `status`, `error`, and `completion` event emission
 - [x] Runtime-backed `get_models`, `get_commands`, and `select_model`
 - [x] Best-effort `interrupt` handling and GUI runtime teardown
 
 **Working commands (live runtime):**
 - `heartbeat` → `status: ok`
-- `get_models` → `models_list` with current model info
-- `get_commands` → `commands_list` with all commands
+- `get_models` → `models_list` with current model/provider info
+- `get_commands` → `commands_list` with live command metadata
 - `user_input` → real multi-turn execution + `completion`
 - `/slash commands` → routed through real command/query handling
 - `interrupt` → best-effort cancel + engine recreation
-- `select_model` → runtime override update
+- `select_model` → model override update with engine recreation
 
-**Test output:**
-```bash
-$ echo '{"type":"heartbeat"}' | ./dist/cli.exe --gui
-{"type":"session_start","version":"0.3.1","model":"MiniMax-M2.7","provider":"minimax","timestamp":...}
-{"type":"status","message":"GUI mode initialized","level":"info"}
-{"type":"status","message":"ok","level":"info"}
-```
+**What is still intentionally incomplete:**
+- GUI mode currently starts `QueryEngine` with `mcpClients: []` in `src/gui/guiMode.ts`
+- Tool permissions are auto-allowed via `canUseTool()` in `src/gui/guiMode.ts`
+- Provider switching is partial: model override changes, but full provider rebinding is not implemented
+- Frontend transcript/tool rendering still lags behind REPL parity
 
 **Known residual risks:**
-- Provider switching is not fully dynamic. `select_model` updates model override, but mismatched provider requests warn and keep current provider.
-- Direct CLI smoke through `bun run ./cli --gui` can still hit existing runtime guard `"Config accessed before allowed"` depending on startup path.
+- Direct CLI smoke through some startup paths can still hit runtime guard `"Config accessed before allowed"`
+- GUI mode has no approval dialog equivalent yet for plan/permission flows such as `ExitPlanMode`
+- Error handling is session-level only; denied/failed tool calls do not yet get a first-class GUI UX
 
 ---
 
@@ -156,7 +155,7 @@ Exit: Only when GUI closes or /exit command
 |------|---------|
 | `src/entrypoints/cli.tsx` | Added `--gui` flag detection (line 321-334) |
 | `src/gui/guiProtocol.ts` | JSON event/command types |
-| `src/gui/guiMode.ts` | GUI mode handler with stub responses |
+| `src/gui/guiMode.ts` | GUI mode handler with persistent runtime, event bridge, and command dispatch |
 | `src/main.tsx` | Windows TTY detection bugfix |
 | `src/tools.ts` | Async module skip + null filter fix |
 | `src/commands.ts` | Aliases crash fix |
@@ -182,7 +181,8 @@ Exit: Only when GUI closes or /exit command
 2. [ ] Rich message rendering with markdown, code fences, and copy affordances
 3. [ ] Better tool progress UI instead of generic status lines
 4. [ ] Session-level error and permission UX for denied/failed tool calls
-5. [ ] Decide provider-switch strategy for full `select_model` parity
+5. [ ] Reuse existing plan-approval UI patterns for GUI approval flows instead of inventing a parallel interaction model
+6. [ ] Decide provider-switch strategy for full `select_model` parity
 
 ### 🟡 MEDIUM PRIORITY: Frontend Improvements
 
@@ -190,6 +190,7 @@ Exit: Only when GUI closes or /exit command
 2. [ ] Conversation transcript polish and streaming UX
 3. [ ] Session resume and tab/history UI
 4. [ ] Permission surface for tool approvals
+5. [ ] If GUI introduces a post-plan next-step chooser, mirror the existing `ultraplanPendingChoice` / `UltraplanChoiceDialog` pattern before adding any new state shape
 
 ### 🟢 LOW PRIORITY: Nice to Have
 
@@ -267,8 +268,9 @@ cargo build --release --bundles nsis
 
 1. **Provider switching parity?** Current model override works, full provider switch still unresolved
 2. **Permission handling?** Auto-allow remains initial behavior; GUI prompt flow still needed
-3. **MCP support in GUI?** Runtime currently uses empty MCP client set in GUI mode
-4. **Settings sync?** Share settings.json with CLI, but expose GUI-safe subset
+3. **Plan-approval / next-step flow reuse?** Existing TUI already has `ExitPlanModePermissionRequest`, `ultraplanPendingChoice`, and `UltraplanChoiceDialog`; GUI should likely reuse those state concepts instead of inventing a second approval model
+4. **MCP support in GUI?** Runtime currently uses empty MCP client set in GUI mode
+5. **Settings sync?** Share settings.json with CLI, but expose GUI-safe subset
 
 ---
 

@@ -286,7 +286,7 @@ Main remaining work is frontend/interaction parity and transport polish, not cor
 | `src/utils/codebase/` | Live dependency graph |
 | `src/tools/FileEditTool/` | File editing with hash anchors |
 | `src/gui/guiProtocol.ts` | JSON event/command types for GUI |
-| `src/gui/guiMode.ts` | GUI mode handler (stub responses) |
+| `src/gui/guiMode.ts` | GUI mode handler with persistent runtime, command dispatch, and event bridge |
 | `src/cli/print.ts` | Headless execution (runHeadless, runHeadlessStreaming) |
 | `src/QueryEngine.ts` | Core query logic (submitMessage) |
 | `src/cli/structuredIO.ts` | Input/output bridging |
