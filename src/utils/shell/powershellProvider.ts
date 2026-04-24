@@ -100,7 +100,7 @@ export function createPowerShellProvider(shellPath: string): ShellProvider {
       return buildPowerShellArgs(commandString)
     },
 
-    async getEnvironmentOverrides(): Promise<Record<string, string>> {
+    async getEnvironmentOverrides(_command: string): Promise<Record<string, string>> {
       const env: Record<string, string> = {}
       // Apply session env vars set via /env (child processes only, not
       // the REPL). Without this, `/env PATH=...` affects Bash tool

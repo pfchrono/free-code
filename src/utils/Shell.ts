@@ -37,6 +37,7 @@ import { invalidateSessionEnvCache } from './sessionEnvironment.js'
 import { createBashShellProvider } from './shell/bashProvider.js'
 import { getCachedPowerShellPath } from './shell/powershellDetection.js'
 import { createPowerShellProvider } from './shell/powershellProvider.js'
+import { rewriteWithRtk } from './shell/rtkRewrite.js'
 import type { ShellProvider, ShellType } from './shell/shellProvider.js'
 import { subprocessEnv } from './subprocessEnv.js'
 import { posixPathToWindowsPath } from './windowsPaths.js'
@@ -206,16 +207,19 @@ export async function exec(
     getClaudeTempDirName(),
   )
 
-  const { commandString: builtCommand, cwdFilePath } =
-    await provider.buildExecCommand(command, {
-      id,
-      sandboxTmpDir: shouldUseSandbox ? sandboxTmpDir : undefined,
-      useSandbox: shouldUseSandbox ?? false,
-    })
-
-  let commandString = builtCommand
+  const buildCommandOptions = {
+    id,
+    sandboxTmpDir: shouldUseSandbox ? sandboxTmpDir : undefined,
+    useSandbox: shouldUseSandbox ?? false,
+  }
+  let executionCommand = command
 
   let cwd = pwd()
+
+  let { commandString, cwdFilePath } = await provider.buildExecCommand(
+    executionCommand,
+    buildCommandOptions,
+  )
 
   // Recover if the current working directory no longer exists on disk.
   // This can happen when a command deletes its own CWD (e.g., temp dir cleanup).
@@ -241,6 +245,27 @@ export async function exec(
   if (abortSignal.aborted) {
     return createAbortedCommand()
   }
+
+  const rewriteEnvOverrides = await provider.getEnvironmentOverrides(command)
+  const rewrittenCommand = await rewriteWithRtk(command, {
+    cwd,
+    env: {
+      ...subprocessEnv(),
+      ...rewriteEnvOverrides,
+    },
+  })
+
+  if (rewrittenCommand !== command) {
+    executionCommand = rewrittenCommand
+    const rebuiltCommand = await provider.buildExecCommand(
+      executionCommand,
+      buildCommandOptions,
+    )
+    commandString = rebuiltCommand.commandString
+    cwdFilePath = rebuiltCommand.cwdFilePath
+  }
+
+  const envOverrides = await provider.getEnvironmentOverrides(executionCommand)
 
   const binShell = provider.shellPath
 
@@ -276,7 +301,6 @@ export async function exec(
   const shellArgs = isSandboxedPowerShell
     ? ['-c', commandString]
     : provider.getSpawnArgs(commandString)
-  const envOverrides = await provider.getEnvironmentOverrides(command)
 
   // When onStdout is provided, use pipe mode: stdout flows through
   // StreamWrapper → TaskOutput in-memory buffer instead of a file fd.
