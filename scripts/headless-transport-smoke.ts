@@ -120,10 +120,10 @@ async function main(): Promise<void> {
     }, buffer)
 
     const statusMessage = statusEvents.find(
-      event =>
+      (event): event is Extract<TransportEnvelope, { type: 'event' }> =>
         event.type === 'event' &&
         event.event.type === 'message' &&
-        event.event.content?.includes('Deadpool mode'),
+        Boolean(event.event.content?.includes('Deadpool mode')),
     )
     if (
       !statusMessage ||
@@ -140,10 +140,10 @@ async function main(): Promise<void> {
     }, buffer)
 
     const cavemanMessage = cavemanEvents.find(
-      event =>
+      (event): event is Extract<TransportEnvelope, { type: 'event' }> =>
         event.type === 'event' &&
         event.event.type === 'message' &&
-        event.event.content?.includes('Caveman mode ON'),
+        Boolean(event.event.content?.includes('Caveman mode ON')),
     )
     if (
       !cavemanMessage ||
