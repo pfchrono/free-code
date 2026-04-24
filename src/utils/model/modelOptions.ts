@@ -308,6 +308,15 @@ function getHaikuOption(): ModelOption {
 }
 
 // OpenAI Codex model options
+function getGpt55Option(): ModelOption {
+  return {
+    value: 'gpt-5.5',
+    label: 'GPT-5.5',
+    description: 'GPT-5.5 · Frontier model for complex coding and research',
+    descriptionForModel: 'GPT-5.5 - frontier model for complex coding, research, and real-world work',
+  }
+}
+
 function getGpt54Option(): ModelOption {
   return {
     value: 'gpt-5.4',
@@ -358,7 +367,7 @@ function getCodexModelOptions(): ModelOption[] {
 function getOpenAIModelOptions(): ModelOption[] {
   const models = getOpenAIModelCapabilities()
   if (models.length === 0) {
-    return [getGpt54Option(), getGpt54MiniOption()]
+    return [getGpt55Option(), getGpt54Option(), getGpt54MiniOption()]
   }
 
   return models.map(model => ({

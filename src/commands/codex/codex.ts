@@ -66,8 +66,13 @@ export async function call(
         const suffix = model.id === DEFAULT_CODEX_MODEL ? ' [default]' : ''
         const features = [
           model.family,
-          model.supportsVision ? 'vision' : null,
+          model.supportsVision ? 'vision' : 'text-only',
           model.supportsTools ? 'tools' : null,
+          model.supportedInApi ? 'api' : 'chatgpt-only',
+          `reasoning:${model.defaultReasoningEffort}`,
+          `ctx:${model.contextWindow}`,
+          model.additionalSpeedTiers?.length ? `speed:${model.additionalSpeedTiers.join('/')}` : null,
+          model.upgrade ? `upgrade:${model.upgrade}` : null,
         ]
           .filter(Boolean)
           .join(', ')

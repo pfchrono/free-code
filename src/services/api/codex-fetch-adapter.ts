@@ -27,70 +27,109 @@ import { jsonStringify } from '../../utils/slowOperations.js'
 import { setCodexUsage, type CodexRateLimit } from './codexUsage.js'
 
 // ── Available Codex models ──────────────────────────────────────────
-export const CODEX_MODELS = [
-  {
-    id: 'gpt-5.3-codex-spark',
-    label: 'GPT-5.3 Codex Spark',
-    description: 'Ultra-fast Codex model for quick coding turns',
-    family: 'codex',
-    supportsVision: false,
-    supportsTools: true,
-  },
+type CodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh'
+type CodexModelFamily = 'codex' | 'gpt'
+
+type CodexModelDefinition = {
+  id: string
+  label: string
+  description: string
+  family: CodexModelFamily
+  supportsVision: boolean
+  supportsTools: boolean
+  supportedInApi: boolean
+  defaultReasoningEffort: CodexReasoningEffort
+  supportedReasoningEfforts: readonly CodexReasoningEffort[]
+  contextWindow: number
+  maxContextWindow: number
+  additionalSpeedTiers?: readonly string[]
+  upgrade?: string
+}
+
+const GPT_5_REASONING_EFFORTS = ['low', 'medium', 'high', 'xhigh'] as const
+
+export const CODEX_MODELS: readonly CodexModelDefinition[] = [
   {
     id: 'gpt-5.4',
     label: 'GPT-5.4',
-    description: 'Latest general Codex-compatible GPT model',
+    description: 'Strong model for everyday coding',
     family: 'gpt',
     supportsVision: true,
     supportsTools: true,
+    supportedInApi: true,
+    defaultReasoningEffort: 'medium',
+    supportedReasoningEfforts: GPT_5_REASONING_EFFORTS,
+    contextWindow: 272000,
+    maxContextWindow: 1000000,
+    additionalSpeedTiers: ['fast'],
+  },
+  {
+    id: 'gpt-5.5',
+    label: 'GPT-5.5',
+    description: 'Frontier model for complex coding, research, and real-world work',
+    family: 'gpt',
+    supportsVision: true,
+    supportsTools: true,
+    supportedInApi: true,
+    defaultReasoningEffort: 'medium',
+    supportedReasoningEfforts: GPT_5_REASONING_EFFORTS,
+    contextWindow: 272000,
+    maxContextWindow: 272000,
+    additionalSpeedTiers: ['fast'],
   },
   {
     id: 'gpt-5.4-mini',
     label: 'GPT-5.4 Mini',
-    description: 'Fast general GPT model for lightweight turns',
+    description: 'Small, fast, and cost-efficient model for simpler coding tasks',
     family: 'gpt',
     supportsVision: true,
     supportsTools: true,
+    supportedInApi: true,
+    defaultReasoningEffort: 'medium',
+    supportedReasoningEfforts: GPT_5_REASONING_EFFORTS,
+    contextWindow: 272000,
+    maxContextWindow: 272000,
   },
   {
-    id: 'gpt-5.2-codex',
-    label: 'GPT-5.2 Codex',
-    description: 'Frontier coding-focused Codex model',
+    id: 'gpt-5.3-codex',
+    label: 'GPT-5.3 Codex',
+    description: 'Coding-optimized model',
+    family: 'codex',
+    supportsVision: true,
+    supportsTools: true,
+    supportedInApi: true,
+    defaultReasoningEffort: 'medium',
+    supportedReasoningEfforts: GPT_5_REASONING_EFFORTS,
+    contextWindow: 272000,
+    maxContextWindow: 272000,
+    upgrade: 'gpt-5.4',
+  },
+  {
+    id: 'gpt-5.3-codex-spark',
+    label: 'GPT-5.3 Codex Spark',
+    description: 'Ultra-fast coding model',
     family: 'codex',
     supportsVision: false,
     supportsTools: true,
-  },
-  {
-    id: 'gpt-5.1-codex-max',
-    label: 'GPT-5.1 Codex Max',
-    description: 'Highest-end Codex model for complex coding work',
-    family: 'codex',
-    supportsVision: false,
-    supportsTools: true,
-  },
-  {
-    id: 'gpt-5.1-codex',
-    label: 'GPT-5.1 Codex',
-    description: 'Balanced Codex coding model',
-    family: 'codex',
-    supportsVision: false,
-    supportsTools: true,
-  },
-  {
-    id: 'gpt-5.1-codex-mini',
-    label: 'GPT-5.1 Codex Mini',
-    description: 'Fast Codex model for smaller coding tasks',
-    family: 'codex',
-    supportsVision: false,
-    supportsTools: true,
+    supportedInApi: false,
+    defaultReasoningEffort: 'high',
+    supportedReasoningEfforts: GPT_5_REASONING_EFFORTS,
+    contextWindow: 128000,
+    maxContextWindow: 128000,
   },
   {
     id: 'gpt-5.2',
     label: 'GPT-5.2',
-    description: 'Previous-generation general GPT model',
+    description: 'Optimized for professional work and long-running agents',
     family: 'gpt',
     supportsVision: true,
     supportsTools: true,
+    supportedInApi: true,
+    defaultReasoningEffort: 'medium',
+    supportedReasoningEfforts: GPT_5_REASONING_EFFORTS,
+    contextWindow: 272000,
+    maxContextWindow: 272000,
+    upgrade: 'gpt-5.4',
   },
 ] as const
 
@@ -98,10 +137,36 @@ export const DEFAULT_CODEX_MODEL = 'gpt-5.4'
 
 function normalizeCodexModel(model: string): string {
   const normalized = model.trim().toLowerCase()
-  if (normalized === 'chatgpt-5.3-codex-spark') {
+  if (normalized === 'codexspark' || normalized === 'chatgpt-5.3-codex-spark') {
     return 'gpt-5.3-codex-spark'
   }
-  return model
+  if (normalized === 'codexplan') {
+    return DEFAULT_CODEX_MODEL
+  }
+  if (
+    normalized === 'gpt-5.2-codex' ||
+    normalized === 'gpt-5.1-codex-max' ||
+    normalized === 'gpt-5.1-codex'
+  ) {
+    return 'gpt-5.3-codex'
+  }
+  if (normalized === 'gpt-5.1-codex-mini') {
+    return 'gpt-5.4-mini'
+  }
+  return normalized
+}
+
+function getCodexModelDefinition(model: string): CodexModelDefinition | undefined {
+  const normalizedModel = normalizeCodexModel(model)
+  return CODEX_MODELS.find(m => m.id === normalizedModel)
+}
+
+function getCodexReasoning(model: string): { effort: CodexReasoningEffort } {
+  return { effort: getCodexModelDefinition(model)?.defaultReasoningEffort ?? 'medium' }
+}
+
+function getCodexContextWindowSize(model: string): number {
+  return getCodexModelDefinition(model)?.contextWindow ?? DEFAULT_CODEX_CONTEXT_WINDOW_SIZE
 }
 
 /**
@@ -114,7 +179,7 @@ export function mapClaudeModelToCodex(claudeModel: string | null): string {
   const normalizedModel = normalizeCodexModel(claudeModel)
   if (isCodexModel(normalizedModel)) return normalizedModel
   const lower = claudeModel.toLowerCase()
-  if (lower.includes('opus')) return 'gpt-5.1-codex-max'
+  if (lower.includes('opus')) return 'gpt-5.3-codex'
   if (lower.includes('haiku')) return 'gpt-5.4-mini'
   if (lower.includes('sonnet')) return 'gpt-5.4'
   return DEFAULT_CODEX_MODEL
@@ -126,7 +191,7 @@ export function mapClaudeModelToCodex(claudeModel: string | null): string {
  * @returns True if the model is a Codex model, false otherwise
  */
 export function isCodexModel(model: string): boolean {
-  return CODEX_MODELS.some(m => m.id === normalizeCodexModel(model))
+  return getCodexModelDefinition(model) !== undefined
 }
 
 function parseOptionalNumber(value: string | null): number | null {
@@ -644,6 +709,7 @@ function translateToCodexBody(anthropicBody: Record<string, unknown>): {
     store: false,
     stream: true,
     include: ['reasoning.encrypted_content'],
+    reasoning: getCodexReasoning(codexModel),
     instructions,
     input,
     tool_choice: 'auto',
@@ -731,7 +797,7 @@ async function translateCodexStreamToAnthropic(
     setCodexUsage({
       rate_limits: initialRateLimits,
       context_window: {
-        context_window_size: DEFAULT_CODEX_CONTEXT_WINDOW_SIZE,
+        context_window_size: getCodexContextWindowSize(codexModel),
         used_tokens: null,
         remaining_tokens: null,
         used_percentage: null,
@@ -1155,7 +1221,7 @@ async function translateCodexStreamToAnthropic(
                 outputTokens = usage.output_tokens || outputTokens
                 inputTokens = usage.input_tokens || inputTokens
                 const totalTokens = usage.total_tokens ?? inputTokens + outputTokens
-                const contextWindowSize = DEFAULT_CODEX_CONTEXT_WINDOW_SIZE
+                const contextWindowSize = getCodexContextWindowSize(codexModel)
                 const usedTokens = totalTokens ?? null
                 setCodexUsage({
                   last_response_usage: {

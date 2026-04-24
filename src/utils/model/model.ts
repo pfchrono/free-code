@@ -113,7 +113,7 @@ function getOpenAIProviderEquivalentModel(family: ModelFamilyTier): ModelName {
     case 'haiku':
       return getModelStrings().gpt54mini
     case 'opus':
-      return getModelStrings().gpt54
+      return getModelStrings().gpt55
     case 'sonnet':
       return getModelStrings().gpt54
   }
@@ -423,6 +423,9 @@ export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
     return 'claude-3-haiku'
   }
   // OpenAI GPT models
+  if (name.includes('gpt-5.5')) {
+    return 'gpt-5.5'
+  }
   if (name.includes('gpt-5.4-mini')) {
     return 'gpt-5.4-mini'
   }
@@ -538,6 +541,7 @@ export function getPublicModelDisplayName(model: ModelName): string | null {
     if (model === 'gpt-5.1-codex') return 'Codex 5.1'
     if (model === 'gpt-5.1-codex-mini') return 'Codex 5.1 Mini'
     if (model === 'gpt-5.1-codex-max') return 'Codex 5.1 Max'
+    if (model === 'gpt-5.5') return 'GPT 5.5'
     if (model === 'gpt-5.4') return 'GPT 5.4'
     if (model === 'gpt-4o') return 'GPT-4o'
     if (model === 'gpt-4o-mini') return 'GPT-4o Mini'
@@ -581,6 +585,8 @@ export function getPublicModelDisplayName(model: ModelName): string | null {
       return 'Haiku 4.5'
     case getModelStrings().haiku35:
       return 'Haiku 3.5'
+    case getModelStrings().gpt55:
+      return 'GPT-5.5'
     case getModelStrings().gpt54:
       return 'GPT-5.4'
     case getModelStrings().gpt53codexspark:
@@ -832,6 +838,9 @@ export function getMarketingNameForModel(modelId: string): string | undefined {
     return 'Claude 3.5 Haiku'
   }
   // OpenAI Codex models
+  if (canonical.includes('gpt-5.5')) {
+    return 'GPT-5.5'
+  }
   if (canonical.includes('gpt-5.4-mini')) {
     return 'GPT-5.4 Mini'
   }
@@ -864,6 +873,9 @@ export function getMarketingNameForModel(modelId: string): string | undefined {
   }
   if (canonical.includes('gpt-5.3-codex')) {
     return 'GPT-5.3 Codex'
+  }
+  if (canonical.includes('gpt-5.2')) {
+    return 'GPT-5.2'
   }
 
   return undefined

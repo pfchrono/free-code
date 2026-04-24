@@ -78,6 +78,11 @@ export const COPILOT_FALLBACK_MODELS = [
     description: 'Balanced Claude model for everyday coding tasks',
   },
   {
+    id: 'gpt-5.5',
+    label: 'GPT-5.5',
+    description: 'Frontier GPT model for complex reasoning and coding',
+  },
+  {
     id: 'gpt-5.4',
     label: 'GPT-5.4',
     description: 'Latest general-purpose GPT model',
@@ -99,6 +104,7 @@ export const COPILOT_FALLBACK_MODELS = [
  * These are OpenAI o-series and newer GPT-5.x models.
  */
 export const MODELS_USING_MAX_COMPLETION_TOKENS = new Set([
+  'gpt-5.5',
   'gpt-5.4',
   'gpt-5.4-mini',
   'gpt-5.3-codex',

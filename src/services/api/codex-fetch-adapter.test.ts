@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test'
 
-import { createCodexFetch } from './codex-fetch-adapter.js'
+import { CODEX_MODELS, createCodexFetch } from './codex-fetch-adapter.js'
 
 function makeCodexToken(accountId = 'acct_test_123'): string {
   const payload = Buffer.from(
@@ -33,6 +33,57 @@ afterEach(() => {
 })
 
 describe('createCodexFetch', () => {
+  it('sends Codex Spark with cached model metadata defaults', async () => {
+    const fetchCalls: Array<{ input: RequestInfo | URL; init?: RequestInit }> = []
+
+    globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ input, init })
+      return createStreamResponse(
+        [
+          'event: response.completed',
+          'data: ' +
+            JSON.stringify({
+              type: 'response.completed',
+              response: {
+                usage: {
+                  input_tokens: 1,
+                  output_tokens: 1,
+                  total_tokens: 2,
+                },
+              },
+            }),
+          '',
+        ].join('\n'),
+      )
+    }) as unknown as typeof fetch
+
+    const spark = CODEX_MODELS.find(model => model.id === 'gpt-5.3-codex-spark')
+    expect(spark?.defaultReasoningEffort).toBe('high')
+    expect(spark?.supportsVision).toBe(false)
+    expect(spark?.contextWindow).toBe(128000)
+
+    const codexFetch = createCodexFetch(makeCodexToken())
+    await codexFetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        model: 'gpt-5.3-codex-spark',
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    const upstreamBody = JSON.parse(String(fetchCalls[0]?.init?.body)) as {
+      model: string
+      reasoning?: { effort?: string }
+      include?: string[]
+    }
+
+    expect(CODEX_MODELS.some(model => model.id === 'gpt-5.5')).toBe(true)
+    expect(upstreamBody.model).toBe('gpt-5.3-codex-spark')
+    expect(upstreamBody.reasoning).toEqual({ effort: 'high' })
+    expect(upstreamBody.include).toContain('reasoning.encrypted_content')
+  })
+
   it('emits text when codex only finalizes message content in output_item.done', async () => {
     globalThis.fetch = mock(async () => {
       return createStreamResponse(
