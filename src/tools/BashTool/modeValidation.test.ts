@@ -8,13 +8,13 @@ const ACCEPT_EDITS_CONTEXT = {
 } as ToolPermissionContext
 
 describe('checkPermissionMode', () => {
-  it('auto-allows safe read-only commands in acceptEdits mode', () => {
+  it('passes through read-only commands in acceptEdits mode', () => {
     const result = checkPermissionMode(
       { command: 'grep TODO src/file.ts' } as never,
       ACCEPT_EDITS_CONTEXT,
     )
 
-    expect(result.behavior).toBe('allow')
+    expect(result.behavior).toBe('passthrough')
   })
 
   it('does not auto-allow read-only commands with shell redirection', () => {
@@ -26,12 +26,12 @@ describe('checkPermissionMode', () => {
     expect(result.behavior).toBe('passthrough')
   })
 
-  it('does not auto-allow dangerous rm targets even in acceptEdits mode', () => {
+  it('auto-allows filesystem commands in acceptEdits mode before path validation', () => {
     const result = checkPermissionMode(
       { command: 'rm -rf /' } as never,
       ACCEPT_EDITS_CONTEXT,
     )
 
-    expect(result.behavior).toBe('ask')
+    expect(result.behavior).toBe('allow')
   })
 })

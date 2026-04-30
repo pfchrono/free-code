@@ -143,7 +143,13 @@ clone_repo() {
 install_deps() {
   info "Installing dependencies..."
   cd "$INSTALL_DIR"
-  bun install --frozen-lockfile 2>/dev/null || bun install
+
+  if ! bun install --frozen-lockfile 2>/dev/null; then
+    warn "Lockfile changed; cleaning node_modules before retry"
+    rm -rf node_modules
+    bun install
+  fi
+
   ok "Dependencies installed"
 }
 
