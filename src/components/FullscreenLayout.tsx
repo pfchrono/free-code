@@ -606,7 +606,7 @@ function SuggestionsOverlay() {
   }
   let t0;
   if ($[0] !== data.maxColumnWidth || $[1] !== data.selectedSuggestion || $[2] !== data.suggestions) {
-    t0 = <Box position="absolute" bottom="100%" left={0} right={0} paddingX={2} paddingTop={1} flexDirection="column" opaque={true}><PromptInputFooterSuggestions suggestions={data.suggestions} selectedSuggestion={data.selectedSuggestion} maxColumnWidth={data.maxColumnWidth} overlay={true} /></Box>;
+    t0 = <Box position="absolute" bottom="100%" left={0} right={0} paddingTop={1} flexDirection="column" opaque={true}><Box alignSelf="stretch" borderStyle="round" borderColor="suggestion" flexDirection="column" opaque={true}><PromptInputFooterSuggestions suggestions={data.suggestions} selectedSuggestion={data.selectedSuggestion} maxColumnWidth={data.maxColumnWidth} overlay={true} /></Box></Box>;
     $[0] = data.maxColumnWidth;
     $[1] = data.selectedSuggestion;
     $[2] = data.suggestions;

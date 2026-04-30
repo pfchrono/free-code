@@ -22,7 +22,7 @@ import { generateProgressiveArgumentHint, parseArguments } from '../utils/argume
 import { getShellCompletions, type ShellCompletionType } from '../utils/bash/shellCompletion.js';
 import { formatLogMetadata } from '../utils/format.js';
 import { getSessionIdFromLog, searchSessionsByCustomTitle } from '../utils/sessionStorage.js';
-import { applyCommandSuggestion, findMidInputSlashCommand, generateCommandSuggestions, getBestCommandMatch, isCommandInput } from '../utils/suggestions/commandSuggestions.js';
+import { applyCommandSuggestion, applySkillShortcutSuggestion, findMidInputSlashCommand, generateCommandSuggestions, generateSkillShortcutSuggestions, getBestCommandMatch, isCommandInput, isSkillShortcutInput } from '../utils/suggestions/commandSuggestions.js';
 import { getDirectoryCompletions, getPathCompletions, isPathLikeToken } from '../utils/suggestions/directoryCompletion.js';
 import { getShellHistoryCompletion } from '../utils/suggestions/shellHistoryCompletion.js';
 import { getSlackChannelSuggestions, hasSlackMcpServer } from '../utils/suggestions/slackChannelSuggestions.js';
@@ -658,6 +658,19 @@ export function useTypeahead({
     // Don't show slash commands in bash mode
     const isAtEndWithWhitespace = effectiveCursorOffset === value.length && effectiveCursorOffset > 0 && value.length > 0 && value[effectiveCursorOffset - 1] === ' ';
 
+    // Handle $ skill shortcut suggestions
+    if (mode === 'prompt' && isSkillShortcutInput(value) && effectiveCursorOffset > 0 && !hasCommandWithArguments(isAtEndWithWhitespace, value)) {
+      const skillItems = generateSkillShortcutSuggestions(value, commands);
+      setSuggestionsState(() => ({
+        commandArgumentHint: undefined,
+        suggestions: skillItems,
+        selectedSuggestion: skillItems.length > 0 ? 0 : -1
+      }));
+      setSuggestionType(skillItems.length > 0 ? 'skill' : 'none');
+      setMaxColumnWidth(skillItems.length > 0 ? allCommandsMaxWidth : undefined);
+      return;
+    }
+
     // Handle directory completion for commands
     if (mode === 'prompt' && isCommandInput(value) && effectiveCursorOffset > 0) {
       const parsedCommand = extractCommandNameAndArgs(value);
@@ -948,6 +961,11 @@ export function useTypeahead({
           commands, onInputChange, setCursorOffset, onSubmit);
           clearSuggestions();
         }
+      } else if (suggestionType === 'skill' && index < suggestions.length) {
+        if (suggestion) {
+          applySkillShortcutSuggestion(suggestion, false, onInputChange, setCursorOffset, onSubmit);
+          clearSuggestions();
+        }
       } else if (suggestionType === 'custom-title' && suggestions.length > 0) {
         // Apply custom title to /resume command with sessionId
         if (suggestion) {
@@ -1142,6 +1160,12 @@ export function useTypeahead({
         applyCommandSuggestion(suggestion, true,
         // execute on return
         commands, onInputChange, setCursorOffset, onSubmit);
+        debouncedFetchFileSuggestions.cancel();
+        clearSuggestions();
+      }
+    } else if (suggestionType === 'skill' && selectedSuggestion < suggestions.length) {
+      if (suggestion) {
+        applySkillShortcutSuggestion(suggestion, true, onInputChange, setCursorOffset, onSubmit);
         debouncedFetchFileSuggestions.cancel();
         clearSuggestions();
       }

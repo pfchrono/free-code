@@ -203,6 +203,13 @@ export function isCommandInput(input: string): boolean {
 }
 
 /**
+ * Checks if input is a skill shortcut (starts with $).
+ */
+export function isSkillShortcutInput(input: string): boolean {
+  return input.startsWith('$')
+}
+
+/**
  * Checks if a command input has arguments
  * A command with just a trailing space is considered to have no arguments
  */
@@ -496,6 +503,60 @@ export function generateCommandSuggestions(
     }
   }
   return fuseSuggestions
+}
+
+/**
+ * Generate skill shortcut suggestions for $skill input.
+ */
+export function generateSkillShortcutSuggestions(
+  input: string,
+  commands: Command[],
+): SuggestionItem[] {
+  if (!isSkillShortcutInput(input) || hasSkillShortcutArgs(input)) {
+    return []
+  }
+
+  const skillCommands = commands.filter(
+    cmd => cmd.type === 'prompt' && cmd.userInvocable !== false,
+  )
+
+  return generateCommandSuggestions('/' + input.slice(1), skillCommands).map(
+    suggestion => ({
+      ...suggestion,
+      displayText: suggestion.displayText.replace(/^\//, '$'),
+    }),
+  )
+}
+
+/**
+ * Apply selected skill shortcut to input.
+ */
+export function applySkillShortcutSuggestion(
+  suggestion: SuggestionItem,
+  shouldExecute: boolean,
+  onInputChange: (value: string) => void,
+  setCursorOffset: (offset: number) => void,
+  onSubmit: (value: string, isSubmittingSlashCommand?: boolean) => void,
+): void {
+  if (!isCommandMetadata(suggestion.metadata)) {
+    return
+  }
+
+  const commandName = getCommandName(suggestion.metadata)
+  const shortcutInput = `$${commandName} `
+  onInputChange(shortcutInput)
+  setCursorOffset(shortcutInput.length)
+
+  if (shouldExecute && (suggestion.metadata.argNames ?? []).length === 0) {
+    onSubmit(`/${commandName} `, /* isSubmittingSlashCommand */ true)
+  }
+}
+
+function hasSkillShortcutArgs(input: string): boolean {
+  if (!isSkillShortcutInput(input)) return false
+  if (!input.includes(' ')) return false
+  if (input.endsWith(' ')) return false
+  return true
 }
 
 /**

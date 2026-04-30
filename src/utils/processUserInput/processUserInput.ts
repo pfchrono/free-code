@@ -294,6 +294,19 @@ export async function processUserInput({
 
 const MAX_HOOK_OUTPUT_LENGTH = 10000
 
+function rewriteSkillShortcut(
+  input: string,
+  context: ProcessUserInputContext,
+): string | null {
+  const parsed = parseSlashCommand(`/${input.slice(1)}`)
+  if (!parsed) return null
+
+  const cmd = findCommand(parsed.commandName, context.options.commands)
+  if (cmd?.type !== 'prompt' || cmd.userInvocable === false) return null
+
+  return `/${input.slice(1)}`
+}
+
 function applyTruncation(content: string): string {
   if (content.length > MAX_HOOK_OUTPUT_LENGTH) {
     return `${content.substring(0, MAX_HOOK_OUTPUT_LENGTH)}… [output truncated - exceeded ${MAX_HOOK_OUTPUT_LENGTH} characters]`
@@ -473,6 +486,19 @@ async function processUserInputBase(
     }
     // Unknown /foo or unparseable — fall through to plain text, same as
     // pre-#19134. A mobile user typing "/shrug" shouldn't see "Unknown skill".
+  }
+
+  if (
+    mode === 'prompt' &&
+    inputString !== null &&
+    !effectiveSkipSlash &&
+    inputString.startsWith('$')
+  ) {
+    const rewrittenSkillShortcut = rewriteSkillShortcut(inputString, context)
+    if (rewrittenSkillShortcut) {
+      inputString = rewrittenSkillShortcut
+      normalizedInput = rewrittenSkillShortcut
+    }
   }
 
   // Ultraplan keyword — route through /ultraplan. Detect on the

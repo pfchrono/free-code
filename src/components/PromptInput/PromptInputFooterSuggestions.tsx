@@ -14,8 +14,12 @@ export type SuggestionItem = {
   metadata?: unknown;
   color?: keyof Theme;
 };
-export type SuggestionType = 'command' | 'file' | 'directory' | 'agent' | 'shell' | 'custom-title' | 'slack-channel' | 'none';
-export const OVERLAY_MAX_ITEMS = 5;
+export type SuggestionType = 'command' | 'skill' | 'file' | 'directory' | 'agent' | 'shell' | 'custom-title' | 'slack-channel' | 'none';
+export const OVERLAY_MAX_ITEMS = 12;
+
+export function getMaxVisibleSuggestionItems(rows: number, overlay?: boolean): number {
+  return overlay ? Math.min(OVERLAY_MAX_ITEMS, Math.max(1, rows - 6)) : Math.min(6, Math.max(1, rows - 3));
+}
 
 /**
  * Get the icon for a suggestion based on its type
@@ -221,7 +225,7 @@ export function PromptInputFooterSuggestions(t0) {
   const {
     rows
   } = useTerminalSize();
-  const maxVisibleItems = overlay ? OVERLAY_MAX_ITEMS : Math.min(6, Math.max(1, rows - 3));
+  const maxVisibleItems = getMaxVisibleSuggestionItems(rows, overlay);
   if (suggestions.length === 0) {
     return null;
   }
