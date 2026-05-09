@@ -8,6 +8,7 @@ import type { AgentDefinition } from 'src/tools/AgentTool/loadAgentsDir.js'
 import { truncateToWidth } from 'src/utils/format.js'
 import { logError } from 'src/utils/log.js'
 import type { Theme } from 'src/utils/theme.js'
+import { normalizeAndRank } from './typeahead/ranking.js'
 
 type FileSuggestionSource = {
   type: 'file'
@@ -192,10 +193,15 @@ export async function generateUnifiedSuggestions(
     }
   }
 
-  // Sort all results by score (lower is better) and return top results
-  scoredResults.sort((a, b) => a.score - b.score)
+  const ranked = normalizeAndRank(
+    scoredResults.map(r => ({
+      source: r.source,
+      score: r.score,
+      sourceType: r.source.type,
+    })),
+  )
 
-  return scoredResults
+  return ranked
     .slice(0, MAX_UNIFIED_SUGGESTIONS)
     .map(r => r.source)
     .map(createSuggestionFromSource)

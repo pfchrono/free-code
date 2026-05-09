@@ -91,6 +91,7 @@ function App() {
   const isRunning = turnState === 'running' || turnState === 'interrupting'
   const isInterrupting = turnState === 'interrupting'
   const wasCancelled = turnState === 'cancelled'
+  const turnFailed = turnState === 'failed'
   const showCommandPalette = !isRunning && input.startsWith('/') && commandPaletteCommands.length > 0
 
   return (
@@ -212,6 +213,8 @@ function App() {
                   ? 'Wait for the current turn to finish...'
                   : wasCancelled
                     ? 'Turn cancelled. Type a message or /command...'
+                    : turnFailed
+                      ? 'Turn failed. Edit your message or try another /command...'
                     : 'Type a message or /command...'
             }
             disabled={!sessionInfo || isRunning}

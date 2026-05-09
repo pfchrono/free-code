@@ -22,8 +22,10 @@ import { generateProgressiveArgumentHint, parseArguments } from '../utils/argume
 import { getShellCompletions, type ShellCompletionType } from '../utils/bash/shellCompletion.js';
 import { formatLogMetadata } from '../utils/format.js';
 import { getSessionIdFromLog, searchSessionsByCustomTitle } from '../utils/sessionStorage.js';
-import { applyCommandSuggestion, applySkillShortcutSuggestion, findMidInputSlashCommand, generateCommandSuggestions, generateSkillShortcutSuggestions, getBestCommandMatch, isCommandInput, isSkillShortcutInput } from '../utils/suggestions/commandSuggestions.js';
+import { applyCommandSuggestion, applySkillShortcutSuggestion, findMidInputSkillShortcut, findMidInputSlashCommand, generateCommandSuggestions, generateSkillShortcutSuggestions, getBestCommandMatch, isCommandInput, isSkillShortcutInput } from '../utils/suggestions/commandSuggestions.js';
 import { getDirectoryCompletions, getPathCompletions, isPathLikeToken } from '../utils/suggestions/directoryCompletion.js';
+import { applyMidInputSkillSuggestion as applyMidInputSkillSuggestionWithContext } from './typeahead/completionRewrite.js';
+import { applyDirectorySuggestion as applyDirectorySuggestionWithContext, applyDirectorySuggestionFromToken } from './typeahead/pathApply.js';
 import { getShellHistoryCompletion } from '../utils/suggestions/shellHistoryCompletion.js';
 import { getSlackChannelSuggestions, hasSlackMcpServer } from '../utils/suggestions/slackChannelSuggestions.js';
 import { TEAM_LEAD_NAME } from '../utils/swarm/constants.js';
@@ -203,6 +205,12 @@ function applyTriggerSuggestion(suggestion: SuggestionItem, input: string, curso
   onInputChange(newInput);
   setCursorOffset(before.length + suggestion.displayText.length + 1);
 }
+export function applyMidInputSkillSuggestion(suggestion: SuggestionItem, input: string, cursorOffset: number, onInputChange: (value: string) => void, setCursorOffset: (offset: number) => void): void {
+  const result = applyMidInputSkillSuggestionWithContext(suggestion, input, cursorOffset);
+  if (!result) return;
+  onInputChange(result.newInput);
+  setCursorOffset(result.cursorPos);
+}
 let currentShellCompletionAbortController: AbortController | null = null;
 
 /**
@@ -224,8 +232,8 @@ async function generateBashSuggestions(input: string, cursorOffset: number): Pro
 }
 
 /**
- * Apply a directory/path completion suggestion to the input
- * Always adds @ prefix since we're replacing the entire token (including any existing @)
+ * Apply a directory/path completion suggestion to the input.
+ * Preserves whether the original token used @ prefix.
  *
  * @param input The current input text
  * @param suggestionId The ID of the suggestion to apply
@@ -234,21 +242,11 @@ async function generateBashSuggestions(input: string, cursorOffset: number): Pro
  * @param isDirectory Whether the suggestion is a directory (adds / suffix) or file (adds space)
  * @returns Object with the new input text and cursor position
  */
-export function applyDirectorySuggestion(input: string, suggestionId: string, tokenStartPos: number, tokenLength: number, isDirectory: boolean): {
+export function applyDirectorySuggestion(input: string, suggestionId: string, tokenStartPos: number, tokenLength: number, isDirectory: boolean, hasAtPrefix = true): {
   newInput: string;
   cursorPos: number;
 } {
-  const suffix = isDirectory ? '/' : ' ';
-  const before = input.slice(0, tokenStartPos);
-  const after = input.slice(tokenStartPos + tokenLength);
-  // Always add @ prefix - if token already has it, we're replacing
-  // the whole token (including @) with @suggestion.id
-  const replacement = '@' + suggestionId + suffix;
-  const newInput = before + replacement + after;
-  return {
-    newInput,
-    cursorPos: before.length + replacement.length
-  };
+  return applyDirectorySuggestionWithContext(input, suggestionId, tokenStartPos, tokenLength, isDirectory, hasAtPrefix);
 }
 
 /**
@@ -659,16 +657,21 @@ export function useTypeahead({
     const isAtEndWithWhitespace = effectiveCursorOffset === value.length && effectiveCursorOffset > 0 && value.length > 0 && value[effectiveCursorOffset - 1] === ' ';
 
     // Handle $ skill shortcut suggestions
-    if (mode === 'prompt' && isSkillShortcutInput(value) && effectiveCursorOffset > 0 && !hasCommandWithArguments(isAtEndWithWhitespace, value)) {
-      const skillItems = generateSkillShortcutSuggestions(value, commands);
-      setSuggestionsState(() => ({
-        commandArgumentHint: undefined,
-        suggestions: skillItems,
-        selectedSuggestion: skillItems.length > 0 ? 0 : -1
-      }));
-      setSuggestionType(skillItems.length > 0 ? 'skill' : 'none');
-      setMaxColumnWidth(skillItems.length > 0 ? allCommandsMaxWidth : undefined);
-      return;
+    if (mode === 'prompt' && effectiveCursorOffset > 0) {
+      const midInputSkill = findMidInputSkillShortcut(value, effectiveCursorOffset);
+      const isTopLevelSkill = isSkillShortcutInput(value);
+      const skillInput = isTopLevelSkill ? value : midInputSkill?.token;
+      if (skillInput && (!isTopLevelSkill || !hasCommandWithArguments(isAtEndWithWhitespace, value))) {
+        const skillItems = generateSkillShortcutSuggestions(skillInput, commands);
+        setSuggestionsState(() => ({
+          commandArgumentHint: undefined,
+          suggestions: skillItems,
+          selectedSuggestion: skillItems.length > 0 ? 0 : -1
+        }));
+        setSuggestionType(skillItems.length > 0 ? 'skill' : 'none');
+        setMaxColumnWidth(skillItems.length > 0 ? allCommandsMaxWidth : undefined);
+        return;
+      }
     }
 
     // Handle directory completion for commands
@@ -829,20 +832,19 @@ export function useTypeahead({
 
     // Check for @ symbol to trigger file and MCP resource suggestions
     // Skip @ autocomplete in bash mode - @ has no special meaning in shell commands
-    if (hasAtSymbol && mode !== 'bash') {
-      // Get the @ token (including the @ symbol)
+    if (mode !== 'bash') {
       const completionToken = extractCompletionToken(value, effectiveCursorOffset, true);
-      if (completionToken && completionToken.token.startsWith('@')) {
-        const searchToken = extractSearchToken(completionToken);
+      if (completionToken) {
+        const hasAtPrefix = completionToken.token.startsWith('@');
+        const searchToken = hasAtPrefix ? extractSearchToken(completionToken) : completionToken.token;
 
-        // If the token after @ is path-like, use path completion instead of fuzzy search
-        // This handles cases like @~/path, @./path, @/path for directory traversal
+        // If token is path-like, use path completion instead of fuzzy search.
+        // Handles both @./path and bare ./path mid-prompt.
         if (isPathLikeToken(searchToken)) {
           latestPathTokenRef.current = searchToken;
           const pathSuggestions = await getPathCompletions(searchToken, {
             maxResults: 10
           });
-          // Discard stale results if a newer query was initiated while waiting
           if (latestPathTokenRef.current !== searchToken) {
             return;
           }
@@ -855,15 +857,20 @@ export function useTypeahead({
             setSuggestionType('directory');
             return;
           }
+          if (suggestionType === 'directory') {
+            clearSuggestions();
+          }
         }
 
-        // Skip if we already fetched for this exact token (prevents loop from
-        // suggestions dependency causing updateSuggestions to be recreated)
-        if (latestSearchTokenRef.current === searchToken) {
+        if (hasAtPrefix && hasAtSymbol) {
+          // Skip if we already fetched for this exact token (prevents loop from
+          // suggestions dependency causing updateSuggestions to be recreated)
+          if (latestSearchTokenRef.current === searchToken) {
+            return;
+          }
+          void debouncedFetchFileSuggestions(searchToken, true);
           return;
         }
-        void debouncedFetchFileSuggestions(searchToken, true);
-        return;
       }
     }
 
@@ -963,7 +970,11 @@ export function useTypeahead({
         }
       } else if (suggestionType === 'skill' && index < suggestions.length) {
         if (suggestion) {
-          applySkillShortcutSuggestion(suggestion, false, onInputChange, setCursorOffset, onSubmit);
+          if (isSkillShortcutInput(input)) {
+            applySkillShortcutSuggestion(suggestion, false, onInputChange, setCursorOffset, onSubmit);
+          } else {
+            applyMidInputSkillSuggestion(suggestion, input, cursorOffset, onInputChange, setCursorOffset);
+          }
           clearSuggestions();
         }
       } else if (suggestionType === 'custom-title' && suggestions.length > 0) {
@@ -1005,7 +1016,7 @@ export function useTypeahead({
             const completionToken = completionTokenWithAt ?? extractCompletionToken(input, cursorOffset, false);
             if (completionToken) {
               const isDir = isPathMetadata(suggestion.metadata) && suggestion.metadata.type === 'directory';
-              const result = applyDirectorySuggestion(input, suggestion.id, completionToken.startPos, completionToken.token.length, isDir);
+              const result = applyDirectorySuggestionFromToken(input, suggestion, completionToken, isDir);
               newInput = result.newInput;
               onInputChange(newInput);
               setCursorOffset(result.cursorPos);
@@ -1165,7 +1176,11 @@ export function useTypeahead({
       }
     } else if (suggestionType === 'skill' && selectedSuggestion < suggestions.length) {
       if (suggestion) {
-        applySkillShortcutSuggestion(suggestion, true, onInputChange, setCursorOffset, onSubmit);
+        if (isSkillShortcutInput(input)) {
+          applySkillShortcutSuggestion(suggestion, true, onInputChange, setCursorOffset, onSubmit);
+        } else {
+          applyMidInputSkillSuggestion(suggestion, input, cursorOffset, onInputChange, setCursorOffset);
+        }
         debouncedFetchFileSuggestions.cancel();
         clearSuggestions();
       }
@@ -1235,7 +1250,7 @@ export function useTypeahead({
         const completionToken = completionTokenWithAt ?? extractCompletionToken(input, cursorOffset, false);
         if (completionToken) {
           const isDir = isPathMetadata(suggestion.metadata) && suggestion.metadata.type === 'directory';
-          const result = applyDirectorySuggestion(input, suggestion.id, completionToken.startPos, completionToken.token.length, isDir);
+          const result = applyDirectorySuggestionFromToken(input, suggestion, completionToken, isDir);
           onInputChange(result.newInput);
           setCursorOffset(result.cursorPos);
         }

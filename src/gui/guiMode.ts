@@ -26,7 +26,10 @@ import {
 import {
   writeGuiEvent,
   type GuiToCliCommand,
+  type GuiUserInputIntent,
 } from './guiProtocol.js';
+import { createGuiCommandInbox } from './sessionTransport.js';
+import { emitCompletion, emitTurnFinished, emitTurnInterrupting, emitTurnStarted } from './turnCoordinator.js';
 
 declare const MACRO: { VERSION: string };
 
@@ -45,6 +48,7 @@ type GuiRuntime = {
   isTurnInFlight: boolean;
   interruptRequested: boolean;
   activeTurnPromise: Promise<void> | null;
+  lastUserInputIntent: GuiUserInputIntent;
 };
 
 const GUI_TEARDOWN_TIMEOUT_MS = 2_000;
@@ -101,6 +105,7 @@ async function initializeGuiRuntime(): Promise<GuiRuntime> {
     isTurnInFlight: false,
     interruptRequested: false,
     activeTurnPromise: null,
+    lastUserInputIntent: 'default',
   };
 
   runtime.engine = createEngine(runtime);
@@ -144,64 +149,28 @@ function recreateEngine(runtime: GuiRuntime): void {
 async function processCommands(runtime: GuiRuntime): Promise<void> {
   startupRawTrace('gui:processCommands started');
 
-  const state = { reading: true };
-
-  while (state.reading) {
-    const command = await readNextCommand(() => {
-      state.reading = false;
-    });
-
-    if (command === null) {
-      break;
-    }
-
-    await handleCommand(runtime, command);
-  }
-}
-
-async function readNextCommand(
-  stopReading: () => void,
-): Promise<GuiToCliCommand | null> {
-  return new Promise(resolve => {
-    let data = '';
-
-    const handleData = (chunk: string): void => {
-      data += chunk;
-      const lines = data.split('\n');
-      data = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.trim()) {
-          continue;
-        }
-
-        try {
-          const command = JSON.parse(line) as GuiToCliCommand;
-          cleanup();
-          resolve(command);
-          return;
-        } catch {
-          cleanup();
-          resolve(null);
-          return;
-        }
-      }
-    };
-
-    const handleEnd = (): void => {
-      cleanup();
-      resolve(null);
-    };
-
-    const cleanup = (): void => {
-      stopReading();
-      process.stdin.removeListener('data', handleData);
-      process.stdin.removeListener('end', handleEnd);
-    };
-
-    process.stdin.on('data', handleData);
-    process.stdin.on('end', handleEnd);
+  const inbox = createGuiCommandInbox({
+    onDecodeError: (_line, reason, lineClass) => {
+      writeGuiEvent({
+        type: 'error',
+        message: `Invalid GUI command payload (${reason}, ${lineClass})`,
+        code: 'INVALID_COMMAND_PAYLOAD',
+      });
+    },
   });
+
+  try {
+    while (true) {
+      const command = await inbox.next();
+      if (command === null) {
+        break;
+      }
+
+      await handleCommand(runtime, command);
+    }
+  } finally {
+    inbox.dispose();
+  }
 }
 
 async function handleCommand(
@@ -213,7 +182,7 @@ async function handleCommand(
   try {
     switch (command.type) {
       case 'user_input':
-        await handleUserInput(runtime, command.content);
+        await handleUserInput(runtime, command.content, command.intent ?? 'default');
         return;
       case 'interrupt':
         handleInterrupt(runtime);
@@ -253,6 +222,7 @@ async function handleCommand(
 async function handleUserInput(
   runtime: GuiRuntime,
   content: string,
+  intent: GuiUserInputIntent,
 ): Promise<void> {
   if (runtime.isTurnInFlight) {
     writeGuiEvent({
@@ -287,11 +257,8 @@ async function handleUserInput(
 
   runtime.isTurnInFlight = true;
   runtime.interruptRequested = false;
-  writeGuiEvent({
-    type: 'turn_state',
-    state: 'running',
-    timestamp: startedAt,
-  });
+  runtime.lastUserInputIntent = intent;
+  emitTurnStarted(startedAt);
 
   const activeTurnPromise = (async () => {
     let turnOutcome: 'success' | 'error' | 'cancelled' = 'success';
@@ -308,13 +275,7 @@ async function handleUserInput(
           message: 'Turn cancelled',
           level: 'info',
         });
-        writeGuiEvent({
-          type: 'completion',
-          outcome: 'cancelled',
-          outputTokens: 0,
-          inputTokens: Math.max(1, Math.floor(content.length / 4)),
-          durationMs: Date.now() - startedAt,
-        });
+        emitCompletion('cancelled', content, startedAt, intent);
       } else {
         turnOutcome = 'error';
         writeGuiEvent({
@@ -327,13 +288,7 @@ async function handleUserInput(
           message: 'Turn failed',
           level: 'error',
         });
-        writeGuiEvent({
-          type: 'completion',
-          outcome: 'error',
-          outputTokens: 0,
-          inputTokens: Math.max(1, Math.floor(content.length / 4)),
-          durationMs: Date.now() - startedAt,
-        });
+        emitCompletion('error', content, startedAt, intent);
       }
     } finally {
       runtime.isTurnInFlight = false;
@@ -350,19 +305,7 @@ async function handleUserInput(
         });
       }
 
-      writeGuiEvent({
-        type: 'turn_state',
-        state: turnOutcome === 'cancelled' ? 'cancelled' : 'idle',
-        timestamp: Date.now(),
-      });
-
-      if (turnOutcome === 'cancelled') {
-        writeGuiEvent({
-          type: 'turn_state',
-          state: 'idle',
-          timestamp: Date.now(),
-        });
-      }
+      emitTurnFinished(turnOutcome);
     }
   })();
 
@@ -383,11 +326,7 @@ function handleInterrupt(runtime: GuiRuntime): void {
   runtime.interruptRequested = true;
   runtime.engine.interrupt();
 
-  writeGuiEvent({
-    type: 'turn_state',
-    state: 'interrupting',
-    timestamp: Date.now(),
-  });
+  emitTurnInterrupting();
   writeGuiEvent({
     type: 'status',
     message: 'Interrupt requested',
@@ -581,14 +520,17 @@ function emitGuiEventsForSdkMessage(
       });
       return;
     case 'result':
-      emitResultEvents(message);
+      emitResultEvents(message, runtime.lastUserInputIntent ?? 'default');
       return;
     default:
       return;
   }
 }
 
-function emitResultEvents(message: SDKResultMessage): void {
+function emitResultEvents(
+  message: SDKResultMessage,
+  intent: GuiUserInputIntent,
+): void {
   if (message.subtype !== 'success') {
     writeGuiEvent({
       type: 'error',
@@ -608,6 +550,7 @@ function emitResultEvents(message: SDKResultMessage): void {
     outputTokens: getUsageNumber(message.usage, 'output'),
     inputTokens: getUsageNumber(message.usage, 'input'),
     durationMs: message.duration_ms,
+    intent,
   });
 }
 
@@ -712,4 +655,5 @@ async function teardownRuntime(runtime: GuiRuntime): Promise<void> {
 
 export const testExports = {
   teardownRuntime,
+  createCommandInbox: createGuiCommandInbox,
 };

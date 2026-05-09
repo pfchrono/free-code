@@ -20,7 +20,7 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/home/pfchrono/code"
+        "/home/midnight/code"
       ]
     },
     "fetch": {
@@ -71,7 +71,7 @@
         "token-savior"
       ],
       "env": {
-        "WORKSPACE_ROOTS": "/home/pfchrono/code/free-code",
+        "WORKSPACE_ROOTS": "/home/midnight/code/free-code",
         "TOKEN_SAVIOR_CLIENT": "codex"
       },
       "type": "stdio",

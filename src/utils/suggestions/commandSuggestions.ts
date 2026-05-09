@@ -103,6 +103,12 @@ export type MidInputSlashCommand = {
   partialCommand: string // e.g., "com"
 }
 
+export type MidInputSkillShortcut = {
+  token: string // e.g., "$com"
+  startPos: number // Position of "$"
+  partialCommand: string // e.g., "com"
+}
+
 /**
  * Finds a slash command token that appears mid-input (not at position 0).
  * A mid-input slash command is a "/" preceded by whitespace, where the cursor
@@ -210,6 +216,41 @@ export function isSkillShortcutInput(input: string): boolean {
 }
 
 /**
+ * Finds a skill shortcut token that appears mid-input (not at position 0).
+ * A mid-input skill shortcut is a "$" preceded by whitespace, where the cursor
+ * is at or after the "$".
+ */
+export function findMidInputSkillShortcut(
+  input: string,
+  cursorOffset: number,
+): MidInputSkillShortcut | null {
+  if (input.startsWith('$')) {
+    return null
+  }
+
+  const beforeCursor = input.slice(0, cursorOffset)
+  const match = beforeCursor.match(/\s\$([a-zA-Z0-9_:-]*)$/)
+  if (!match || match.index === undefined) {
+    return null
+  }
+
+  const skillPos = match.index + 1
+  const textAfterDollar = input.slice(skillPos + 1)
+  const skillMatch = textAfterDollar.match(/^[a-zA-Z0-9_:-]*/)
+  const fullSkill = skillMatch ? skillMatch[0] : ''
+
+  if (cursorOffset > skillPos + 1 + fullSkill.length) {
+    return null
+  }
+
+  return {
+    token: '$' + fullSkill,
+    startPos: skillPos,
+    partialCommand: fullSkill,
+  }
+}
+
+/**
  * Checks if a command input has arguments
  * A command with just a trailing space is considered to have no arguments
  */
@@ -284,14 +325,34 @@ function createCommandSuggestionItem(
     (cmd.type === 'prompt' && cmd.argNames?.length
       ? ` (arguments: ${cmd.argNames.join(', ')})`
       : '')
+  const description = fullDescription.trim() || 'No description provided'
 
   return {
     id: getCommandId(cmd),
     displayText: `/${commandName}${aliasText}`,
     tag: isWorkflow ? 'workflow' : undefined,
-    description: fullDescription,
+    description,
     metadata: cmd,
   }
+}
+
+/**
+ * Ensure suggestion IDs are unique for React keys and selection logic.
+ * If duplicates exist, append a stable numeric suffix to subsequent entries.
+ */
+function ensureUniqueSuggestionIds(items: SuggestionItem[]): SuggestionItem[] {
+  const counts = new Map<string, number>()
+  return items.map(item => {
+    const seen = counts.get(item.id) ?? 0
+    counts.set(item.id, seen + 1)
+    if (seen === 0) {
+      return item
+    }
+    return {
+      ...item,
+      id: `${item.id}#${seen + 1}`,
+    }
+  })
 }
 
 /**
@@ -377,14 +438,14 @@ export function generateCommandSuggestions(
 
     // Combine with built-in commands prioritized after recently used,
     // so they remain visible even when many skills are installed
-    return [
+    return ensureUniqueSuggestionIds([
       ...recentlyUsed,
       ...builtinCommands,
       ...userCommands,
       ...projectCommands,
       ...policyCommands,
       ...otherCommands,
-    ].map(cmd => createCommandSuggestionItem(cmd))
+    ].map(cmd => createCommandSuggestionItem(cmd)))
   }
 
   // The Fuse index filters isHidden at build time and is keyed on the
@@ -499,10 +560,13 @@ export function generateCommandSuggestions(
   if (hiddenExact) {
     const hiddenId = getCommandId(hiddenExact)
     if (!fuseSuggestions.some(s => s.id === hiddenId)) {
-      return [createCommandSuggestionItem(hiddenExact), ...fuseSuggestions]
+      return ensureUniqueSuggestionIds([
+        createCommandSuggestionItem(hiddenExact),
+        ...fuseSuggestions,
+      ])
     }
   }
-  return fuseSuggestions
+  return ensureUniqueSuggestionIds(fuseSuggestions)
 }
 
 /**
@@ -517,7 +581,7 @@ export function generateSkillShortcutSuggestions(
   }
 
   const skillCommands = commands.filter(
-    cmd => cmd.type === 'prompt' && cmd.userInvocable !== false,
+    cmd => cmd.type === 'prompt' && !cmd.isHidden && cmd.userInvocable !== false,
   )
 
   return generateCommandSuggestions('/' + input.slice(1), skillCommands).map(

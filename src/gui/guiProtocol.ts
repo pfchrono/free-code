@@ -1,3 +1,5 @@
+import { encodeGuiEvent } from './protocolCodec.js'
+
 export interface SessionStartEvent {
   type: 'session_start'
   version: string
@@ -35,11 +37,12 @@ export interface CompletionEvent {
   outputTokens: number
   inputTokens: number
   durationMs: number
+  continuationIntent?: GuiUserInputIntent
 }
 
 export interface TurnStateEvent {
   type: 'turn_state'
-  state: 'idle' | 'running' | 'interrupting' | 'cancelled'
+  state: 'idle' | 'running' | 'interrupting' | 'cancelled' | 'failed'
   timestamp: number
 }
 
@@ -85,9 +88,12 @@ export type CliToGuiEvent =
   | ModelsListEvent
   | CommandsListEvent
 
+export type GuiUserInputIntent = 'default' | 'continue' | 'handoff'
+
 export interface UserInputCommand {
   type: 'user_input'
   content: string
+  intent?: GuiUserInputIntent
 }
 
 export interface InterruptCommand {
@@ -121,30 +127,5 @@ export type GuiToCliCommand =
   | HeartbeatCommand
 
 export function writeGuiEvent(event: CliToGuiEvent): void {
-  process.stdout.write(JSON.stringify(event) + '\n')
-}
-
-export async function readGuiCommand(): Promise<GuiToCliCommand | null> {
-  return new Promise((resolve) => {
-    let data = ''
-    process.stdin.on('data', (chunk: string) => {
-      data += chunk
-      const lines = data.split('\n')
-      data = lines.pop() || ''
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            resolve(JSON.parse(line) as GuiToCliCommand)
-            return
-          } catch {
-            resolve(null)
-            return
-          }
-        }
-      }
-    })
-    process.stdin.on('end', () => {
-      resolve(null)
-    })
-  })
+  process.stdout.write(encodeGuiEvent(event))
 }

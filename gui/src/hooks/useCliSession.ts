@@ -16,7 +16,7 @@ export interface CliMessage {
   output?: string
   success?: boolean
   outcome?: 'success' | 'error' | 'cancelled'
-  state?: 'idle' | 'running' | 'interrupting' | 'cancelled'
+  state?: 'idle' | 'running' | 'interrupting' | 'cancelled' | 'failed'
   commands?: Array<{
     name: string
     description: string
@@ -58,7 +58,7 @@ export interface SlashCommand {
   aliases?: string[]
 }
 
-export type TurnState = 'idle' | 'running' | 'interrupting' | 'cancelled'
+export type TurnState = 'idle' | 'running' | 'interrupting' | 'cancelled' | 'failed'
 
 export function useCliSession() {
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -308,7 +308,8 @@ export function parseEvents(
             event.state === 'idle' ||
             event.state === 'running' ||
             event.state === 'interrupting' ||
-            event.state === 'cancelled'
+            event.state === 'cancelled' ||
+            event.state === 'failed'
           ) {
             nextTurnState = event.state
             setTurnState(event.state)
@@ -316,6 +317,8 @@ export function parseEvents(
               setStatus('Connected')
             } else if (event.state === 'cancelled') {
               setStatus('Turn cancelled')
+            } else if (event.state === 'failed') {
+              setStatus('Turn failed')
             }
           }
           break

@@ -2,6 +2,27 @@ import { describe, expect, mock, test } from 'bun:test';
 
 import { testExports } from './guiMode.js';
 
+describe('guiMode command inbox', () => {
+  test('keeps extra commands from same stdin chunk', async () => {
+    const inbox = testExports.createCommandInbox();
+
+    try {
+      process.stdin.emit('data', '{"type":"heartbeat"}\n{"type":"heartbeat"}\n');
+
+      const first = await inbox.next();
+      const second = await inbox.next();
+
+      expect(first?.type).toBe('heartbeat');
+      expect(second?.type).toBe('heartbeat');
+
+      process.stdin.emit('end');
+      expect(await inbox.next()).toBeNull();
+    } finally {
+      inbox.dispose();
+    }
+  });
+});
+
 describe('guiMode teardownRuntime', () => {
   test('forces shutdown when active turn never settles after interrupt', async () => {
     const interrupt = mock(() => {});

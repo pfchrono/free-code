@@ -47,6 +47,7 @@ import { plural } from '../../utils/stringUtils.js';
 import { formatErrorMessage, getErrorGuidance } from './PluginErrors.js';
 import { PluginOptionsDialog } from './PluginOptionsDialog.js';
 import { PluginOptionsFlow } from './PluginOptionsFlow.js';
+import { getPluginWorkflowStatus } from './pluginWorkflowStatus.js';
 import type { ViewState as ParentViewState } from './types.js';
 import { UnifiedInstalledCell } from './UnifiedInstalledCell.js';
 import type { UnifiedInstalledItem } from './unifiedTypes.js';
@@ -1817,6 +1818,11 @@ export function ManagePlugins({
 
     // Compute plugin errors section
     const filteredPluginErrors = pluginErrors.filter(e_1 => 'plugin' in e_1 && e_1.plugin === selectedPlugin.plugin.name || e_1.source === pluginId_13 || e_1.source.startsWith(`${selectedPlugin.plugin.name}@`));
+    const workflowStatus = getPluginWorkflowStatus({
+      isEnabled: isEnabled_2,
+      errorCount: filteredPluginErrors.length,
+      pendingUpdate: selectedPlugin.pendingUpdate,
+    });
     const pluginErrorsSection = filteredPluginErrors.length === 0 ? null : <Box flexDirection="column" marginBottom={1}>
           <Text bold color="error">
             {filteredPluginErrors.length}{' '}
@@ -1863,10 +1869,8 @@ export function ManagePlugins({
         {/* Current status */}
         <Box marginBottom={1}>
           <Text dimColor>Status: </Text>
-          <Text color={isEnabled_2 ? 'success' : 'warning'}>
-            {isEnabled_2 ? 'Enabled' : 'Disabled'}
-          </Text>
-          {selectedPlugin.pendingUpdate && <Text color="suggestion"> · Marked for update</Text>}
+          <Text color={workflowStatus.color}>{workflowStatus.label}</Text>
+          {workflowStatus.recovery && <Text dimColor> · {workflowStatus.recovery}</Text>}
         </Box>
 
         {/* Installed components */}

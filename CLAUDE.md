@@ -129,6 +129,20 @@ bun run dev
   - when done with gRPC, run `bun run dev:grpc:stop`
   - this force-stops stored gRPC pid and its Windows child process tree to avoid rogue memory-hogging `bun` or `free-code.exe` processes
 
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs for this repo live in GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+This repo uses the default triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repo uses a single-context domain-doc layout rooted at `CONTEXT.md` with ADRs in `docs/adr/`. See `docs/agents/domain.md`.
+
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
 

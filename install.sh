@@ -144,13 +144,28 @@ install_deps() {
   info "Installing dependencies..."
   cd "$INSTALL_DIR"
 
-  if ! bun install --frozen-lockfile 2>/dev/null; then
-    warn "Lockfile changed; cleaning node_modules before retry"
-    rm -rf node_modules
-    bun install
+  local install_log
+  install_log="$(mktemp)"
+
+  if bun install --frozen-lockfile >"$install_log" 2>&1; then
+    cat "$install_log"
+    rm -f "$install_log"
+    ok "Dependencies installed"
+    return
   fi
 
-  ok "Dependencies installed"
+  cat "$install_log" >&2
+  if grep -qiE 'lockfile had changes|lockfile.*frozen|package\.json.*changed' "$install_log"; then
+    warn "Lockfile mismatch; cleaning node_modules before retry"
+    rm -rf node_modules
+    bun install
+    rm -f "$install_log"
+    ok "Dependencies installed"
+    return
+  fi
+
+  rm -f "$install_log"
+  fail "bun install --frozen-lockfile failed"
 }
 
 resolve_built_binary() {
