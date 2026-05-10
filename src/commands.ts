@@ -4,11 +4,13 @@ import autofixPr from './commands/autofix-pr/index.js'
 import backfillSessions from './commands/backfill-sessions/index.js'
 import btw from './commands/btw/index.js'
 import goodClaude from './commands/good-claude/index.js'
+import goal from './commands/goal/index.js'
 import issue from './commands/issue/index.js'
 import feedback from './commands/feedback/index.js'
 import clear from './commands/clear/index.js'
 import color from './commands/color/index.js'
 import commit from './commands/commit.js'
+import commitMessage from './commands/commit-message/index.js'
 import copy from './commands/copy/index.js'
 import desktop from './commands/desktop/index.js'
 import commitPushPr from './commands/commit-push-pr.js'
@@ -27,11 +29,14 @@ import ide from './commands/ide/index.js'
 import init from './commands/init.js'
 import initVerifiers from './commands/init-verifiers.js'
 import keybindings from './commands/keybindings/index.js'
+import lsp from './commands/lsp/index.js'
 import login from './commands/login/index.js'
 import logout from './commands/logout/index.js'
 import installGitHubApp from './commands/install-github-app/index.js'
 import installSlackApp from './commands/install-slack-app/index.js'
 import breakCache from './commands/break-cache/index.js'
+import cacheProbe from './commands/cache-probe/index.js'
+import cacheStats from './commands/cacheStats/index.js'
 import mcp from './commands/mcp/index.js'
 import mobile from './commands/mobile/index.js'
 import onboarding from './commands/onboarding/index.js'
@@ -177,17 +182,17 @@ import copilot from './commands/copilot/index.js'
 import codex from './commands/codex/index.js'
 import code from './commands/code/index.js'
 import openai from './commands/openai/index.js'
-import openrouter from './commands/openrouter/index.ts'
-import lmstudio from './commands/lmstudio/index.ts'
-import zen from './commands/zen/index.ts'
-import minimax from './commands/minimax/index.ts'
-import provider from './commands/provider/index.ts'
-import sidebar from './commands/sidebar/index.ts'
-import palette from './commands/palette/index.ts'
-import cavemanMode from './commands/caveman-mode/index.ts'
-import deadpoolMode from './commands/deadpoolmode/index.ts'
-import ralphMode from './commands/ralphmode/index.ts'
-import dependencyGraph from './commands/dependency-graph/index.ts'
+import openrouter from './commands/openrouter/index.js'
+import lmstudio from './commands/lmstudio/index.js'
+import zen from './commands/zen/index.js'
+import minimax from './commands/minimax/index.js'
+import provider from './commands/provider/index.js'
+import sidebar from './commands/sidebar/index.js'
+import palette from './commands/palette/index.js'
+import cavemanMode from './commands/caveman-mode/index.js'
+import deadpoolMode from './commands/deadpoolmode/index.js'
+import ralphMode from './commands/ralphmode/index.js'
+import dependencyGraph from './commands/dependency-graph/index.js'
 import tag from './commands/tag/index.js'
 import outputStyle from './commands/output-style/index.js'
 import remoteEnv from './commands/remote-env/index.js'
@@ -282,7 +287,10 @@ const COMMANDS = memoize((): Command[] => [
   chrome,
   clear,
   color,
+  cacheProbe,
+  cacheStats,
   commitStandard,
+  commitMessage,
   compact,
   config,
   copy,
@@ -296,11 +304,13 @@ const COMMANDS = memoize((): Command[] => [
   exit,
   fast,
   files,
+  goal,
   heapDump,
   help,
   ide,
   init,
   keybindings,
+  lsp,
   installGitHubApp,
   installSlackApp,
   mcp,

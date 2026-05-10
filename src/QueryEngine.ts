@@ -33,6 +33,16 @@ import type { CanUseToolFn } from './hooks/useCanUseTool.js'
 import { loadMemoryPrompt } from './memdir/memdir.js'
 import { hasAutoMemPathOverride } from './memdir/paths.js'
 import { query } from './query.js'
+import {
+  addGoalUsage,
+  getGoal,
+  isGoalActive,
+  recordGoalProgress,
+} from './services/goals/goalStore.js'
+import {
+  buildGoalBudgetLimitPrompt,
+  buildGoalContinuationPrompt,
+} from './services/goals/goalPrompt.js'
 import { categorizeRetryableAPIError } from './services/api/errors.js'
 import type { MCPServerConnection } from './services/mcp/types.js'
 import type { AppState } from './state/AppState.js'
@@ -84,6 +94,13 @@ import {
   shouldEnableThinkingByDefault,
   type ThinkingConfig,
 } from './utils/thinking.js'
+import {
+  assertFunction,
+  assertNonEmptyString,
+  assertObject,
+  validateArrayOf,
+} from './utils/validation.js'
+import { invalidateRemovedToolSchemas } from './utils/toolSchemaCache.js'
 
 // Lazy: MessageSelector.tsx pulls React/ink; only needed for message filtering at query time
 let selectableUserMessagesFilter:
@@ -98,6 +115,26 @@ const getSelectableUserMessagesFilter = async () => {
   }
 
   return selectableUserMessagesFilter
+}
+
+function countUsageTokens(usage: NonNullableUsage): number {
+  const record = usage as unknown as Record<string, unknown>
+  return [
+    'input_tokens',
+    'output_tokens',
+    'cache_creation_input_tokens',
+    'cache_read_input_tokens',
+  ].reduce((sum, key) => {
+    const value = record[key]
+    return sum + (typeof value === 'number' && Number.isFinite(value) ? value : 0)
+  }, 0)
+}
+
+function getMaxGoalContinuations(): number {
+  const raw = process.env.FREE_CODE_GOAL_MAX_CONTINUATIONS
+  if (!raw) return 25
+  const parsed = Number(raw)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 25
 }
 
 import {
@@ -118,6 +155,16 @@ import {
   isResultSuccessful,
   normalizeMessage,
 } from './utils/queryHelpers.js'
+
+function isAllowedAgentToolSpec(toolSpec: string, validToolNames: Set<string>): boolean {
+  if (toolSpec === '*') return true
+  if (validToolNames.has(toolSpec)) return true
+  if (toolSpec.endsWith('__*')) {
+    return true
+  }
+  const toolName = toolSpec.split(':')[0] ?? toolSpec
+  return validToolNames.has(toolName)
+}
 
 // Dead code elimination: conditional import for coordinator mode
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -220,7 +267,12 @@ export class QueryEngine {
 
   async *submitMessage(
     prompt: string | ContentBlockParam[],
-    options?: { uuid?: string; isMeta?: boolean; mode?: PromptInputMode },
+    options?: {
+      uuid?: string
+      isMeta?: boolean
+      mode?: PromptInputMode
+      goalContinuationDepth?: number
+    },
   ): AsyncGenerator<SDKMessage, void, unknown> {
     const {
       cwd,
@@ -247,6 +299,8 @@ export class QueryEngine {
       orphanedPermission,
     } = this.config
     const inputMode = options?.mode ?? 'prompt'
+    const goalContinuationDepth = options?.goalContinuationDepth ?? 0
+    const usageAtStart = countUsageTokens(this.totalUsage)
 
     this.discoveredSkillNames.clear()
     setCwd(cwd)
@@ -1179,6 +1233,48 @@ export class QueryEngine {
       isApiError = Boolean(result.isApiErrorMessage)
     }
 
+    const currentGoal = await getGoal()
+    if (isGoalActive(currentGoal) && !isApiError) {
+      const tokensUsedThisTurn = countUsageTokens(this.totalUsage) - usageAtStart
+      const updatedGoal = await addGoalUsage(
+        tokensUsedThisTurn,
+        Math.round((Date.now() - startTime) / 1000),
+      )
+      const goalWithProgress = textResult
+        ? await recordGoalProgress(textResult)
+        : updatedGoal
+      const goalForContinuation = goalWithProgress ?? updatedGoal ?? currentGoal
+
+      if (updatedGoal?.status === 'budget_limited') {
+        for await (const continuationMessage of this.submitMessage(
+          buildGoalBudgetLimitPrompt(updatedGoal),
+          {
+            isMeta: true,
+            goalContinuationDepth: goalContinuationDepth + 1,
+          },
+        )) {
+          yield continuationMessage
+        }
+        return
+      }
+
+      if (isGoalActive(goalForContinuation)) {
+        const maxGoalContinuations = getMaxGoalContinuations()
+        if (goalContinuationDepth < maxGoalContinuations) {
+          for await (const continuationMessage of this.submitMessage(
+            buildGoalContinuationPrompt(goalForContinuation),
+            {
+              isMeta: true,
+              goalContinuationDepth: goalContinuationDepth + 1,
+            },
+          )) {
+            yield continuationMessage
+          }
+          return
+        }
+      }
+    }
+
     yield {
       type: 'result',
       subtype: 'success',
@@ -1210,6 +1306,78 @@ export class QueryEngine {
     return this.mutableMessages
   }
 
+  injectMessages(messages: Message[]): void {
+    const validated = validateArrayOf(messages, (msg, _i) => {
+      const m = msg as Record<string, unknown>
+      assertNonEmptyString(m.type, 'type')
+      if (m.message !== undefined) {
+        assertObject(m.message, 'message')
+        const inner = m.message as Record<string, unknown>
+        if (inner.role !== undefined) {
+          assertNonEmptyString(inner.role, 'message.role')
+        }
+        if (
+          inner.content !== undefined &&
+          typeof inner.content !== 'string' &&
+          !Array.isArray(inner.content)
+        ) {
+          throw new TypeError("'message.content' must be a string or array")
+        }
+      }
+      return msg
+    }, 'injectMessages')
+    this.mutableMessages.push(...validated)
+  }
+
+  injectAgents(agents: AgentDefinition[]): void {
+    const validated = validateArrayOf(agents, (agent, _i) => {
+      const a = agent as Record<string, unknown>
+      assertNonEmptyString(a.agentType, 'agentType')
+      assertNonEmptyString(a.whenToUse, 'whenToUse')
+      assertFunction(a.getSystemPrompt, 'getSystemPrompt')
+      if (a.tools !== undefined) {
+        const validToolNames = new Set(this.config.tools.map(t => t.name))
+        for (const toolSpec of a.tools as string[]) {
+          if (!isAllowedAgentToolSpec(toolSpec, validToolNames)) {
+            throw new TypeError(`agent references unknown tool '${toolSpec}'`)
+          }
+        }
+      }
+      return agent
+    }, 'injectAgents')
+    this.config.agents = validated
+  }
+
+  updateTools(tools: Tools): void {
+    if (!Array.isArray(tools) && !(Symbol.iterator in Object(tools))) {
+      throw new TypeError(`updateTools: expected iterable, got ${typeof tools}`)
+    }
+    const toolArray = Array.from(tools as Iterable<unknown>)
+
+    validateArrayOf(toolArray, (tool, _i) => {
+      const t = tool as Record<string, unknown>
+      assertNonEmptyString(t.name, 'name')
+      assertFunction(t.call, 'call')
+      return tool
+    }, 'updateTools')
+
+    const validToolNames = new Set(toolArray.map(t => (t as Record<string, unknown>).name as string))
+    for (const agent of this.config.agents) {
+      if (agent.tools) {
+        for (const toolSpec of agent.tools) {
+          if (!isAllowedAgentToolSpec(toolSpec, validToolNames)) {
+            throw new TypeError(
+              `updateTools: agent '${agent.agentType}' references tool '${toolSpec}' which is not in the new tool set`,
+            )
+          }
+        }
+      }
+    }
+
+    this.config.tools = toolArray as Tools
+    invalidateRemovedToolSchemas(validToolNames)
+  }
+
   getReadFileState(): FileStateCache {
     return this.readFileState
   }
@@ -1220,6 +1388,18 @@ export class QueryEngine {
 
   setModel(model: string): void {
     this.config.userSpecifiedModel = model
+  }
+
+  setThinkingConfig(config: ThinkingConfig): void {
+    this.config.thinkingConfig = config
+  }
+
+  getMcpClients(): readonly MCPServerConnection[] {
+    return this.config.mcpClients
+  }
+
+  setMcpClients(clients: MCPServerConnection[]): void {
+    this.config.mcpClients = clients
   }
 }
 

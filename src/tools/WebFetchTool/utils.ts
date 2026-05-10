@@ -504,18 +504,32 @@ export async function applyPromptToMarkdown(
     prompt,
     isPreapprovedDomain,
   )
-  const assistantMessage = await queryHaiku({
-    systemPrompt: asSystemPrompt([]),
-    userPrompt: modelPrompt,
-    signal,
-    options: {
-      querySource: 'web_fetch_apply',
-      agents: [],
-      isNonInteractiveSession,
-      hasAppendSystemPrompt: false,
-      mcpTools: [],
-    },
-  })
+  let assistantMessage
+  try {
+    assistantMessage = await queryHaiku({
+      systemPrompt: asSystemPrompt([]),
+      userPrompt: modelPrompt,
+      signal,
+      options: {
+        querySource: 'web_fetch_apply',
+        agents: [],
+        isNonInteractiveSession,
+        hasAppendSystemPrompt: false,
+        mcpTools: [],
+      },
+    })
+  } catch (err) {
+    if (err instanceof AbortError || (err as Error)?.name === 'AbortError') {
+      throw err
+    }
+    logError(err)
+    return [
+      '[Secondary-model summarization unavailable — returning raw fetched content.',
+      'This typically means the configured small-fast model took too long or errored.]',
+      '',
+      truncatedContent,
+    ].join('\n')
+  }
 
   // We need to bubble this up, so that the tool call throws, causing us to return
   // an is_error tool_use block to the server, and render a red dot in the UI.
@@ -530,5 +544,10 @@ export async function applyPromptToMarkdown(
       return contentBlock.text
     }
   }
-  return 'No response from model'
+  return [
+    '[Secondary-model summarization unavailable — returning raw fetched content.',
+    'This typically means the configured small-fast model took too long or errored.]',
+    '',
+    truncatedContent,
+  ].join('\n')
 }

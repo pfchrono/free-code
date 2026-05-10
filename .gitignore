@@ -16,6 +16,7 @@ openclaw/
 
 benchmark-results/*
 .claude/
+.free-code/
 .codex/
 .code/
 .env
@@ -24,6 +25,7 @@ benchmark-results/*
 !.env.*.example
 ~/.claude/sessions/
 temp-uncommitted/
+.tmp/
 .openspec/
 openspec/tmp/
 openspec/

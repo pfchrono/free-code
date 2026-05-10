@@ -118,6 +118,7 @@ export async function executeShellCommandsInPrompt(
             shellTool,
             data,
             randomUUID(),
+            { toolInput: { command } },
           )
           // Extract the string content from the block
           const output =

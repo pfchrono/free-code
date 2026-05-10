@@ -55,7 +55,7 @@ export const OutputFormatSchema = lazySchema(() =>
 // ============================================================================
 
 export const ApiKeySourceSchema = lazySchema(() =>
-  z.enum(['user', 'project', 'org', 'temporary', 'oauth']),
+  z.enum(['user', 'project', 'org', 'temporary', 'oauth', 'none']),
 )
 
 export const ConfigScopeSchema = lazySchema(() =>
@@ -71,7 +71,7 @@ export const ThinkingAdaptiveSchema = lazySchema(() =>
     .object({
       type: z.literal('adaptive'),
     })
-    .describe('Claude decides when and how much to think (Opus 4.6+).'),
+    .describe('Model decides when and how much to think (adaptive reasoning models).'),
 )
 
 export const ThinkingEnabledSchema = lazySchema(() =>
@@ -99,7 +99,7 @@ export const ThinkingConfigSchema = lazySchema(() =>
       ThinkingDisabledSchema(),
     ])
     .describe(
-      "Controls Claude's thinking/reasoning behavior. When set, takes precedence over the deprecated maxThinkingTokens.",
+      'Controls model thinking/reasoning behavior. When set, takes precedence over the deprecated maxThinkingTokens.',
     ),
 )
 
@@ -1087,10 +1087,10 @@ export const AccountInfoSchema = lazySchema(() =>
       tokenSource: z.string().optional(),
       apiKeySource: z.string().optional(),
       apiProvider: z
-        .enum(['firstParty', 'bedrock', 'vertex', 'foundry', 'codex', 'openai', 'openrouter', 'copilot', 'lmstudio'])
+        .enum(['firstParty', 'bedrock', 'vertex', 'foundry'])
         .optional()
         .describe(
-          'Active API backend. Anthropic OAuth login only applies when "firstParty"; for 3P providers the other fields are absent and auth is external (AWS creds, gcloud ADC, API keys, etc.).',
+          'Active API backend. Anthropic OAuth login only applies when "firstParty"; for 3P providers the other fields are absent and auth is external (AWS creds, gcloud ADC, etc.).',
         ),
     })
     .describe("Information about the logged in user's account."),
@@ -1163,7 +1163,7 @@ export const AgentDefinitionSchema = lazySchema(() =>
         .enum(['user', 'project', 'local'])
         .optional()
         .describe(
-          "Scope for auto-loading agent memory files. 'user' - ~/.claude/agent-memory/<agentType>/, 'project' - .claude/agent-memory/<agentType>/, 'local' - .claude/agent-memory-local/<agentType>/",
+          "Scope for auto-loading agent memory files. 'user' - ~/.free-code/agent-memory/<agentType>/, 'project' - .free-code/agent-memory/<agentType>/, 'local' - .free-code/agent-memory-local/<agentType>/",
         ),
       effort: z
         .union([z.enum(['low', 'medium', 'high', 'max']), z.number().int()])
@@ -1191,9 +1191,9 @@ export const SettingSourceSchema = lazySchema(() =>
     .enum(['user', 'project', 'local'])
     .describe(
       'Source for loading filesystem-based settings. ' +
-        "'user' - Global user settings (~/.claude/settings.json). " +
-        "'project' - Project settings (.claude/settings.json). " +
-        "'local' - Local settings (.claude/settings.local.json).",
+        "'user' - Global user settings (~/.free-code/settings.json). " +
+        "'project' - Project settings (.free-code/settings.json). " +
+        "'local' - Local settings (.free-code/settings.local.json).",
     ),
 )
 
@@ -1851,6 +1851,18 @@ export const SDKSessionInfoSchema = lazySchema(() =>
     .describe('Session metadata returned by listSessions and getSessionInfo.'),
 )
 
+export const SDKPermissionRequestMessageSchema = lazySchema(() =>
+  z.object({
+    type: z.literal('permission_request'),
+    request_id: z.string().describe('Unique request ID for this permission prompt'),
+    tool_name: z.string().describe('Name of the tool requesting permission'),
+    tool_use_id: z.string().describe('Tool use ID for matching with respondToPermission'),
+    input: z.record(z.string(), z.unknown()).describe('Tool input parameters'),
+    uuid: UUIDPlaceholder(),
+    session_id: z.string(),
+  }),
+)
+
 export const SDKMessageSchema = lazySchema(() =>
   z.union([
     SDKAssistantMessageSchema(),
@@ -1877,6 +1889,7 @@ export const SDKMessageSchema = lazySchema(() =>
     SDKRateLimitEventSchema(),
     SDKElicitationCompleteMessageSchema(),
     SDKPromptSuggestionMessageSchema(),
+    SDKPermissionRequestMessageSchema(),
   ]),
 )
 

@@ -8,7 +8,7 @@ type RepoLocalProviderSettings = {
 }
 
 function getRepoLocalSettingsPath(): string {
-  return join(process.cwd(), '.claude', 'settings.json')
+  return join(process.cwd(), '.free-code', 'settings.json')
 }
 
 function readRepoLocalApiProvider(): RepoLocalApiProvider | null {

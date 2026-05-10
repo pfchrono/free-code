@@ -1,10 +1,10 @@
 import type { ChildProcess, ExecFileException } from 'child_process'
 import { execFile, spawn } from 'child_process'
+import { existsSync } from 'fs'
 import memoize from 'lodash-es/memoize.js'
 import { homedir } from 'os'
 import * as path from 'path'
 import { logEvent } from 'src/services/analytics/index.js'
-import { fileURLToPath } from 'url'
 import { isInBundledMode } from './bundledMode.js'
 import { logForDebugging } from './debug.js'
 import { isEnvDefinedFalsy } from './envUtils.js'
@@ -14,13 +14,6 @@ import { logError } from './log.js'
 import { getPlatform } from './platform.js'
 import { countCharInString } from './stringUtils.js'
 
-const __filename = fileURLToPath(import.meta.url)
-// we use node:path.join instead of node:url.resolve because the former doesn't encode spaces
-const __dirname = path.join(
-  __filename,
-  process.env.NODE_ENV === 'test' ? '../../../' : '../',
-)
-
 type RipgrepConfig = {
   mode: 'system' | 'builtin' | 'embedded'
   command: string
@@ -28,40 +21,89 @@ type RipgrepConfig = {
   argv0?: string
 }
 
-const getRipgrepConfig = memoize((): RipgrepConfig => {
-  const userWantsSystemRipgrep = isEnvDefinedFalsy(
-    process.env.USE_BUILTIN_RIPGREP,
-  )
+type RipgrepErrorLike = Pick<NodeJS.ErrnoException, 'code' | 'message'>
 
-  // Try system ripgrep if user wants it (or if nothing is specified = default to system if available)
-  if (userWantsSystemRipgrep || process.env.USE_BUILTIN_RIPGREP === undefined) {
-    const { cmd: systemPath } = findExecutable('rg', [])
-    if (systemPath !== 'rg') {
-      // SECURITY: Use command name 'rg' instead of systemPath to prevent PATH hijacking
-      // If we used systemPath, a malicious ./rg.exe in current directory could be executed
-      // Using just 'rg' lets the OS resolve it safely with NoDefaultCurrentDirectoryInExePath protection
-      return { mode: 'system', command: 'rg', args: [] }
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error
+}
+
+/**
+ * Returns the ripgrep binary path provided by the @vscode/ripgrep package.
+ * The package downloads a platform/arch-specific binary at npm install time
+ * (cached under the package's bin/ directory). Returns null when the package
+ * cannot be resolved — for example when running as a Bun-compiled standalone
+ * executable that doesn't ship node_modules.
+ */
+function resolveBuiltinRgPath(): string | null {
+  try {
+    // Lazy require so the resolution failure path stays graceful at import
+    // time. The package only exports `rgPath`, so we do not need the rest.
+    const mod = require('@vscode/ripgrep') as { rgPath?: string }
+    if (mod.rgPath && existsSync(mod.rgPath)) {
+      return mod.rgPath
     }
+  } catch {
+    // Falls through to null — caller decides the fallback.
+  }
+  return null
+}
+
+type ResolveRipgrepConfigArgs = {
+  userWantsSystemRipgrep: boolean
+  bundledMode: boolean
+  builtinCommand: string | null
+  systemExecutablePath: string
+  processExecPath?: string
+}
+
+export function resolveRipgrepConfig({
+  userWantsSystemRipgrep,
+  bundledMode,
+  builtinCommand,
+  systemExecutablePath,
+  processExecPath = process.execPath,
+}: ResolveRipgrepConfigArgs): RipgrepConfig {
+  if (userWantsSystemRipgrep && systemExecutablePath !== 'rg') {
+    // SECURITY: Use command name 'rg' instead of systemExecutablePath to prevent PATH hijacking
+    return { mode: 'system', command: 'rg', args: [] }
   }
 
-  // In bundled (native) mode, ripgrep is statically compiled into bun-internal
-  // and dispatches based on argv[0]. We spawn ourselves with argv0='rg'.
-  if (isInBundledMode()) {
+  if (bundledMode) {
     return {
       mode: 'embedded',
-      command: process.execPath,
+      command: processExecPath,
       args: ['--no-config'],
       argv0: 'rg',
     }
   }
 
-  const rgRoot = path.resolve(__dirname, 'vendor', 'ripgrep')
-  const command =
-    process.platform === 'win32'
-      ? path.resolve(rgRoot, `${process.arch}-win32`, 'rg.exe')
-      : path.resolve(rgRoot, `${process.arch}-${process.platform}`, 'rg')
+  if (builtinCommand) {
+    return { mode: 'builtin', command: builtinCommand, args: [] }
+  }
 
-  return { mode: 'builtin', command, args: [] }
+  if (systemExecutablePath !== 'rg') {
+    return { mode: 'system', command: 'rg', args: [] }
+  }
+
+  // Last resort — leaves error reporting to the executor when no binary
+  // can be located. wrapRipgrepUnavailableError() surfaces an install hint.
+  return { mode: 'system', command: 'rg', args: [] }
+}
+
+const getRipgrepConfig = memoize((): RipgrepConfig => {
+  const userWantsSystemRipgrep = isEnvDefinedFalsy(
+    process.env.USE_BUILTIN_RIPGREP,
+  )
+  const bundledMode = isInBundledMode()
+  const builtinCommand = resolveBuiltinRgPath()
+  const { cmd: systemExecutablePath } = findExecutable('rg', [])
+
+  return resolveRipgrepConfig({
+    userWantsSystemRipgrep,
+    bundledMode,
+    builtinCommand,
+    systemExecutablePath,
+  })
 })
 
 export function ripgrepCommand(): {
@@ -103,6 +145,52 @@ export class RipgrepTimeoutError extends Error {
     super(message)
     this.name = 'RipgrepTimeoutError'
   }
+}
+
+export class RipgrepUnavailableError extends Error {
+  code?: string | number
+
+  constructor(
+    message: string,
+    public readonly config: Pick<RipgrepConfig, 'mode' | 'command'>,
+    code?: string | number,
+  ) {
+    super(message)
+    this.name = 'RipgrepUnavailableError'
+    this.code = code
+  }
+}
+
+function getRipgrepInstallHint(platform = process.platform): string {
+  switch (platform) {
+    case 'win32':
+      return 'Install ripgrep and confirm `rg --version` works in the same terminal. Windows: `winget install BurntSushi.ripgrep.MSVC` or `choco install ripgrep`.'
+    case 'darwin':
+      return 'Install ripgrep and confirm `rg --version` works in the same terminal. macOS: `brew install ripgrep`.'
+    default:
+      return 'Install ripgrep and confirm `rg --version` works in the same terminal. Linux: use your distro package manager, for example `apt install ripgrep`.'
+  }
+}
+
+export function wrapRipgrepUnavailableError(
+  error: RipgrepErrorLike,
+  config = getRipgrepConfig(),
+  platform = process.platform,
+): RipgrepUnavailableError {
+  const modeExplanation =
+    config.mode === 'builtin'
+      ? 'This install could not locate its packaged ripgrep fallback.'
+      : config.mode === 'system'
+        ? 'A working system ripgrep binary was not found on PATH.'
+        : 'The embedded ripgrep binary could not be started.'
+
+  const originalMessage = error.message ? ` Original error: ${error.message}` : ''
+
+  return new RipgrepUnavailableError(
+    `ripgrep (rg) is required for file search but could not be started. ${modeExplanation} ${getRipgrepInstallHint(platform)}${originalMessage}`,
+    config,
+    error.code,
+  )
 }
 
 function ripGrepRaw(
@@ -275,7 +363,11 @@ async function ripGrepFileCount(
     child.on('error', err => {
       if (settled) return
       settled = true
-      reject(err)
+      reject(
+        isErrnoException(err) && err.code === 'ENOENT'
+          ? wrapRipgrepUnavailableError(err)
+          : err,
+      )
     })
   })
 }
@@ -337,7 +429,11 @@ export async function ripGrepStream(
     child.on('error', err => {
       if (settled) return
       settled = true
-      reject(err)
+      reject(
+        isErrnoException(err) && err.code === 'ENOENT'
+          ? wrapRipgrepUnavailableError(err)
+          : err,
+      )
     })
   })
 }
@@ -383,7 +479,11 @@ export async function ripGrep(
       // These should be surfaced to the user rather than silently returning empty results
       const CRITICAL_ERROR_CODES = ['ENOENT', 'EACCES', 'EPERM']
       if (CRITICAL_ERROR_CODES.includes(error.code as string)) {
-        reject(error)
+        reject(
+          isErrnoException(error) && error.code === 'ENOENT'
+            ? wrapRipgrepUnavailableError(error)
+            : error,
+        )
         return
       }
 

@@ -1,5 +1,9 @@
 import { feature } from 'bun:bundle';
 import { applyRepoLocalApiProviderOverride } from '../utils/model/bootstrapProviderOverride.js';
+import {
+  applyModelFlagFromArgs,
+  applyProviderFlagFromArgs,
+} from '../utils/providerFlag.js';
 import { normalizeStandardStreamTtyFlags } from '../utils/tty.js';
 import { startupRawTrace } from '../utils/startupRawTrace.js';
 
@@ -15,6 +19,13 @@ if (typeof MACRO === 'undefined') {
 
 normalizeStandardStreamTtyFlags();
 startupRawTrace('cli:module_loaded isTTY=' + String(process.stdout.isTTY));
+const startupArgs = process.argv.slice(2);
+const providerFlagResult = applyProviderFlagFromArgs(startupArgs);
+if (providerFlagResult?.error) {
+  console.error(providerFlagResult.error);
+  process.exit(1);
+}
+applyModelFlagFromArgs(startupArgs);
 
 // Bugfix for corepack auto-pinning, which adds yarnpkg to peoples' package.jsons
 // eslint-disable-next-line custom-rules/no-top-level-side-effects

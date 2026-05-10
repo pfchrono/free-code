@@ -33,7 +33,7 @@ function isSupportedProvider(
 }
 
 function getProviderFromRepoLocalSettingsFile(): APIProvider | null {
-  const settingsPath = join(process.cwd(), '.claude', 'settings.json')
+  const settingsPath = join(process.cwd(), '.free-code', 'settings.json')
   if (!existsSync(settingsPath)) {
     return null
   }
@@ -70,11 +70,24 @@ export function getAPIProvider(): APIProvider {
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_VERTEX)) return 'vertex'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_FOUNDRY)) return 'foundry'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_CODEX)) return 'codex'
-  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI)) return 'openai'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENROUTER)) return 'openrouter'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_COPILOT)) return 'copilot'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_LMSTUDIO)) return 'lmstudio'
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_MINIMAX)) return 'minimax'
+  if (isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI)) return 'openai'
+  if (process.env.ANTHROPIC_API_KEY?.trim() || process.env.ANTHROPIC_AUTH_TOKEN?.trim()) {
+    return 'firstParty'
+  }
+  if (process.env.OPENAI_API_KEY?.trim()) return 'openai'
+  if (
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_GEMINI) ||
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_MISTRAL) ||
+    process.env.GEMINI_API_KEY?.trim() ||
+    process.env.GEMINI_ACCESS_TOKEN?.trim() ||
+    process.env.NVIDIA_NIM?.trim()
+  ) {
+    return 'openai'
+  }
 
   // Fallback: persisted settings-based provider selection for headless and
   // early-start callsites where bootstrap env overrides may not have run yet.

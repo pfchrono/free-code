@@ -605,6 +605,17 @@ function getRemoteMcpServerConnectionBatchSize(): number {
   )
 }
 
+export async function cleanupFailedConnection(
+  transport: Pick<Transport, 'close'>,
+  inProcessServer?: { close(): Promise<void> },
+): Promise<void> {
+  if (inProcessServer) {
+    await inProcessServer.close().catch(() => {})
+  }
+
+  await transport.close().catch(() => {})
+}
+
 function isLocalMcpServer(config: ScopedMcpServerConfig): boolean {
   return !config.type || config.type === 'stdio' || config.type === 'sdk'
 }

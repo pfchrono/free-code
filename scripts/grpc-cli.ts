@@ -3,7 +3,7 @@ import * as protoLoader from '@grpc/proto-loader'
 import path from 'path'
 import * as readline from 'readline'
 
-const PROTO_PATH = path.resolve(import.meta.dirname, '../src/proto/openclaude.proto')
+const PROTO_PATH = path.resolve(import.meta.dirname, '../src/proto/free-code.proto')
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
@@ -14,7 +14,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 })
 
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any
-const openclaudeProto = protoDescriptor.openclaude.v1
+const freeCodeProto = protoDescriptor.freecode.v1
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -30,7 +30,7 @@ function askQuestion(query: string): Promise<string> {
 async function main(): Promise<void> {
   const host = process.env.GRPC_HOST || 'localhost'
   const port = process.env.GRPC_PORT || '50051'
-  const client = new openclaudeProto.AgentService(
+  const client = new freeCodeProto.AgentService(
     `${host}:${port}`,
     grpc.credentials.createInsecure(),
   )

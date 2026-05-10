@@ -119,6 +119,16 @@ const getCoordinatorUserContext: (mcpClients: ReadonlyArray<{
   [k: string]: string;
 } = feature('COORDINATOR_MODE') ? require('../coordinator/coordinatorMode.js').getCoordinatorUserContext : () => ({});
 /* eslint-enable custom-rules/no-process-env-top-level, @typescript-eslint/no-require-imports */
+function getLatestAssistantText(messages: MessageType[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message?.type !== 'assistant') continue;
+    const text = getContentText(message.message.content);
+    if (text?.trim()) return text;
+  }
+  return null;
+}
+
 import useCanUseTool from '../hooks/useCanUseTool.js';
 import type { ToolPermissionContext, Tool } from '../Tool.js';
 import { applyPermissionUpdate, applyPermissionUpdates, persistPermissionUpdate } from '../utils/permissions/PermissionUpdate.js';
@@ -147,6 +157,8 @@ import type { Message as MessageType, UserMessage, ProgressMessage, HookResultMe
 import { query } from '../query.js';
 import { mergeClients, useMergedClients } from '../hooks/useMergedClients.js';
 import { syncArchivistClient } from '../services/providers/archivist/archivistClient.js';
+import { addGoalUsage, getGoal, isGoalActive, recordGoalProgress } from '../services/goals/goalStore.js';
+import { buildGoalBudgetLimitPrompt, buildGoalContinuationPrompt } from '../services/goals/goalPrompt.js';
 import { getQuerySourceForREPL } from '../utils/promptCategory.js';
 import { useMergedTools } from '../hooks/useMergedTools.js';
 import { mergeAndFilterTools } from '../utils/toolPool.js';
@@ -1443,6 +1455,8 @@ export function REPL({
   const responseLengthRef = useRef(0);
   const inputTokensRef = useRef(0);
   const outputTokensRef = useRef(0);
+  const goalContinuationDepthRef = useRef(0);
+  const goalBudgetNoticeSentRef = useRef(false);
   // API performance metrics ref for ant-only spinner display (TTFT/OTPS).
   // Accumulates metrics from all API requests in a turn for P50 aggregation.
   const apiMetricsRef = useRef<Array<{
@@ -2829,6 +2843,38 @@ export function REPL({
       }));
     }
     queryCheckpoint('query_end');
+
+    const currentGoal = await getGoal();
+    if (newMessages.some(m => m.type === 'user' && !m.isMeta)) {
+      goalContinuationDepthRef.current = 0;
+      goalBudgetNoticeSentRef.current = false;
+    }
+    if (isGoalActive(currentGoal) && !abortController.signal.aborted) {
+      const updatedGoal = await addGoalUsage(Math.round(responseLengthRef.current / 4), Math.round((Date.now() - loadingStartTimeRef.current) / 1000));
+      const latestAssistantText = getLatestAssistantText(messagesRef.current);
+      const goalWithProgress = latestAssistantText ? await recordGoalProgress(latestAssistantText) : updatedGoal;
+      const goalForContinuation = goalWithProgress ?? updatedGoal ?? currentGoal;
+      if (updatedGoal?.status === 'budget_limited') {
+        if (!goalBudgetNoticeSentRef.current && getCommandQueueLength() === 0) {
+          goalBudgetNoticeSentRef.current = true;
+          enqueue({
+            mode: 'prompt',
+            value: buildGoalBudgetLimitPrompt(updatedGoal),
+            isMeta: true
+          });
+        }
+      } else if (isGoalActive(goalForContinuation) && getCommandQueueLength() === 0 && goalContinuationDepthRef.current < 25) {
+        goalContinuationDepthRef.current += 1;
+        enqueue({
+          mode: 'prompt',
+          value: buildGoalContinuationPrompt(goalForContinuation),
+          isMeta: true
+        });
+      }
+    } else if (currentGoal?.status === 'complete' || currentGoal === null) {
+      goalContinuationDepthRef.current = 0;
+      goalBudgetNoticeSentRef.current = false;
+    }
 
     // Capture ant-only API metrics before resetLoadingState clears the ref.
     // For multi-request turns (tool use loops), compute P50 across all requests.

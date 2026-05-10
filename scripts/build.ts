@@ -197,7 +197,21 @@ const proc = await Bun.build({
   plugins,
 })
 
-if (!proc.success) {
+const sdkProc = await Bun.build({
+  entrypoints: ['./src/entrypoints/sdk/index.ts'],
+  target: 'bun',
+  format: 'esm',
+  outdir: './dist',
+  naming: 'sdk.mjs',
+  minify: true,
+  packages: 'bundle',
+  conditions: ['bun'],
+  external: externals,
+  define: defines,
+  plugins,
+})
+
+if (!proc.success || !sdkProc.success) {
   process.exit(1)
 }
 
@@ -206,3 +220,4 @@ if (existsSync(outfile)) {
 }
 
 console.log(`Built ${outfile}`)
+console.log('Built ./dist/sdk.mjs')

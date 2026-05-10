@@ -2,17 +2,23 @@ import memoize from 'lodash-es/memoize.js'
 import { homedir } from 'os'
 import { join } from 'path'
 
-// Memoized: 150+ callers, many on hot paths. Keyed off CLAUDE_CONFIG_DIR so
-// tests that change the env var get a fresh value without explicit cache.clear.
+// Memoized: 150+ callers, many on hot paths. Keyed off Free-Code config env
+// first, with legacy CLAUDE_* env as compatibility fallback.
 export const getClaudeConfigHomeDir = memoize(
   (): string => {
     return (
+      process.env.FREE_CODE_CONFIG_DIR ??
+      process.env.FREE_CODE_CONFIG_HOME ??
       process.env.CLAUDE_CONFIG_DIR ??
       process.env.CLAUDE_CONFIG_HOME ??
-      join(homedir(), '.claude')
+      join(homedir(), '.free-code')
     ).normalize('NFC')
   },
-  () => process.env.CLAUDE_CONFIG_DIR ?? process.env.CLAUDE_CONFIG_HOME,
+  () =>
+    process.env.FREE_CODE_CONFIG_DIR ??
+    process.env.FREE_CODE_CONFIG_HOME ??
+    process.env.CLAUDE_CONFIG_DIR ??
+    process.env.CLAUDE_CONFIG_HOME,
 )
 
 export function getTeamsDir(): string {

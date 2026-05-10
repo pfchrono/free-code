@@ -219,6 +219,8 @@ link_binary() {
 
   ln -sf "$BUILT_BINARY" "$link_dir/free-code"
   ok "Symlinked: $link_dir/free-code"
+  "$link_dir/free-code" --version >/dev/null
+  ok "Smoke test passed: free-code --version"
 
   if ! echo "$PATH" | tr ':' '\n' | grep -qx "$link_dir"; then
     warn "$link_dir is not on your PATH"

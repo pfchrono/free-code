@@ -13,6 +13,7 @@ import {
   getCommandName,
   isBridgeSafeCommand,
   type LocalJSXCommandContext,
+  type Command,
 } from '../../commands.js'
 import type { CanUseToolFn } from '../../hooks/useCanUseTool.js'
 import type { IDESelection } from '../../hooks/useIdeSelection.js'
@@ -307,6 +308,58 @@ function rewriteSkillShortcut(
   return `/${input.slice(1)}`
 }
 
+type InlineSkillMention = {
+  name: string
+  command: Command & { type: 'prompt' }
+  isFinalizer: boolean
+  finalizerCommand?: string
+}
+
+function findCommandWithInlineAliases(
+  name: string,
+  commands: Command[],
+): Command | undefined {
+  const command = findCommand(name, commands)
+  if (command) return command
+  if (name === 'handover') return findCommand('handoff', commands)
+  return undefined
+}
+
+function extractFinalizerCommand(rest: string): string | undefined {
+  const match = rest.match(/^\s+(\/[A-Za-z0-9:_-]+(?:\s+[^$]+?)?)(?=\s+\$|$)/)
+  return match?.[1]?.trim()
+}
+
+function findInlineSkillMentions(
+  input: string,
+  commands: Command[],
+): InlineSkillMention[] {
+  const mentions: InlineSkillMention[] = []
+  const seen = new Set<string>()
+  const mentionPattern = /\$([A-Za-z0-9][A-Za-z0-9:_/-]*)/g
+  for (const match of input.matchAll(mentionPattern)) {
+    const name = match[1]
+    if (!name || seen.has(name)) continue
+    const command = findCommandWithInlineAliases(name, commands)
+    if (command?.type !== 'prompt' || command.userInvocable === false) {
+      continue
+    }
+    const rest = input.slice((match.index ?? 0) + match[0].length)
+    const finalizerCommand = extractFinalizerCommand(rest)
+    seen.add(name)
+    mentions.push({
+      name: command.name,
+      command,
+      isFinalizer:
+        command.name === 'handoff' &&
+        (/\b(after|afterwards|last|finally)\b/i.test(rest) ||
+          finalizerCommand !== undefined),
+      finalizerCommand,
+    })
+  }
+  return mentions
+}
+
 function applyTruncation(content: string): string {
   if (content.length > MAX_HOOK_OUTPUT_LENGTH) {
     return `${content.substring(0, MAX_HOOK_OUTPUT_LENGTH)}… [output truncated - exceeded ${MAX_HOOK_OUTPUT_LENGTH} characters]`
@@ -491,8 +544,10 @@ async function processUserInputBase(
   if (
     mode === 'prompt' &&
     inputString !== null &&
+    !isMeta &&
     !effectiveSkipSlash &&
-    inputString.startsWith('$')
+    inputString.startsWith('$') &&
+    findInlineSkillMentions(inputString, context.options.commands).length <= 1
   ) {
     const rewrittenSkillShortcut = rewriteSkillShortcut(inputString, context)
     if (rewrittenSkillShortcut) {
@@ -619,6 +674,81 @@ async function processUserInputBase(
         is_subagent_only: isSubagentOnly,
         is_prefix: isPrefix,
       })
+    }
+  }
+
+  if (
+    inputString !== null &&
+    mode === 'prompt' &&
+    !isMeta &&
+    !effectiveSkipSlash
+  ) {
+    const inlineSkillMentions = findInlineSkillMentions(
+      inputString,
+      context.options.commands,
+    )
+    if (inlineSkillMentions.length > 0) {
+      const { processPromptSlashCommand } = await import(
+        './processSlashCommand.js'
+      )
+      const skillResults = await Promise.all(
+        inlineSkillMentions.map(({ name }) =>
+          processPromptSlashCommand(
+            name,
+            inputString,
+            context.options.commands,
+            context,
+          ),
+        ),
+      )
+      const normalSkillMessages = skillResults.flatMap((result, index) =>
+        inlineSkillMentions[index]?.isFinalizer ? [] : result.messages,
+      )
+      const finalizerSkillMessages = skillResults.flatMap((result, index) =>
+        inlineSkillMentions[index]?.isFinalizer ? result.messages : [],
+      )
+      const finalizerCommands = inlineSkillMentions
+        .map(mention => mention.finalizerCommand)
+        .filter((command): command is string => command !== undefined)
+      const allowedTools = Array.from(
+        new Set(skillResults.flatMap(result => result.allowedTools ?? [])),
+      )
+      const promptResult = processTextPrompt(
+        normalizedInput,
+        imageContentBlocks,
+        imagePasteIds,
+        attachmentMessages,
+        uuid,
+        permissionMode,
+        isMeta,
+      )
+      return addImageMetadataMessage(
+        {
+          messages: [
+            ...normalSkillMessages,
+            ...promptResult.messages,
+            ...finalizerSkillMessages,
+            ...(finalizerSkillMessages.length > 0
+              ? [
+                  createUserMessage({
+                    content:
+                      [
+                        'Finalizer skill requested: after completing the user task, follow the finalizer skill instructions before ending the turn.',
+                        ...finalizerCommands.map(
+                          command =>
+                            `After the finalizer creates its handoff file, apply this follow-up command intent using that handoff path/content as context: ${command}`,
+                        ),
+                      ].join('\n'),
+                    isMeta: true,
+                  }),
+                ]
+              : []),
+          ],
+          shouldQuery: true,
+          allowedTools,
+        },
+        imageMetadataTexts,
+      )
     }
   }
 

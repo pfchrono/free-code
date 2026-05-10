@@ -54,14 +54,14 @@
 ```
 PersistentMemorySystem
 ├── Entry Types: conversation | task | session | context | insight
-├── Storage: JSON files in ~/.claude/memory/
+├── Storage: JSON files in ~/.free-code/memory/
 ├── Search: Content + tag-based with relevance scoring
 ├── Cleanup: TTL + importance-based retention
 └── API: Global getMemorySystem() instance
 
 SessionContinuityManager  
 ├── State: boulder.json-style session tracking
-├── Storage: JSON files in ~/.claude/sessions/
+├── Storage: JSON files in ~/.free-code/sessions/
 ├── Tasks: completed[] + remaining[] arrays
 ├── Context: workingFiles[], keyInsights[], summary
 └── API: Global getSessionManager() instance

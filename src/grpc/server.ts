@@ -8,7 +8,7 @@ import {
   type HeadlessSessionHarness,
 } from '../headless/sessionHarness.js'
 
-const PROTO_PATH = path.resolve(import.meta.dirname, '../proto/openclaude.proto')
+const PROTO_PATH = path.resolve(import.meta.dirname, '../proto/free-code.proto')
 
 const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
   keepCase: true,
@@ -19,7 +19,7 @@ const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
 })
 
 const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any
-const openclaudeProto = protoDescriptor.openclaude.v1
+const freeCodeProto = protoDescriptor.freecode.v1
 
 const MAX_SESSIONS = 1000
 
@@ -37,7 +37,7 @@ export class GrpcServer {
 
   constructor() {
     this.server = new grpc.Server()
-    this.server.addService(openclaudeProto.AgentService.service, {
+    this.server.addService(freeCodeProto.AgentService.service, {
       Chat: this.handleChat.bind(this),
     })
   }

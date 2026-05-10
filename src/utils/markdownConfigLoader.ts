@@ -250,7 +250,8 @@ export function getProjectDirsUpToHome(
       break
     }
 
-    const claudeSubdir = join(current, '.claude', subdir)
+    const legacyClaudeSubdir = join(current, '.claude', subdir)
+    const freeCodeSubdir = join(current, '.free-code', subdir)
     // Filter to existing dirs. This is a perf filter (avoids spawning
     // ripgrep on non-existent dirs downstream) and the worktree fallback
     // in loadMarkdownFilesForSubdir relies on it. statSync + explicit error
@@ -258,8 +259,14 @@ export function getProjectDirsUpToHome(
     // than silently swallowing them. Downstream loadMarkdownFiles handles
     // the TOCTOU window (dir disappearing before read) gracefully.
     try {
-      statSync(claudeSubdir)
-      dirs.push(claudeSubdir)
+      statSync(legacyClaudeSubdir)
+      dirs.push(legacyClaudeSubdir)
+    } catch (e: unknown) {
+      if (!isFsInaccessible(e)) throw e
+    }
+    try {
+      statSync(freeCodeSubdir)
+      dirs.push(freeCodeSubdir)
     } catch (e: unknown) {
       if (!isFsInaccessible(e)) throw e
     }
@@ -301,7 +308,7 @@ export const loadMarkdownFilesForSubdir = memoize(
   ): Promise<MarkdownFile[]> {
     const searchStartTime = Date.now()
     const userDir = join(getClaudeConfigHomeDir(), subdir)
-    const managedDir = join(getManagedFilePath(), '.claude', subdir)
+    const managedDir = join(getManagedFilePath(), '.free-code', subdir)
     const projectDirs = getProjectDirsUpToHome(subdir, cwd)
 
     // For git worktrees where the worktree does NOT have .claude/<subdir> checked
@@ -320,14 +327,12 @@ export const loadMarkdownFilesForSubdir = memoize(
     const gitRoot = findGitRoot(cwd)
     const canonicalRoot = findCanonicalGitRoot(cwd)
     if (gitRoot && canonicalRoot && canonicalRoot !== gitRoot) {
-      const worktreeSubdir = normalizePathForComparison(
-        join(gitRoot, '.claude', subdir),
-      )
+      const worktreeSubdir = normalizePathForComparison(join(gitRoot, '.free-code', subdir))
       const worktreeHasSubdir = projectDirs.some(
         dir => normalizePathForComparison(dir) === worktreeSubdir,
       )
       if (!worktreeHasSubdir) {
-        const mainClaudeSubdir = join(canonicalRoot, '.claude', subdir)
+        const mainClaudeSubdir = join(canonicalRoot, '.free-code', subdir)
         if (!projectDirs.includes(mainClaudeSubdir)) {
           projectDirs.push(mainClaudeSubdir)
         }

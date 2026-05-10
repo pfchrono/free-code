@@ -353,6 +353,15 @@ export const SkillTool: Tool<InputSchema, Output, Progress> = buildTool({
 
   async validateInput({ skill }, context): Promise<ValidationResult> {
     // Skills are just skill names, no arguments
+    if (!skill || typeof skill !== 'string') {
+      return {
+        result: false,
+        message:
+          'Missing skill name. Pass the slash command name as the skill parameter ' +
+          '(e.g., skill: "commit" for /commit, skill: "review-pr" for /review-pr).',
+        errorCode: 1,
+      }
+    }
     const trimmed = skill.trim()
     if (!trimmed) {
       return {

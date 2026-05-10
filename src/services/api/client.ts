@@ -35,10 +35,18 @@ import {
   getVertexRegionForModel,
   isEnvTruthy,
 } from '../../utils/envUtils.js'
+import {
+  getMiniMaxBaseUrlOverride,
+  getRouteDefaultBaseUrl,
+  getRouteDefaultModel,
+  getXaiBaseUrlOverride,
+  resolveEnvOnlyProviderRouteId,
+} from '../../integrations/routeMetadata.js'
 import { createCodexFetch } from './codex-fetch-adapter.js'
 import { createCopilotAnthropicClient } from './copilot-client.js'
 import { createOpenAIFetch } from './openai-fetch-adapter.js'
 import { getMinimaxBaseUrl, getZenBaseUrl } from './providerConfig.js'
+import type { ProviderOverride } from './agentRouting.js'
 import { getOpenAIModelCapability } from '../../utils/model/openaiCapabilities.js'
 import { getLMStudioModelCapability } from '../../utils/model/lmstudioCapabilities.js'
 
@@ -98,18 +106,73 @@ function createStderrLogger(): ClientOptions['logger'] {
   }
 }
 
+function isMiniMaxModelName(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase()
+  return Boolean(
+    normalized &&
+      (normalized.startsWith('minimax-') || normalized.startsWith('minimax/')),
+  )
+}
+
+function isXaiModelName(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase()
+  return Boolean(
+    normalized &&
+      (normalized.startsWith('grok-') || normalized.startsWith('xai/')),
+  )
+}
+
+function applyMiniMaxEnvOnlyDefaults(): void {
+  const baseUrlOverride = getMiniMaxBaseUrlOverride()
+  const hasMiniMaxBaseOverride = baseUrlOverride !== undefined
+  const modelOverride = process.env.OPENAI_MODEL?.trim() || undefined
+
+  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  process.env.OPENAI_BASE_URL =
+    baseUrlOverride ?? getRouteDefaultBaseUrl('minimax')
+  process.env.OPENAI_MODEL =
+    (hasMiniMaxBaseOverride || isMiniMaxModelName(modelOverride)
+      ? modelOverride
+      : undefined) ?? getRouteDefaultModel('minimax')
+  process.env.OPENAI_API_KEY = process.env.MINIMAX_API_KEY
+  delete process.env.OPENAI_API_FORMAT
+  delete process.env.OPENAI_AUTH_HEADER
+  delete process.env.OPENAI_AUTH_SCHEME
+  delete process.env.OPENAI_AUTH_HEADER_VALUE
+}
+
+function applyXaiEnvOnlyDefaults(): void {
+  const baseUrlOverride = getXaiBaseUrlOverride()
+  const hasXaiBaseOverride = baseUrlOverride !== undefined
+  const modelOverride = process.env.OPENAI_MODEL?.trim() || undefined
+
+  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  process.env.OPENAI_BASE_URL = baseUrlOverride ?? getRouteDefaultBaseUrl('xai')
+  process.env.OPENAI_MODEL =
+    (hasXaiBaseOverride || isXaiModelName(modelOverride)
+      ? modelOverride
+      : undefined) ?? getRouteDefaultModel('xai')
+  process.env.OPENAI_API_KEY = process.env.XAI_API_KEY
+  delete process.env.OPENAI_API_FORMAT
+  delete process.env.OPENAI_AUTH_HEADER
+  delete process.env.OPENAI_AUTH_SCHEME
+  delete process.env.OPENAI_AUTH_HEADER_VALUE
+}
+
 export async function getAnthropicClient({
   apiKey,
   maxRetries,
   model,
   fetchOverride,
   source,
+  providerOverride,
 }: {
   apiKey?: string
   maxRetries: number
   model?: string
   fetchOverride?: ClientOptions['fetch']
   source?: string
+  providerOverride?: ProviderOverride
 }): Promise<Anthropic> {
   const containerId = process.env.CLAUDE_CODE_CONTAINER_ID
   const remoteSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID
@@ -141,7 +204,14 @@ export async function getAnthropicClient({
     defaultHeaders['x-anthropic-additional-protection'] = 'true'
   }
 
-  const apiProvider = getAPIProvider()
+  let apiProvider = getAPIProvider()
+  if (
+    apiProvider === 'codex' &&
+    apiKey &&
+    !isEnvTruthy(process.env.CLAUDE_CODE_USE_CODEX)
+  ) {
+    apiProvider = 'firstParty'
+  }
   const resolvedFetch = buildFetch(fetchOverride, source)
 
   logForDebugging(
@@ -163,6 +233,54 @@ export async function getAnthropicClient({
     fetchOptions: getProxyFetchOptions({
       forAnthropicAPI: true,
     }) as ClientOptions['fetchOptions'],
+  }
+
+  const envOnlyProviderRouteId = resolveEnvOnlyProviderRouteId(process.env)
+  const useXaiEnvOnlyProvider = envOnlyProviderRouteId === 'xai'
+  const useMiniMaxEnvOnlyProvider = envOnlyProviderRouteId === 'minimax'
+  if (useMiniMaxEnvOnlyProvider) {
+    applyMiniMaxEnvOnlyDefaults()
+  }
+  if (useXaiEnvOnlyProvider) {
+    applyXaiEnvOnlyDefaults()
+  }
+
+  if (providerOverride) {
+    const { createOpenAIShimClient } = await import('./openaiShim.js')
+    const safeHeaders: Record<string, string> = {}
+    for (const [key, value] of Object.entries(defaultHeaders)) {
+      const lower = key.toLowerCase()
+      if (
+        lower === 'authorization' ||
+        lower === 'x-api-key' ||
+        lower === 'api-key'
+      ) {
+        continue
+      }
+      safeHeaders[key] = value
+    }
+    return createOpenAIShimClient({
+      defaultHeaders: safeHeaders,
+      maxRetries,
+      timeout,
+      providerOverride,
+    }) as unknown as Anthropic
+  }
+
+  if (
+    useMiniMaxEnvOnlyProvider ||
+    useXaiEnvOnlyProvider ||
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_OPENAI) ||
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_GITHUB) ||
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_GEMINI) ||
+    isEnvTruthy(process.env.CLAUDE_CODE_USE_MISTRAL)
+  ) {
+    const { createOpenAIShimClient } = await import('./openaiShim.js')
+    return createOpenAIShimClient({
+      defaultHeaders,
+      maxRetries,
+      timeout,
+    }) as unknown as Anthropic
   }
 
   // ── Codex provider via fetch adapter ───────────────────────────────
@@ -330,11 +448,13 @@ export async function getAnthropicClient({
     })
   }
 
-  logForDebugging('[API:auth] OAuth token check starting')
-  await checkAndRefreshOAuthTokenIfNeeded()
-  logForDebugging('[API:auth] OAuth token check complete')
+  if (!apiKey && apiProvider === 'firstParty') {
+    logForDebugging('[API:auth] OAuth token check starting')
+    await checkAndRefreshOAuthTokenIfNeeded()
+    logForDebugging('[API:auth] OAuth token check complete')
+  }
 
-  if (!isClaudeAISubscriber()) {
+  if (!apiKey && apiProvider === 'firstParty' && !isClaudeAISubscriber()) {
     await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
   }
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)) {
@@ -492,8 +612,12 @@ export async function getAnthropicClient({
 
   // Determine authentication method based on available tokens
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-    apiKey: isClaudeAISubscriber() ? null : apiKey || getAnthropicApiKey(),
-    authToken: isClaudeAISubscriber()
+    apiKey: apiKey
+      ? apiKey
+      : isClaudeAISubscriber()
+        ? null
+        : getAnthropicApiKey(),
+    authToken: !apiKey && isClaudeAISubscriber()
       ? getClaudeAIOAuthTokens()?.accessToken
       : undefined,
     // Set baseURL from OAuth config when using staging OAuth

@@ -505,7 +505,7 @@ export const SDKControlGetSettingsResponseSchema = lazySchema(() =>
       applied: z
         .object({
           model: z.string(),
-          // String levels only — numeric effort is ant-only and the
+          // String levels only — numeric effort is internal-only and the
           // Zod→proto generator can't emit enum∪number unions.
           effort: z.enum(['low', 'medium', 'high', 'max']).nullable(),
         })
@@ -661,22 +661,3 @@ export const StdinMessageSchema = lazySchema(() =>
     SDKUpdateEnvironmentVariablesMessageSchema(),
   ]),
 )
-
-// ============================================================================
-// Type Exports
-// ============================================================================
-
-export type SDKControlRequestInner = z.infer<
-  ReturnType<typeof SDKControlRequestInnerSchema>
->
-export type SDKControlRequest = z.infer<
-  ReturnType<typeof SDKControlRequestSchema>
->
-export type SDKControlResponse = z.infer<
-  ReturnType<typeof SDKControlResponseSchema>
->
-export type SDKControlCancelRequest = z.infer<
-  ReturnType<typeof SDKControlCancelRequestSchema>
->
-export type StdoutMessage = z.infer<ReturnType<typeof StdoutMessageSchema>>
-export type StdinMessage = z.infer<ReturnType<typeof StdinMessageSchema>>

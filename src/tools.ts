@@ -84,6 +84,9 @@ import { TaskCreateTool } from './tools/TaskCreateTool/TaskCreateTool.js'
 import { TaskGetTool } from './tools/TaskGetTool/TaskGetTool.js'
 import { TaskUpdateTool } from './tools/TaskUpdateTool/TaskUpdateTool.js'
 import { TaskListTool } from './tools/TaskListTool/TaskListTool.js'
+import { CreateGoalTool } from './tools/GoalTool/CreateGoalTool.js'
+import { GetGoalTool } from './tools/GoalTool/GetGoalTool.js'
+import { UpdateGoalTool } from './tools/GoalTool/UpdateGoalTool.js'
 import uniqBy from 'lodash-es/uniqBy.js'
 import { isToolSearchEnabledOptimistic } from './utils/toolSearch.js'
 import { isTodoV2Enabled } from './utils/tasks.js'
@@ -220,6 +223,9 @@ export function getAllBaseTools(): Tools {
     TaskGetTool,
     TaskUpdateTool,
     TaskListTool,
+    CreateGoalTool,
+    GetGoalTool,
+    UpdateGoalTool,
     ...(OverflowTestTool ? [OverflowTestTool] : []),
     ...(CtxInspectTool ? [CtxInspectTool] : []),
     ...(TerminalCaptureTool ? [TerminalCaptureTool] : []),

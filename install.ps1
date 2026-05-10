@@ -371,6 +371,9 @@ function Link-Binary([string]$BinaryPath) {
 
   Set-Content -Path $launcherPath -Value $launcher -Encoding ASCII
   Ok "Launcher created: $launcherPath"
+  & $launcherPath --version | Out-Null
+  Assert-LastExitCode 'free-code --version smoke test failed.'
+  Ok 'Smoke test passed: free-code --version'
 
   Ensure-UserPath $LinkDir
 }

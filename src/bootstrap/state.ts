@@ -4,6 +4,7 @@ import type { logs } from '@opentelemetry/api-logs'
 import type { LoggerProvider } from '@opentelemetry/sdk-logs'
 import type { MeterProvider } from '@opentelemetry/sdk-metrics'
 import type { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { realpathSync } from 'fs'
 import sumBy from 'lodash-es/sumBy.js'
 import { cwd } from 'process'
@@ -436,29 +437,65 @@ function getInitialState(): State {
 // AND ESPECIALLY HERE
 const STATE: State = getInitialState()
 
+/**
+ * Per-query SDK context for AsyncLocalStorage-based isolation.
+ * SDK sessions can run concurrently without mutating global session identity.
+ */
+type SdkContext = {
+  sessionId: SessionId
+  sessionProjectDir: string | null
+  cwd: string
+  originalCwd: string
+  parentSessionId?: SessionId
+}
+
+const sdkContextStorage = new AsyncLocalStorage<SdkContext>()
+
+export function runWithSdkContext<T>(context: SdkContext, fn: () => T): T {
+  return sdkContextStorage.run(context, fn)
+}
+
+function getSdkContext(): SdkContext | undefined {
+  return sdkContextStorage.getStore()
+}
+
 export function getSessionId(): SessionId {
-  return STATE.sessionId
+  const ctx = getSdkContext()
+  return ctx?.sessionId ?? STATE.sessionId
 }
 
 export function regenerateSessionId(
   options: { setCurrentAsParent?: boolean } = {},
 ): SessionId {
+  const ctx = getSdkContext()
+  const currentSessionId = ctx?.sessionId ?? STATE.sessionId
   if (options.setCurrentAsParent) {
-    STATE.parentSessionId = STATE.sessionId
+    if (ctx) {
+      ctx.parentSessionId = currentSessionId
+    } else {
+      STATE.parentSessionId = currentSessionId
+    }
   }
   // Drop the outgoing session's plan-slug entry so the Map doesn't
   // accumulate stale keys. Callers that need to carry the slug across
   // (REPL.tsx clearContext) read it before calling clearConversation.
-  STATE.planSlugCache.delete(STATE.sessionId)
+  STATE.planSlugCache.delete(currentSessionId)
   // Regenerated sessions live in the current project: reset projectDir to
   // null so getTranscriptPath() derives from originalCwd.
-  STATE.sessionId = randomUUID() as SessionId
-  STATE.sessionProjectDir = null
-  return STATE.sessionId
+  const newId = randomUUID() as SessionId
+  if (ctx) {
+    ctx.sessionId = newId
+    ctx.sessionProjectDir = null
+  } else {
+    STATE.sessionId = newId
+    STATE.sessionProjectDir = null
+  }
+  return newId
 }
 
 export function getParentSessionId(): SessionId | undefined {
-  return STATE.parentSessionId
+  const ctx = getSdkContext()
+  return ctx?.parentSessionId ?? STATE.parentSessionId
 }
 
 /**
@@ -477,12 +514,19 @@ export function switchSession(
   sessionId: SessionId,
   projectDir: string | null = null,
 ): void {
+  const ctx = getSdkContext()
+  const currentSessionId = ctx?.sessionId ?? STATE.sessionId
   // Drop the outgoing session's plan-slug entry so the Map stays bounded
   // across repeated /resume. Only the current session's slug is ever read
   // (plans.ts getPlanSlug defaults to getSessionId()).
-  STATE.planSlugCache.delete(STATE.sessionId)
-  STATE.sessionId = sessionId
-  STATE.sessionProjectDir = projectDir
+  STATE.planSlugCache.delete(currentSessionId)
+  if (ctx) {
+    ctx.sessionId = sessionId
+    ctx.sessionProjectDir = projectDir
+  } else {
+    STATE.sessionId = sessionId
+    STATE.sessionProjectDir = projectDir
+  }
   sessionSwitched.emit(sessionId)
 }
 
@@ -502,11 +546,13 @@ export const onSessionSwitch = sessionSwitched.subscribe
  * originalCwd). See `switchSession()`.
  */
 export function getSessionProjectDir(): string | null {
-  return STATE.sessionProjectDir
+  const ctx = getSdkContext()
+  return ctx?.sessionProjectDir ?? STATE.sessionProjectDir
 }
 
 export function getOriginalCwd(): string {
-  return STATE.originalCwd
+  const ctx = getSdkContext()
+  return ctx?.originalCwd ?? STATE.originalCwd
 }
 
 /**
@@ -521,6 +567,11 @@ export function getProjectRoot(): string {
 }
 
 export function setOriginalCwd(cwd: string): void {
+  const ctx = getSdkContext()
+  if (ctx) {
+    ctx.originalCwd = cwd.normalize('NFC')
+    return
+  }
   STATE.originalCwd = cwd.normalize('NFC')
 }
 
@@ -533,10 +584,16 @@ export function setProjectRoot(cwd: string): void {
 }
 
 export function getCwdState(): string {
-  return STATE.cwd
+  const ctx = getSdkContext()
+  return ctx?.cwd ?? STATE.cwd
 }
 
 export function setCwdState(cwd: string): void {
+  const ctx = getSdkContext()
+  if (ctx) {
+    ctx.cwd = cwd.normalize('NFC')
+    return
+  }
   STATE.cwd = cwd.normalize('NFC')
 }
 

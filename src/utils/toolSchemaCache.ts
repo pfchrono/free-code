@@ -24,3 +24,15 @@ export function getToolSchemaCache(): Map<string, CachedSchema> {
 export function clearToolSchemaCache(): void {
   TOOL_SCHEMA_CACHE.clear()
 }
+
+/**
+ * Remove schema cache entries for tools no longer present in an SDK engine.
+ */
+export function invalidateRemovedToolSchemas(retainedToolNames: Set<string>): void {
+  for (const key of TOOL_SCHEMA_CACHE.keys()) {
+    const toolName = key.includes(':') ? key.split(':')[0] : key
+    if (!retainedToolNames.has(toolName)) {
+      TOOL_SCHEMA_CACHE.delete(key)
+    }
+  }
+}

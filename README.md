@@ -125,15 +125,15 @@ Recent updates expanded provider bootstrap, local launch workflow, provider heal
 - Added `gpt-5.3-codex-spark` support, including `chatgpt-5.3-codex-spark` alias normalization
 - Standardized Haiku/Sonnet/Opus routing to provider-equivalent models on third-party backends
 - Improved provider-aware status and settings displays so active model/provider state resolves more consistently across the UI
-- Added startup provider override handling from `.claude/settings.json`
+- Added startup provider override handling from `.free-code/settings.json` with legacy `.claude` import compatibility
 - Improved Windows and filesystem path validation/permission handling for file access and PowerShell workflows
 - Restored `--dangerously-bypass-permissions` for normal tool/edit flows while keeping hard denies for critical Windows/system paths
 - Added local free-code skill bundles for `domore`, `domore-caveman`, and `domore-distillate`
-- Added ignore coverage for `.claude/settings.local.json`, `.claude/worktrees/`, and OpenSpec temp artifacts
+- Added ignore coverage for `.free-code/settings.local.json`, `.free-code/worktrees/`, legacy `.claude/`, and OpenSpec temp artifacts
 - Added OpenSpec change set for status snapshots, session memory persistence, and compaction inspectability
 - Commit trailers now use active adapter names instead of `unknown-adapter`
 - Updated config path resolution so `CLAUDE_CONFIG_HOME` works consistently for:
-  - global `.claude*.json` config lookup
+  - global `.free-code*.json` config lookup with legacy `.claude*.json` fallback
   - macOS keychain service naming for custom config locations
   - persistent memory and session continuity storage directories
 
@@ -183,7 +183,7 @@ If PATH was updated, open a new terminal session before first use.
 
 ## Model Providers
 
-free-code supports **eleven API providers** out of the box. You can switch with environment flags or, for several third-party providers, repo-local slash commands persisted in `.claude/settings.json`.
+free-code supports **eleven API providers** out of the box. You can switch with environment flags or, for several third-party providers, repo-local slash commands persisted in `.free-code/settings.json`.
 
 ### First-Party Hosted Provider -- Default
 
@@ -358,7 +358,7 @@ Supports custom deployment IDs as model names.
 | Google Vertex AI | `CLAUDE_CODE_USE_VERTEX=1` | -- | `gcloud` ADC |
 | Anthropic Foundry | `CLAUDE_CODE_USE_FOUNDRY=1` | -- | `ANTHROPIC_FOUNDRY_API_KEY` |
 
-Repo-local commands exist for `codex`, `openai`, `copilot`, `openrouter`, `lmstudio`, `zen`, and `minimax`. All persist in `.claude/settings.json`; `/lmstudio` requires restart, others switch immediately.
+Repo-local commands exist for `codex`, `openai`, `copilot`, `openrouter`, `lmstudio`, `zen`, and `minimax`. All persist in `.free-code/settings.json`; `/lmstudio` requires restart, others switch immediately.
 
 ---
 

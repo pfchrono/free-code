@@ -13,6 +13,7 @@ import {
 type SandboxInput = {
   command?: string
   dangerouslyDisableSandbox?: boolean
+  _dangerouslyDisableSandboxApproved?: boolean
 }
 
 // NOTE: excludedCommands is a user-facing convenience feature, not a security boundary.
@@ -135,6 +136,7 @@ export function shouldUseSandbox(input: Partial<SandboxInput>): boolean {
   // Don't sandbox if explicitly overridden AND unsandboxed commands are allowed by policy
   if (
     input.dangerouslyDisableSandbox &&
+    input._dangerouslyDisableSandboxApproved &&
     SandboxManager.areUnsandboxedCommandsAllowed()
   ) {
     return false

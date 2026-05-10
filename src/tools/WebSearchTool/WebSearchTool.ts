@@ -21,6 +21,12 @@ import {
   renderToolUseMessage,
   renderToolUseProgressMessage,
 } from './UI.js'
+import {
+  getAvailableProviders,
+  getProviderMode,
+  runSearch,
+  type ProviderOutput,
+} from './providers/index.js'
 
 const inputSchema = lazySchema(() =>
   z.strictObject({
@@ -72,6 +78,183 @@ export type Output = z.infer<OutputSchema>
 export type { WebSearchProgress } from '../../types/tools.js'
 
 import type { WebSearchProgress } from '../../types/tools.js'
+
+function formatProviderOutput(providerOutput: ProviderOutput, query: string): Output {
+  const results: (SearchResult | string)[] = []
+  const snippets = providerOutput.hits
+    .filter(hit => hit.description)
+    .map(hit => `**${hit.title}** - ${hit.description} (${hit.url})`)
+    .join('\n')
+
+  if (snippets) {
+    results.push(snippets)
+  }
+
+  if (providerOutput.hits.length > 0) {
+    results.push({
+      tool_use_id: `${providerOutput.providerName}-search`,
+      content: providerOutput.hits.map(hit => ({
+        title: hit.title,
+        url: hit.url,
+      })),
+    })
+  }
+
+  if (results.length === 0) {
+    results.push(
+      `No results from "${providerOutput.providerName}" search backend. Configure FIRECRAWL_API_KEY, TAVILY_API_KEY, EXA_API_KEY, JINA_API_KEY, BING_API_KEY, MOJEEK_API_KEY, LINKUP_API_KEY, YOU_API_KEY, or BRAVE_API_KEY for stronger search reliability.`,
+    )
+  }
+
+  return {
+    query,
+    results,
+    durationSeconds: providerOutput.durationSeconds,
+  }
+}
+
+function pushCodexTextResult(
+  results: (SearchResult | string)[],
+  value: unknown,
+): void {
+  if (typeof value !== 'string') return
+  const trimmed = value.trim()
+  if (trimmed) {
+    results.push(trimmed)
+  }
+}
+
+function addCodexSource(
+  sourceMap: Map<string, { title: string; url: string }>,
+  source: unknown,
+): void {
+  if (!source || typeof source !== 'object') return
+  const record = source as Record<string, unknown>
+  if (typeof record.url !== 'string' || !record.url) return
+  sourceMap.set(record.url, {
+    title:
+      typeof record.title === 'string' && record.title ? record.title : record.url,
+    url: record.url,
+  })
+}
+
+function getCodexSources(item: Record<string, any>): unknown[] {
+  if (Array.isArray(item.action?.sources)) return item.action.sources
+  if (Array.isArray(item.sources)) return item.sources
+  if (Array.isArray(item.result?.sources)) return item.result.sources
+  return []
+}
+
+function extractCodexWebSearchFailure(
+  item: Record<string, any>,
+): string | undefined {
+  if (item?.status !== 'failed') return undefined
+  const reason =
+    (typeof item.error?.message === 'string' && item.error.message) ||
+    (typeof item.action?.error?.message === 'string' &&
+      item.action.error.message) ||
+    (typeof item.error === 'string' && item.error) ||
+    undefined
+  return reason ? `Web search failed: ${reason}` : 'Web search failed.'
+}
+
+function makeOutputFromCodexWebSearchResponse(
+  response: Record<string, unknown>,
+  query: string,
+  durationSeconds: number,
+): Output {
+  const results: (SearchResult | string)[] = []
+  const sourceMap = new Map<string, { title: string; url: string }>()
+  const output = Array.isArray(response.output) ? response.output : []
+
+  for (const item of output) {
+    if (!item || typeof item !== 'object') continue
+    const record = item as Record<string, any>
+    if (record.type === 'web_search_call') {
+      const failure = extractCodexWebSearchFailure(record)
+      if (failure) results.push(failure)
+      for (const source of getCodexSources(record)) {
+        addCodexSource(sourceMap, source)
+      }
+      continue
+    }
+
+    if (record.type !== 'message' || !Array.isArray(record.content)) continue
+    for (const part of record.content) {
+      if (!part || typeof part !== 'object') continue
+      const partRecord = part as Record<string, any>
+      if (partRecord.type === 'output_text' || partRecord.type === 'text') {
+        pushCodexTextResult(results, partRecord.text)
+      }
+      for (const source of getCodexSources(partRecord)) {
+        addCodexSource(sourceMap, source)
+      }
+      const annotations = Array.isArray(partRecord.annotations)
+        ? partRecord.annotations
+        : []
+      for (const annotation of annotations) {
+        if (annotation?.type !== 'url_citation') continue
+        addCodexSource(sourceMap, annotation)
+      }
+    }
+  }
+
+  pushCodexTextResult(results, response.output_text)
+
+  if (sourceMap.size > 0) {
+    results.push({
+      tool_use_id: 'codex-web-search',
+      content: Array.from(sourceMap.values()),
+    })
+  }
+
+  if (results.length === 0) {
+    results.push('No results found.')
+  }
+
+  return { query, results, durationSeconds }
+}
+
+function buildEmptyAdapterResultHint(provider: string, providerName: string): string {
+  return (
+    `No results from "${providerName}" search backend for provider "${provider}". ` +
+    `The default DuckDuckGo backend is rate-limited from many networks (datacenter IPs, VPNs, repeated requests) and returns 0 results when blocked. ` +
+    `For reliable web search on this provider, set one of: ` +
+    `FIRECRAWL_API_KEY, TAVILY_API_KEY, EXA_API_KEY, JINA_API_KEY, BING_API_KEY, MOJEEK_API_KEY, LINKUP_API_KEY, YOU_API_KEY — ` +
+    `or switch to an Anthropic / Vertex / Foundry provider that supports the native web_search tool.`
+  )
+}
+
+function formatProviderOutputWithEmptyHint(
+  providerOutput: ProviderOutput,
+  query: string,
+  provider: string,
+): Output {
+  const base = formatProviderOutput(providerOutput, query)
+  if (providerOutput.hits.length > 0) return base
+  return {
+    ...base,
+    results: [buildEmptyAdapterResultHint(provider, providerOutput.providerName)],
+  }
+}
+
+export const __test = {
+  makeOutputFromCodexWebSearchResponse,
+  buildEmptyAdapterResultHint,
+  formatProviderOutputWithEmptyHint,
+}
+
+function shouldUseNativeWebSearch(provider: ReturnType<typeof getAPIProvider>): boolean {
+  if (provider === 'firstParty' || provider === 'foundry') return true
+  if (provider !== 'vertex') return false
+
+  const model = getMainLoopModel()
+  return (
+    model.includes('claude-opus-4') ||
+    model.includes('claude-sonnet-4') ||
+    model.includes('claude-haiku-4')
+  )
+}
 
 function makeToolSchema(input: Input): BetaWebSearchTool20250305 {
   return {
@@ -167,29 +350,7 @@ export const WebSearchTool = buildTool({
   },
   isEnabled() {
     const provider = getAPIProvider()
-    const model = getMainLoopModel()
-
-    // Enable for firstParty
-    if (provider === 'firstParty') {
-      return true
-    }
-
-    // Enable for Vertex AI with supported models (Claude 4.0+)
-    if (provider === 'vertex') {
-      const supportsWebSearch =
-        model.includes('claude-opus-4') ||
-        model.includes('claude-sonnet-4') ||
-        model.includes('claude-haiku-4')
-
-      return supportsWebSearch
-    }
-
-    // Foundry only ships models that already support Web Search
-    if (provider === 'foundry') {
-      return true
-    }
-
-    return false
+    return shouldUseNativeWebSearch(provider) || getAvailableProviders().length > 0
   },
   get inputSchema(): InputSchema {
     return inputSchema()
@@ -254,6 +415,18 @@ export const WebSearchTool = buildTool({
   async call(input, context, _canUseTool, _parentMessage, onProgress) {
     const startTime = performance.now()
     const { query } = input
+    const apiProvider = getAPIProvider()
+
+    if (!shouldUseNativeWebSearch(apiProvider)) {
+      void getProviderMode()
+      const providerOutput = await runSearch({
+        query,
+        allowed_domains: input.allowed_domains,
+        blocked_domains: input.blocked_domains,
+      }, context.abortController.signal)
+      return { data: formatProviderOutput(providerOutput, query) }
+    }
+
     const userMessage = createUserMessage({
       content: 'Perform a web search for the query: ' + query,
     })

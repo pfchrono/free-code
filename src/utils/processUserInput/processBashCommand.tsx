@@ -95,10 +95,15 @@ export async function processBashCommand(inputString: string, precedingInputBloc
     // and model-initiated Bash. When BashTool.call() persists large output to disk,
     // data.persistedOutputPath is set and the formatter wraps in <persisted-output>.
     // Pass stderr:'' to keep it separate for the <bash-stderr> UI tag.
-    const mapped = await processToolResultBlock(shellTool, {
-      ...data,
-      stderr: ''
-    }, randomUUID());
+    const mapped = await processToolResultBlock(
+      shellTool,
+      {
+        ...data,
+        stderr: '',
+      },
+      randomUUID(),
+      { toolInput: { command: inputString } },
+    );
     // mapped.content may contain our own <persisted-output> wrapper (trusted
     // XML from buildLargeToolResultMessage). Escaping it would turn structural
     // tags into &lt;persisted-output&gt;, breaking the model's parse and

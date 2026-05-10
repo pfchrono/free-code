@@ -1,4 +1,6 @@
 import { feature } from 'bun:bundle'
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
 import mergeWith from 'lodash-es/mergeWith.js'
 import { dirname, join, resolve } from 'path'
 import { z } from 'zod/v4'
@@ -274,6 +276,7 @@ function getUserSettingsFilePath(): string {
 export function getSettingsFilePathForSource(
   source: SettingSource,
 ): string | undefined {
+  ensureLegacySettingsImportedForSource(source)
   switch (source) {
     case 'userSettings':
       return join(
@@ -300,9 +303,69 @@ export function getRelativeSettingsFilePathForSource(
 ): string {
   switch (source) {
     case 'projectSettings':
-      return join('.claude', 'settings.json')
+      return join('.free-code', 'settings.json')
     case 'localSettings':
-      return join('.claude', 'settings.local.json')
+      return join('.free-code', 'settings.local.json')
+  }
+}
+
+function getLegacySettingsFilePathForSource(
+  source: SettingSource,
+): string | undefined {
+  switch (source) {
+    case 'userSettings':
+      if (process.env.FREE_CODE_LEGACY_CONFIG_DIR) {
+        return join(process.env.FREE_CODE_LEGACY_CONFIG_DIR, getUserSettingsFilePath())
+      }
+      if (process.env.FREE_CODE_CONFIG_DIR || process.env.FREE_CODE_CONFIG_HOME) {
+        return join(homedir(), '.claude', getUserSettingsFilePath())
+      }
+      if (process.env.CLAUDE_CONFIG_DIR || process.env.CLAUDE_CONFIG_HOME) {
+        return undefined
+      }
+      return join(homedir(), '.claude', getUserSettingsFilePath())
+    case 'projectSettings':
+      return join(getSettingsRootPathForSource(source), '.claude', 'settings.json')
+    case 'localSettings':
+      return join(
+        getSettingsRootPathForSource(source),
+        '.claude',
+        'settings.local.json',
+      )
+    default:
+      return undefined
+  }
+}
+
+function ensureLegacySettingsImportedForSource(source: SettingSource): void {
+  if (
+    source !== 'userSettings' &&
+    source !== 'projectSettings' &&
+    source !== 'localSettings'
+  ) {
+    return
+  }
+
+  const targetPath =
+    source === 'userSettings'
+      ? join(getSettingsRootPathForSource(source), getUserSettingsFilePath())
+      : join(
+          getSettingsRootPathForSource(source),
+          getRelativeSettingsFilePathForSource(source),
+        )
+  const legacyPath = getLegacySettingsFilePathForSource(source)
+  if (!legacyPath || existsSync(targetPath) || !existsSync(legacyPath)) {
+    return
+  }
+
+  try {
+    mkdirSync(dirname(targetPath), { recursive: true })
+    copyFileSync(legacyPath, targetPath)
+    logForDebugging(
+      `Imported legacy settings from ${legacyPath} to ${targetPath}`,
+    )
+  } catch (error) {
+    logError(error)
   }
 }
 
@@ -431,7 +494,7 @@ export function updateSettingsForSource(
   }
 
   try {
-    getFsImplementation().mkdirSync(dirname(filePath))
+    getFsImplementation().mkdirSync(dirname(filePath), { recursive: true })
 
     // Try to get existing settings with validation. Bypass the per-source
     // cache — mergeWith below mutates its target (including nested refs),

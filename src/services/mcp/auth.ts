@@ -59,6 +59,55 @@ import {
   isXaaEnabled,
 } from './xaaIdpLogin.js'
 
+type OAuthCallbackParamValue = string | string[] | null | undefined
+
+type OAuthCallbackValidationResult =
+  | { type: 'code'; code: string }
+  | {
+      type: 'error'
+      error: string
+      errorDescription: string
+      errorUri: string
+      message: string
+    }
+  | { type: 'missing_result' }
+  | { type: 'state_mismatch' }
+
+function getFirstOAuthCallbackParam(
+  value: OAuthCallbackParamValue,
+): string | undefined {
+  if (Array.isArray(value)) return value.find(item => item.length > 0)
+  return value && value.length > 0 ? value : undefined
+}
+
+export function validateOAuthCallbackParams(
+  params: {
+    code?: OAuthCallbackParamValue
+    state?: OAuthCallbackParamValue
+    error?: OAuthCallbackParamValue
+    error_description?: OAuthCallbackParamValue
+    error_uri?: OAuthCallbackParamValue
+  },
+  oauthState: string,
+): OAuthCallbackValidationResult {
+  const code = getFirstOAuthCallbackParam(params.code)
+  const state = getFirstOAuthCallbackParam(params.state)
+  const error = getFirstOAuthCallbackParam(params.error)
+  const errorDescription =
+    getFirstOAuthCallbackParam(params.error_description) ?? ''
+  const errorUri = getFirstOAuthCallbackParam(params.error_uri) ?? ''
+
+  if (state !== oauthState) return { type: 'state_mismatch' }
+  if (error) {
+    let message = `OAuth error: ${error}`
+    if (errorDescription) message += ` - ${errorDescription}`
+    if (errorUri) message += ` (See: ${errorUri})`
+    return { type: 'error', error, errorDescription, errorUri, message }
+  }
+  if (code) return { type: 'code', code }
+  return { type: 'missing_result' }
+}
+
 /**
  * Timeout for individual OAuth requests (metadata discovery, token refresh, etc.)
  */

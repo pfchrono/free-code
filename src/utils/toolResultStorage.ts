@@ -15,14 +15,16 @@ import {
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
 import { logEvent } from '../services/analytics/index.js'
 import { sanitizeToolNameForAnalytics } from '../services/analytics/metadata.js'
+import {
+  compactToolResultWithTokenjuice,
+  type TokenjuiceToolResultContext,
+} from '../services/tokenjuice/tokenjuiceAdapter.js'
 import type { Message } from '../types/message.js'
-import { compactCavemanText } from './cavemanText.js'
 import { logForDebugging } from './debug.js'
 import { getErrnoCode, toError } from './errors.js'
 import { formatFileSize } from './format.js'
 import { logError } from './log.js'
 import { getProjectDir } from './sessionStorage.js'
-import { getInitialSettings } from './settings/settings.js'
 import { jsonStringify } from './slowOperations.js'
 
 // Subdirectory name for tool results within a session
@@ -191,18 +193,13 @@ export async function persistToolResult(
 export function buildLargeToolResultMessage(
   result: PersistedToolResult,
 ): string {
-  const caveman = getInitialSettings().cavemanModeEnabled === true
   let message = `${PERSISTED_OUTPUT_TAG}\n`
-  message += caveman
-    ? `Big output (${formatFileSize(result.originalSize)}). Full output: ${result.filepath}\n\n`
-    : `Output too large (${formatFileSize(result.originalSize)}). Full output saved to: ${result.filepath}\n\n`
-  message += caveman
-    ? `Preview (${formatFileSize(PREVIEW_SIZE_BYTES)}):\n`
-    : `Preview (first ${formatFileSize(PREVIEW_SIZE_BYTES)}):\n`
+  message += `Output too large (${formatFileSize(result.originalSize)}). Full output saved to: ${result.filepath}\n\n`
+  message += `Preview (first ${formatFileSize(PREVIEW_SIZE_BYTES)}):\n`
   message += result.preview
   message += result.hasMore ? '\n...\n' : '\n'
   message += PERSISTED_OUTPUT_CLOSING_TAG
-  return caveman ? compactCavemanText(message) : message
+  return message
 }
 
 /**
@@ -220,15 +217,23 @@ export async function processToolResultBlock<T>(
   },
   toolUseResult: T,
   toolUseID: string,
+  tokenjuiceContext?: Omit<
+    TokenjuiceToolResultContext,
+    'toolName' | 'toolUseID' | 'toolUseResult'
+  >,
 ): Promise<ToolResultBlockParam> {
   const toolResultBlock = tool.mapToolResultToToolResultBlockParam(
     toolUseResult,
     toolUseID,
   )
-  return maybePersistLargeToolResult(
+  return processPreMappedToolResultBlock(
     toolResultBlock,
     tool.name,
-    getPersistenceThreshold(tool.name, tool.maxResultSizeChars),
+    tool.maxResultSizeChars,
+    {
+      ...tokenjuiceContext,
+      toolUseResult,
+    },
   )
 }
 
@@ -240,9 +245,21 @@ export async function processPreMappedToolResultBlock(
   toolResultBlock: ToolResultBlockParam,
   toolName: string,
   maxResultSizeChars: number,
+  tokenjuiceContext?: Omit<
+    TokenjuiceToolResultContext,
+    'toolName' | 'toolUseID'
+  >,
 ): Promise<ToolResultBlockParam> {
-  return maybePersistLargeToolResult(
+  const compactedToolResultBlock = await compactToolResultWithTokenjuice(
     toolResultBlock,
+    {
+      ...tokenjuiceContext,
+      toolName,
+      toolUseID: toolResultBlock.tool_use_id,
+    },
+  )
+  return maybePersistLargeToolResult(
+    compactedToolResultBlock,
     toolName,
     getPersistenceThreshold(toolName, maxResultSizeChars),
   )
@@ -297,10 +314,7 @@ async function maybePersistLargeToolResult(
     })
     return {
       ...toolResultBlock,
-      content:
-        getInitialSettings().cavemanModeEnabled === true
-          ? `(${toolName} done, no output)`
-          : `(${toolName} completed with no output)`,
+      content: `(${toolName} completed with no output)`,
     }
   }
   // Narrow after the emptiness guard — content is non-nullish past this point.
@@ -708,17 +722,22 @@ function selectFreshToReplace(
  */
 function replaceToolResultContents(
   messages: Message[],
-  replacementMap: Map<string, string>,
+  replacementMap: ReadonlyMap<string, string>,
 ): Message[] {
-  return messages.map(message => {
+  let changed = false
+  const nextMessages = messages.map(message => {
     if (message.type !== 'user' || !Array.isArray(message.message.content)) {
       return message
     }
     const content = message.message.content
     const needsReplace = content.some(
-      b => b.type === 'tool_result' && replacementMap.has(b.tool_use_id),
+      b =>
+        b.type === 'tool_result' &&
+        replacementMap.has(b.tool_use_id) &&
+        b.content !== replacementMap.get(b.tool_use_id),
     )
     if (!needsReplace) return message
+    changed = true
     return {
       ...message,
       message: {
@@ -726,13 +745,33 @@ function replaceToolResultContents(
         content: content.map(block => {
           if (block.type !== 'tool_result') return block
           const replacement = replacementMap.get(block.tool_use_id)
-          return replacement === undefined
+          return replacement === undefined || block.content === replacement
             ? block
             : { ...block, content: replacement }
         }),
       },
+      // Drop the original tool payload once the model-facing content has been
+      // replaced with a persisted preview. Keeping both defeats the memory
+      // savings for long sessions because the live transcript still retains
+      // the oversized structured result.
+      toolUseResult: undefined,
     }
   })
+  return changed ? nextMessages : messages
+}
+
+/**
+ * Mirror already-known tool-result replacements back into an in-memory
+ * transcript. Used by the interactive REPL so once a large result has been
+ * persisted/replaced for model use, the original oversized string can be
+ * dropped from live session state as well.
+ */
+export function applyToolResultReplacementsToMessages(
+  messages: Message[],
+  replacements: ReadonlyMap<string, string>,
+): Message[] {
+  if (replacements.size === 0) return messages
+  return replaceToolResultContents(messages, replacements)
 }
 
 async function buildReplacement(
@@ -771,12 +810,10 @@ async function buildReplacement(
  *   across turns; returning a new object would require error-prone ref
  *   updates after every query.
  *
- * Returns `{ messages, newlyReplaced, estimatedSavedTokens }`:
+ * Returns `{ messages, newlyReplaced }`:
  *   - messages: same array instance when no replacement is needed
  *   - newlyReplaced: replacements made THIS call (not re-applies).
  *     Caller persists these to the transcript for resume reconstruction.
- *   - estimatedSavedTokens: coarse per-call estimate based on
- *     (original bytes - replacement bytes) / BYTES_PER_TOKEN.
  */
 export async function enforceToolResultBudget(
   messages: Message[],
@@ -785,7 +822,6 @@ export async function enforceToolResultBudget(
 ): Promise<{
   messages: Message[]
   newlyReplaced: ToolResultReplacementRecord[]
-  estimatedSavedTokens: number
 }> {
   const candidatesByMessage = collectCandidatesByMessage(messages)
   const nameByToolUseId =
@@ -860,7 +896,7 @@ export async function enforceToolResultBudget(
   }
 
   if (replacementMap.size === 0 && toPersist.length === 0) {
-    return { messages, newlyReplaced: [], estimatedSavedTokens: 0 }
+    return { messages, newlyReplaced: [] }
   }
 
   // Fresh: concurrent persist for all selected candidates across all
@@ -870,7 +906,6 @@ export async function enforceToolResultBudget(
   )
   const newlyReplaced: ToolResultReplacementRecord[] = []
   let replacedSize = 0
-  let estimatedSavedTokens = 0
   for (const [candidate, replacement] of freshReplacements) {
     // Mark seen HERE, post-await, atomically with replacements.set for
     // success cases. For persist failures (replacement === null) the ID
@@ -879,8 +914,6 @@ export async function enforceToolResultBudget(
     state.seenIds.add(candidate.toolUseId)
     if (replacement === null) continue
     replacedSize += candidate.size
-    const bytesSaved = Math.max(0, candidate.size - replacement.content.length)
-    estimatedSavedTokens += Math.floor(bytesSaved / BYTES_PER_TOKEN)
     replacementMap.set(candidate.toolUseId, replacement.content)
     state.replacements.set(candidate.toolUseId, replacement.content)
     newlyReplaced.push({
@@ -901,7 +934,7 @@ export async function enforceToolResultBudget(
   }
 
   if (replacementMap.size === 0) {
-    return { messages, newlyReplaced: [], estimatedSavedTokens: 0 }
+    return { messages, newlyReplaced: [] }
   }
 
   if (newlyReplaced.length > 0) {
@@ -921,7 +954,6 @@ export async function enforceToolResultBudget(
   return {
     messages: replaceToolResultContents(messages, replacementMap),
     newlyReplaced,
-    estimatedSavedTokens,
   }
 }
 
@@ -935,24 +967,24 @@ export async function enforceToolResultBudget(
  * resume (repl_main_thread*, agent:*); ephemeral runForkedAgent callers
  * (agentSummary, sessionMemory, /btw, compact) pass undefined.
  *
- * @returns messages with replacements applied plus estimatedSavedTokens.
- *   Returns { messages, estimatedSavedTokens: 0 } when disabled/no-op.
+ * @returns messages with replacements applied, or the input array unchanged
+ *   when the feature is off or no replacement occurred.
  */
 export async function applyToolResultBudget(
   messages: Message[],
   state: ContentReplacementState | undefined,
   writeToTranscript?: (records: ToolResultReplacementRecord[]) => void,
   skipToolNames?: ReadonlySet<string>,
-): Promise<{ messages: Message[]; estimatedSavedTokens: number }> {
-  if (!state) return { messages, estimatedSavedTokens: 0 }
+): Promise<{
+  messages: Message[]
+  newlyReplaced: ToolResultReplacementRecord[]
+}> {
+  if (!state) return { messages, newlyReplaced: [] }
   const result = await enforceToolResultBudget(messages, state, skipToolNames)
   if (result.newlyReplaced.length > 0) {
     writeToTranscript?.(result.newlyReplaced)
   }
-  return {
-    messages: result.messages,
-    estimatedSavedTokens: result.estimatedSavedTokens,
-  }
+  return result
 }
 
 /**

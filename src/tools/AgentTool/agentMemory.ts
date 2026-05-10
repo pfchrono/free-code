@@ -9,7 +9,7 @@ import { getCwd } from '../../utils/cwd.js'
 import { findCanonicalGitRoot } from '../../utils/git.js'
 import { sanitizePath } from '../../utils/path.js'
 
-// Persistent agent memory scope: 'user' (~/.claude/agent-memory/), 'project' (.claude/agent-memory/), or 'local' (.claude/agent-memory-local/)
+// Persistent agent memory scope: 'user' (~/.free-code/agent-memory/), 'project' (.free-code/agent-memory/), or 'local' (.free-code/agent-memory-local/)
 export type AgentMemoryScope = 'user' | 'project' | 'local'
 
 /**
@@ -24,7 +24,7 @@ function sanitizeAgentTypeForPath(agentType: string): string {
 /**
  * Returns the local agent memory directory, which is project-specific and not checked into VCS.
  * When CLAUDE_CODE_REMOTE_MEMORY_DIR is set, persists to the mount with project namespacing.
- * Otherwise, uses <cwd>/.claude/agent-memory-local/<agentType>/.
+ * Otherwise, uses <cwd>/.free-code/agent-memory-local/<agentType>/.
  */
 function getLocalAgentMemoryDir(dirName: string): string {
   if (process.env.CLAUDE_CODE_REMOTE_MEMORY_DIR) {
@@ -40,13 +40,13 @@ function getLocalAgentMemoryDir(dirName: string): string {
       ) + sep
     )
   }
-  return join(getCwd(), '.claude', 'agent-memory-local', dirName) + sep
+  return join(getCwd(), '.free-code', 'agent-memory-local', dirName) + sep
 }
 
 /**
  * Returns the agent memory directory for a given agent type and scope.
  * - 'user' scope: <memoryBase>/agent-memory/<agentType>/
- * - 'project' scope: <cwd>/.claude/agent-memory/<agentType>/
+ * - 'project' scope: <cwd>/.free-code/agent-memory/<agentType>/
  * - 'local' scope: see getLocalAgentMemoryDir()
  */
 export function getAgentMemoryDir(
@@ -56,7 +56,7 @@ export function getAgentMemoryDir(
   const dirName = sanitizeAgentTypeForPath(agentType)
   switch (scope) {
     case 'project':
-      return join(getCwd(), '.claude', 'agent-memory', dirName) + sep
+      return join(getCwd(), '.free-code', 'agent-memory', dirName) + sep
     case 'local':
       return getLocalAgentMemoryDir(dirName)
     case 'user':
@@ -77,7 +77,7 @@ export function isAgentMemoryPath(absolutePath: string): boolean {
 
   // Project scope: always cwd-based (not redirected)
   if (
-    normalizedPath.startsWith(join(getCwd(), '.claude', 'agent-memory') + sep)
+    normalizedPath.startsWith(join(getCwd(), '.free-code', 'agent-memory') + sep)
   ) {
     return true
   }
@@ -94,7 +94,7 @@ export function isAgentMemoryPath(absolutePath: string): boolean {
     }
   } else if (
     normalizedPath.startsWith(
-      join(getCwd(), '.claude', 'agent-memory-local') + sep,
+      join(getCwd(), '.free-code', 'agent-memory-local') + sep,
     )
   ) {
     return true

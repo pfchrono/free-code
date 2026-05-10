@@ -533,6 +533,7 @@ export async function initEnvLessBridgeCore(
     // any await. Laptop wake fires both paths ~simultaneously.
     if (authRecoveryInFlight) return
     authRecoveryInFlight = true
+    flushGate.start()
     onStateChange?.('reconnecting', 'JWT expired — refreshing')
     logForDebugging('[remote-bridge] 401 on SSE — attempting JWT refresh')
     try {
@@ -585,6 +586,7 @@ export async function initEnvLessBridgeCore(
         onStateChange?.('failed', `JWT refresh failed: ${errorMessage(err)}`)
       }
     } finally {
+      flushGate.drop()
       authRecoveryInFlight = false
     }
   }

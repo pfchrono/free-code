@@ -376,6 +376,25 @@ export const SettingsSchema = lazySchema(() =>
         .string()
         .optional()
         .describe('Override the default model used by Claude Code'),
+      agentModels: z
+        .record(
+          z.string(),
+          z.object({
+            base_url: z
+              .string()
+              .url()
+              .describe('OpenAI-compatible API endpoint'),
+            api_key: z.string().describe('API key for this provider'),
+          }),
+        )
+        .optional()
+        .describe('Map of model name to provider connection info'),
+      agentRouting: z
+        .record(z.string(), z.string())
+        .optional()
+        .describe(
+          'Map of agent identifier or team member name to model name. Use "default" as fallback.',
+        ),
       // Enterprise allowlist of models
       availableModels: z
         .array(z.string())
@@ -453,6 +472,61 @@ export const SettingsSchema = lazySchema(() =>
       hooks: HooksSchema()
         .optional()
         .describe('Custom commands to run before/after tool executions'),
+      tokenjuice: z
+        .object({
+          enabled: z
+            .boolean()
+            .optional()
+            .describe(
+              'Enable native Tokenjuice tool result compaction. Defaults to true.',
+            ),
+          mode: z
+            .enum(['auto', 'all-tools'])
+            .optional()
+            .describe(
+              'Tokenjuice compaction scope. auto skips exact-content tools; all-tools allows every text-only tool unless excluded.',
+            ),
+          minChars: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe(
+              'Minimum text result size before Tokenjuice compaction runs. Defaults to 4000.',
+            ),
+          maxInlineChars: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe(
+              'Maximum inline Tokenjuice summary size. Defaults to 12000.',
+            ),
+          timeoutMs: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe(
+              'Maximum Tokenjuice compaction time per tool result. Defaults to 1500.',
+            ),
+          includeTools: z
+            .array(z.string())
+            .optional()
+            .describe(
+              'Tool names that Tokenjuice should compact even in auto mode.',
+            ),
+          excludeTools: z
+            .array(z.string())
+            .optional()
+            .describe('Tool names that Tokenjuice should never compact.'),
+          storeRaw: z
+            .boolean()
+            .optional()
+            .describe('Store raw Tokenjuice artifacts on disk. Defaults to false.'),
+        })
+        .optional()
+        .describe('Native Tokenjuice output compaction settings.'),
       worktree: z
         .object({
           symlinkDirectories: z

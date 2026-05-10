@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package openclaude.v1;
+package freecode.v1;
 
 service AgentService {
   rpc Chat(stream ClientMessage) returns (stream ServerMessage);

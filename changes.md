@@ -6,10 +6,21 @@ All notable changes to free-code are documented here.
 
 <!-- GENERATED_RECENT_COMMITS_START -->
 ### Recent commits
+- 2026-05-10 feat: port upstream parity, provider routing, SDK, MCP, and hardening updates
+- 2026-05-10 feat: add native goal continuity loop with compact progress state
+- 2026-05-10 feat: add native Tokenjuice tool-result compaction for Free-Code
 - 2026-04-21 docs: update changelog, readme, and agent instructions for Archivist and new local modes
 - 2026-04-21 fix: restore codex provider switching, pruning semantics, and codex stream finalization
 - 2026-04-21 feat: add Archivist-backed code intel, Ralph mode, Deadpool mode, and session continuity updates
 <!-- GENERATED_RECENT_COMMITS_END -->
+
+### Added
+- **Upstream parity refresh** -- Ported broad OpenClaude-derived feature, SDK, provider, MCP, docs, install, and runtime hardening updates while preserving Free-Code branding and config paths.
+- **Native goal continuity** -- Added `/goal` plus goal tools, looping continuation, compact state snapshots, and recent progress notes so long-running harness work can recover after compaction or resume.
+- **Native Tokenjuice adapter** -- Integrated Tokenjuice as an internal tool-result compaction layer, default-on for large text outputs with safer exclusions for exact-content tools.
+
+### Changed
+- **LogoV2 What's new feed** -- Updated changelog entries so LogoV2 surfaces parity, goal-loop, and Tokenjuice improvements from `changes.md`.
 
 ## [0.6.4] - 2026-04-16
 
