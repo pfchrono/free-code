@@ -5,6 +5,7 @@ import {
   replaceGoal,
   updateGoalStatus,
 } from '../../services/goals/goalStore.js'
+import { buildGoalContinuationPrompt } from '../../services/goals/goalPrompt.js'
 
 const STATUS_ARGS = new Set(['', 'status', 'show', 'get'])
 
@@ -15,6 +16,17 @@ function parseBudget(args: string): { objective: string; tokenBudget?: number } 
     objective: args.slice(0, match.index).trim(),
     tokenBudget: Number(match[1]),
   }
+}
+
+function stripReplacePrefix(args: string): { objectiveArgs: string; replace: boolean } {
+  const trimmed = args.trim()
+  if (/^replace(?:\s|$)/i.test(trimmed)) {
+    return { objectiveArgs: trimmed.replace(/^replace(?:\s+|$)/i, '').trim(), replace: true }
+  }
+  if (/^--replace(?:\s|$)/i.test(trimmed)) {
+    return { objectiveArgs: trimmed.replace(/^--replace(?:\s+|$)/i, '').trim(), replace: true }
+  }
+  return { objectiveArgs: trimmed, replace: false }
 }
 
 function formatGoal(goal: Awaited<ReturnType<typeof getGoal>>): string {
@@ -64,14 +76,32 @@ export const call: LocalCommandCall = async (args = '') => {
     return { type: 'text', value: await setStatus('active') }
   }
 
-  const { objective, tokenBudget } = parseBudget(trimmed)
+  const { objectiveArgs, replace } = stripReplacePrefix(trimmed)
+  const { objective, tokenBudget } = parseBudget(objectiveArgs)
   if (!objective) {
-    return { type: 'text', value: 'Usage: /goal <objective> [--budget tokens]' }
+    return { type: 'text', value: 'Usage: /goal <objective> [--budget tokens]\nReplace existing goal: /goal replace <objective> [--budget tokens]' }
+  }
+
+  const existing = await getGoal()
+  if (existing && existing.status !== 'complete' && !replace) {
+    return {
+      type: 'text',
+      value: [
+        `A goal is already ${existing.status}: ${existing.objective}`,
+        '',
+        'Replace it?',
+        `- yes: /goal replace ${objective}${tokenBudget ? ` --budget ${tokenBudget}` : ''}`,
+        '- no: keep current goal and ignore this change',
+        '- stop current goal: /goal clear',
+      ].join('\n'),
+    }
   }
 
   const goal = await replaceGoal(objective, tokenBudget)
   return {
     type: 'text',
-    value: `Goal set: ${goal.objective}`,
+    value: `Goal set: ${goal.objective}\nStarting now.`,
+    shouldQuery: true,
+    metaMessages: [buildGoalContinuationPrompt(goal)],
   }
 }

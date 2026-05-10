@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { getSessionId } from '../../bootstrap/state.js'
 import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
+import { reseedProjectMemory } from '../memory/memoryReseed.js'
+import { recordSessionTimelineEntry } from '../memory/sessionTimeline.js'
 
 export type GoalStatus = 'active' | 'paused' | 'budget_limited' | 'complete'
 
@@ -123,6 +125,11 @@ export async function createGoal(
   }
   await mkdir(goalsDir(), { recursive: true })
   await writeFile(goalPath(sessionId), JSON.stringify(goal, null, 2), 'utf8')
+  await recordSessionTimelineEntry({
+    kind: 'goal',
+    status: 'active',
+    summary: `Goal set: ${goal.objective}`,
+  })
   return toSnapshot(goal)
 }
 
@@ -150,6 +157,29 @@ export async function updateGoalStatus(
   }
   await mkdir(goalsDir(), { recursive: true })
   await writeFile(goalPath(sessionId), JSON.stringify(updated, null, 2), 'utf8')
+  await recordSessionTimelineEntry({
+    kind: 'goal',
+    status,
+    summary: `Goal ${status}: ${updated.objective}`,
+  })
+  if (status === 'complete') {
+    void reseedProjectMemory({
+      source: 'goal',
+      summary: `Completed goal: ${updated.objective}`,
+      content: [
+        `Goal completed: ${updated.objective}`,
+        `Tokens used: ${updated.tokensUsed}`,
+        `Time used seconds: ${updated.timeUsedSeconds}`,
+        updated.contextState ? `Compact state: ${updated.contextState.summary}` : null,
+        updated.progressNotes?.length
+          ? `Recent progress:\n${updated.progressNotes.map(note => `- ${note.at}: ${note.text}`).join('\n')}`
+          : null,
+      ]
+        .filter((line): line is string => Boolean(line))
+        .join('\n\n'),
+      tags: ['goal-complete'],
+    })
+  }
   return toSnapshot(updated)
 }
 
@@ -180,6 +210,11 @@ export async function addGoalUsage(
   }
   await mkdir(goalsDir(), { recursive: true })
   await writeFile(goalPath(sessionId), JSON.stringify(updated, null, 2), 'utf8')
+  await recordSessionTimelineEntry({
+    kind: 'goal',
+    status: updated.status,
+    summary: `Goal usage: ${updated.objective}`,
+  })
   return toSnapshot(updated)
 }
 
@@ -208,6 +243,11 @@ export async function recordGoalProgress(
   }
   await mkdir(goalsDir(), { recursive: true })
   await writeFile(goalPath(sessionId), JSON.stringify(updated, null, 2), 'utf8')
+  await recordSessionTimelineEntry({
+    kind: 'goal',
+    status: 'active',
+    summary: `Goal progress: ${normalized}`,
+  })
   return toSnapshot(updated)
 }
 

@@ -16,6 +16,7 @@ import { execFileNoThrow } from './utils/execFileNoThrow.js'
 import { getBranch, getDefaultBranch, getIsGit, gitExe } from './utils/git.js'
 import { shouldIncludeGitInstructions } from './utils/gitSettings.js'
 import { logError } from './utils/log.js'
+import { formatToolMemoryPromptSummary } from './services/memory/toolMemory.js'
 
 const MAX_STATUS_CHARS = 2000
 
@@ -183,16 +184,19 @@ export const getUserContext = memoize(
     if (shouldLoadClaudeMd) {
       setCachedClaudeMdContent(claudeMd || null)
     }
+    const toolMemory = await formatToolMemoryPromptSummary()
 
     logForDiagnosticsNoPII('info', 'user_context_completed', {
       duration_ms: Date.now() - startTime,
       claudemd_length: claudeMd?.length ?? 0,
+      tool_memory_length: toolMemory?.length ?? 0,
       claudemd_disabled: Boolean(shouldDisableClaudeMd),
       include_claude_md: shouldLoadClaudeMd,
     })
 
     return {
       ...(claudeMd && { claudeMd }),
+      ...(toolMemory && { toolMemory }),
       currentDate: `Today's date is ${getLocalISODate()}.`,
     }
   },

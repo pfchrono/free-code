@@ -87,6 +87,7 @@ import {
   stopSessionActivity,
 } from '../../utils/sessionActivity.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
+import { recordToolMemory } from '../memory/toolMemory.js'
 import { Stream } from '../../utils/stream.js'
 import { logOTelEvent } from '../../utils/telemetry/events.js'
 import {
@@ -1319,6 +1320,12 @@ async function checkPermissionsAndCallTool(
         ? jsonStringify(result.data)
         : String(result.data ?? '')
     endToolSpan(toolResultStr)
+    void recordToolMemory({
+      name: tool.name,
+      input: processedInput,
+      output: toolResultStr,
+      ok: true,
+    })
 
     // Map the tool result to API format once and cache it. This block is reused
     // by addToolResult (skipping the remap) and measured here for analytics.

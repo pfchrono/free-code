@@ -95,6 +95,18 @@ The upstream CLI ships with 88 feature flags gated behind `bun:bundle` compile-t
 
 Recent updates expanded provider bootstrap, local launch workflow, provider health checks, status visibility, Windows/path handling, local skill workflow support, config-home-aware persistence, and internal provider/memory tooling:
 
+- Added stronger memory continuity:
+  - runtime tool/assistant memory under `.free-code/memory/tool-memory.json`
+  - bounded prompt injection for recent operational memory
+  - `/sessions timeline` for goal/tool/assistant/commit event history
+  - `/sessions tree` for compact/handoff/resume lineage
+  - goal completion reseeding into persistent project memory
+- Improved `/goal`:
+  - setting a new objective starts work immediately
+  - active goals are not accidentally overwritten
+  - use `/goal replace <objective>` to replace, or `/goal clear` to stop
+  - continuation prompts now require requirement-to-evidence completion audits
+- Added native Tokenjuice tool-result compaction for large text outputs, default-on with exclusions for exact-content tools
 - Added provider bootstrap commands for repo-local setup:
   - `free-code profile:init`
   - `free-code profile:auto`
@@ -569,6 +581,8 @@ Use these only for manual/experimental transport checks. Current Bun-hosted gRPC
 - Use normal coding loop (`free-code`, agent tools, edits, tests)
 - Keep provider scoped by repository rather than mutating global shell env each time
 - Use `/usage` or Settings -> Status to inspect Codex/Copilot context and rate-limit state when available
+- Use `/goal <objective>` for persistent autonomous work; use `/goal replace <objective>` only when replacing an active goal intentionally
+- Use `/sessions timeline` or `/sessions tree` when a long run needs continuity/debug context
 
 ### 8) Switch provider mode later
 

@@ -708,10 +708,15 @@ async function getMessagesForSlashCommand(commandName: string, args: string, set
               };
             }
 
+            const metaMessages = (result.metaMessages ?? []).map(content => createUserMessage({
+              content,
+              isMeta: true
+            }));
+
             // Text result — use system message so it doesn't render as a user bubble
             return {
-              messages: [userMessage, createCommandInputMessage(`<local-command-stdout>${result.value}</local-command-stdout>`)],
-              shouldQuery: false,
+              messages: [userMessage, createCommandInputMessage(`<local-command-stdout>${result.value}</local-command-stdout>`), ...metaMessages],
+              shouldQuery: result.shouldQuery ?? false,
               command,
               resultText: result.value
             };

@@ -14,7 +14,12 @@ import type { Message } from './message.js'
 import type { PluginManifest } from './plugin.js'
 
 export type LocalCommandResult =
-  | { type: 'text'; value: string }
+  | {
+      type: 'text'
+      value: string
+      shouldQuery?: boolean
+      metaMessages?: string[]
+    }
   | {
       type: 'compact'
       compactionResult: CompactionResult

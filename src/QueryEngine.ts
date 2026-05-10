@@ -43,6 +43,7 @@ import {
   buildGoalBudgetLimitPrompt,
   buildGoalContinuationPrompt,
 } from './services/goals/goalPrompt.js'
+import { recordAssistantMemory } from './services/memory/toolMemory.js'
 import { categorizeRetryableAPIError } from './services/api/errors.js'
 import type { MCPServerConnection } from './services/mcp/types.js'
 import type { AppState } from './state/AppState.js'
@@ -1231,6 +1232,11 @@ export class QueryEngine {
         textResult = lastContent.text
       }
       isApiError = Boolean(result.isApiErrorMessage)
+    }
+    if (textResult && !isApiError) {
+      void recordAssistantMemory(textResult).then(() => {
+        getUserContext.cache.clear?.()
+      })
     }
 
     const currentGoal = await getGoal()

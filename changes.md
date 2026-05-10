@@ -6,6 +6,7 @@ All notable changes to free-code are documented here.
 
 <!-- GENERATED_RECENT_COMMITS_START -->
 ### Recent commits
+- 2026-05-10 feat: improve Free-Code memory continuity with tool memory and session timeline
 - 2026-05-10 feat: port upstream parity, provider routing, SDK, MCP, and hardening updates
 - 2026-05-10 feat: add native goal continuity loop with compact progress state
 - 2026-05-10 feat: add native Tokenjuice tool-result compaction for Free-Code
@@ -17,9 +18,13 @@ All notable changes to free-code are documented here.
 ### Added
 - **Upstream parity refresh** -- Ported broad OpenClaude-derived feature, SDK, provider, MCP, docs, install, and runtime hardening updates while preserving Free-Code branding and config paths.
 - **Native goal continuity** -- Added `/goal` plus goal tools, looping continuation, compact state snapshots, and recent progress notes so long-running harness work can recover after compaction or resume.
+- **Runtime tool memory** -- Added compact rolling tool/assistant memory under `.free-code/memory/` and prompt injection so future turns can recover useful operational context after compaction or resume.
+- **Session timeline** -- Added `/sessions timeline` and `/sessions tree` for goal, tool, assistant, commit, handoff, and compaction lineage inspection.
 - **Native Tokenjuice adapter** -- Integrated Tokenjuice as an internal tool-result compaction layer, default-on for large text outputs with safer exclusions for exact-content tools.
 
 ### Changed
+- **Goal replacement flow** -- `/goal <objective>` now starts work immediately, while existing active goals require explicit `/goal replace <objective>` or `/goal clear`.
+- **Goal completion audits** -- Goal continuation prompts now require requirement-to-evidence checks before `update_goal complete`.
 - **LogoV2 What's new feed** -- Updated changelog entries so LogoV2 surfaces parity, goal-loop, and Tokenjuice improvements from `changes.md`.
 
 ## [0.6.4] - 2026-04-16
