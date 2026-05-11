@@ -1,4 +1,5 @@
 import type { GoalSnapshot } from './goalStore.js'
+import { goalCheckpointPath } from './goalCheckpoint.js'
 
 function formatProgressNotes(goal: GoalSnapshot): string[] {
   if (!goal.progressNotes?.length) return []
@@ -36,6 +37,7 @@ export function buildGoalContinuationPrompt(goal: GoalSnapshot): string {
     '',
     budgetLine,
     `Time used: ${goal.timeUsedSeconds}s.`,
+    `Durable checkpoint: ${goalCheckpointPath(goal.sessionId)}`,
     ...formatContextState(goal),
     ...formatProgressNotes(goal),
     '',

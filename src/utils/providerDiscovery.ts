@@ -383,6 +383,7 @@ export async function benchmarkOllamaModel(
   baseUrl?: string,
 ): Promise<number | null> {
   const { signal, clear } = withTimeoutSignal(20000)
+  const start = Date.now()
   try {
     const response = await fetch(`${getOllamaApiBaseUrl(baseUrl)}/api/chat`, {
       method: 'POST',
@@ -404,7 +405,7 @@ export async function benchmarkOllamaModel(
       return null
     }
     await response.json()
-    return Date.now()
+    return Date.now() - start
   } catch {
     return null
   } finally {

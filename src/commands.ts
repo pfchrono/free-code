@@ -2,6 +2,7 @@
 import addDir from './commands/add-dir/index.js'
 import autofixPr from './commands/autofix-pr/index.js'
 import backfillSessions from './commands/backfill-sessions/index.js'
+import benchmark from './commands/benchmark/index.js'
 import btw from './commands/btw/index.js'
 import goodClaude from './commands/good-claude/index.js'
 import goal from './commands/goal/index.js'
@@ -42,6 +43,7 @@ import mobile from './commands/mobile/index.js'
 import onboarding from './commands/onboarding/index.js'
 import pr_comments from './commands/pr_comments/index.js'
 import releaseNotes from './commands/release-notes/index.js'
+import ratchet from './commands/ratchet/index.js'
 import rename from './commands/rename/index.js'
 import resume from './commands/resume/index.js'
 import review, { ultrareview } from './commands/review.js'
@@ -284,6 +286,7 @@ const COMMANDS = memoize((): Command[] => [
   dependencyGraph,
   agents,
   branch,
+  benchmark,
   btw,
   chrome,
   clear,
@@ -331,6 +334,7 @@ const COMMANDS = memoize((): Command[] => [
   remoteEnv,
   plugin,
   pr_comments,
+  ratchet,
   releaseNotes,
   reloadPlugins,
   rename,

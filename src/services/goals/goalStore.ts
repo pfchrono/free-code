@@ -5,6 +5,7 @@ import { getSessionId } from '../../bootstrap/state.js'
 import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
 import { reseedProjectMemory } from '../memory/memoryReseed.js'
 import { recordSessionTimelineEntry } from '../memory/sessionTimeline.js'
+import { removeGoalCheckpoint, writeGoalCheckpoint } from './goalCheckpoint.js'
 
 export type GoalStatus = 'active' | 'paused' | 'budget_limited' | 'complete'
 
@@ -41,12 +42,22 @@ type StoredGoal = ThreadGoal
 const MAX_PROGRESS_NOTES = 8
 const MAX_PROGRESS_NOTE_CHARS = 1200
 
-function goalsDir(): string {
-  return join(getClaudeConfigHomeDir(), 'goals')
+function getGoalPaths(
+  sessionId = getSessionId(),
+  configHomeDir = getClaudeConfigHomeDir(),
+): { dir: string; file: string } {
+  const dir = join(configHomeDir, 'goals')
+  return {
+    dir,
+    file: join(dir, `${sessionId}.json`),
+  }
 }
 
-function goalPath(sessionId = getSessionId()): string {
-  return join(goalsDir(), `${sessionId}.json`)
+function goalPath(
+  sessionId = getSessionId(),
+  configHomeDir = getClaudeConfigHomeDir(),
+): string {
+  return getGoalPaths(sessionId, configHomeDir).file
 }
 
 function toSnapshot(goal: ThreadGoal): GoalSnapshot {
@@ -90,8 +101,9 @@ function normalizeProgressNote(text: string): string {
 }
 
 export async function getGoal(sessionId = getSessionId()): Promise<GoalSnapshot | null> {
+  const configHomeDir = getClaudeConfigHomeDir()
   try {
-    const raw = await readFile(goalPath(sessionId), 'utf8')
+    const raw = await readFile(getGoalPaths(sessionId, configHomeDir).file, 'utf8')
     return toSnapshot(normalizeGoal(JSON.parse(raw) as StoredGoal))
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
@@ -106,6 +118,7 @@ export async function createGoal(
   tokenBudget?: number,
   sessionId = getSessionId(),
 ): Promise<GoalSnapshot> {
+  const configHomeDir = getClaudeConfigHomeDir()
   const existing = await getGoal(sessionId)
   if (existing && existing.status !== 'complete') {
     throw new Error('A goal already exists for this session')
@@ -123,8 +136,10 @@ export async function createGoal(
     createdAt: now,
     updatedAt: now,
   }
-  await mkdir(goalsDir(), { recursive: true })
-  await writeFile(goalPath(sessionId), JSON.stringify(goal, null, 2), 'utf8')
+  const { dir, file } = getGoalPaths(sessionId, configHomeDir)
+  await mkdir(dir, { recursive: true })
+  await writeFile(file, JSON.stringify(goal, null, 2), 'utf8')
+  await writeGoalCheckpoint(goal)
   await recordSessionTimelineEntry({
     kind: 'goal',
     status: 'active',
@@ -146,6 +161,7 @@ export async function updateGoalStatus(
   status: GoalStatus,
   sessionId = getSessionId(),
 ): Promise<GoalSnapshot> {
+  const configHomeDir = getClaudeConfigHomeDir()
   const current = await getGoal(sessionId)
   if (!current) {
     throw new Error('No active goal exists for this session')
@@ -155,8 +171,10 @@ export async function updateGoalStatus(
     status,
     updatedAt: new Date().toISOString(),
   }
-  await mkdir(goalsDir(), { recursive: true })
-  await writeFile(goalPath(sessionId), JSON.stringify(updated, null, 2), 'utf8')
+  const { dir, file } = getGoalPaths(sessionId, configHomeDir)
+  await mkdir(dir, { recursive: true })
+  await writeFile(file, JSON.stringify(updated, null, 2), 'utf8')
+  await writeGoalCheckpoint(updated)
   await recordSessionTimelineEntry({
     kind: 'goal',
     status,
@@ -184,7 +202,9 @@ export async function updateGoalStatus(
 }
 
 export async function clearGoal(sessionId = getSessionId()): Promise<void> {
-  await rm(goalPath(sessionId), { force: true })
+  const configHomeDir = getClaudeConfigHomeDir()
+  await rm(goalPath(sessionId, configHomeDir), { force: true })
+  await removeGoalCheckpoint(sessionId)
 }
 
 export async function addGoalUsage(
@@ -192,6 +212,7 @@ export async function addGoalUsage(
   elapsedSeconds: number,
   sessionId = getSessionId(),
 ): Promise<GoalSnapshot | null> {
+  const configHomeDir = getClaudeConfigHomeDir()
   const current = await getGoal(sessionId)
   if (!current || current.status !== 'active') return current
 
@@ -208,8 +229,10 @@ export async function addGoalUsage(
   ) {
     updated.status = 'budget_limited'
   }
-  await mkdir(goalsDir(), { recursive: true })
-  await writeFile(goalPath(sessionId), JSON.stringify(updated, null, 2), 'utf8')
+  const { dir, file } = getGoalPaths(sessionId, configHomeDir)
+  await mkdir(dir, { recursive: true })
+  await writeFile(file, JSON.stringify(updated, null, 2), 'utf8')
+  await writeGoalCheckpoint(updated)
   await recordSessionTimelineEntry({
     kind: 'goal',
     status: updated.status,
@@ -222,6 +245,7 @@ export async function recordGoalProgress(
   text: string,
   sessionId = getSessionId(),
 ): Promise<GoalSnapshot | null> {
+  const configHomeDir = getClaudeConfigHomeDir()
   const current = await getGoal(sessionId)
   if (!current || current.status !== 'active') return current
 
@@ -241,8 +265,10 @@ export async function recordGoalProgress(
     ].slice(-MAX_PROGRESS_NOTES),
     updatedAt: now,
   }
-  await mkdir(goalsDir(), { recursive: true })
-  await writeFile(goalPath(sessionId), JSON.stringify(updated, null, 2), 'utf8')
+  const { dir, file } = getGoalPaths(sessionId, configHomeDir)
+  await mkdir(dir, { recursive: true })
+  await writeFile(file, JSON.stringify(updated, null, 2), 'utf8')
+  await writeGoalCheckpoint(updated)
   await recordSessionTimelineEntry({
     kind: 'goal',
     status: 'active',

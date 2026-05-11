@@ -1,5 +1,10 @@
 import readline from 'node:readline'
 import { createHeadlessSessionHarness, type HeadlessHarnessEvent } from '../src/headless/sessionHarness.js'
+import { init } from '../src/entrypoints/init.js'
+import {
+  applyProviderRuntimeBootstrap,
+  getProviderRuntimeValidationError,
+} from '../src/utils/providerRuntime.js'
 
 type TransportRequest = {
   id: string
@@ -15,6 +20,46 @@ type TransportSession = ReturnType<typeof createHeadlessSessionHarness>
 const MAX_SESSIONS = 32
 const DEFAULT_SESSION_ID = 'default'
 const sessions = new Map<string, TransportSession>()
+
+Object.assign(globalThis, {
+  MACRO: {
+    VERSION: '0.3.1',
+    DISPLAY_VERSION: '0.3.1',
+    PACKAGE_URL: 'free-code-source',
+  },
+})
+
+async function initializeRuntimeForJsonlTransport(): Promise<void> {
+  const originalLog = console.log
+  console.log = (...args: unknown[]) => {
+    console.error(...args)
+  }
+
+  try {
+    applyProviderRuntimeBootstrap()
+    await init()
+
+    const { enableConfigs } = await import('../src/utils/config.js')
+    enableConfigs()
+
+    const { applySafeConfigEnvironmentVariables } = await import(
+      '../src/utils/managedEnv.js'
+    )
+    applySafeConfigEnvironmentVariables()
+
+    const { hydrateGithubModelsTokenFromSecureStorage } = await import(
+      '../src/utils/githubModelsCredentials.js'
+    )
+    hydrateGithubModelsTokenFromSecureStorage()
+
+    const validationError = getProviderRuntimeValidationError()
+    if (validationError) {
+      throw new Error(validationError)
+    }
+  } finally {
+    console.log = originalLog
+  }
+}
 
 function getSession(sessionId: string, cwd?: string): TransportSession {
   const existing = sessions.get(sessionId)
@@ -118,6 +163,8 @@ function handleInterrupt(payload: { id: string; sessionId?: string }): void {
 }
 
 async function main(): Promise<void> {
+  await initializeRuntimeForJsonlTransport()
+
   writeMessage({
     type: 'ready',
     transport: 'headless-session-harness',

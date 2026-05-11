@@ -21,9 +21,20 @@ const rl = readline.createInterface({
   output: process.stdout,
 })
 
+let readlineClosed = false
+rl.on('close', () => {
+  readlineClosed = true
+})
+
 function askQuestion(query: string): Promise<string> {
+  if (readlineClosed) {
+    return Promise.resolve('/exit')
+  }
+
   return new Promise(resolve => {
-    rl.question(query, resolve)
+    rl.question(query, answer => {
+      resolve(answer || '/exit')
+    })
   })
 }
 
@@ -36,6 +47,7 @@ async function main(): Promise<void> {
   )
 
   let call: grpc.ClientDuplexStream<any, any> | null = null
+  let exiting = false
 
   const startStream = (): void => {
     call = client.Chat()
@@ -79,10 +91,14 @@ async function main(): Promise<void> {
         }
         textStreamed = false
         console.log('\n\x1b[32m[Generation Complete]\x1b[0m')
-        void promptUser()
+        if (!exiting) {
+          void promptUser()
+        }
       } else if (serverMessage.error) {
         console.error(`\n\x1b[31m[Server Error]\x1b[0m ${serverMessage.error.message}`)
-        void promptUser()
+        if (!exiting) {
+          void promptUser()
+        }
       }
     })
 
@@ -92,7 +108,9 @@ async function main(): Promise<void> {
 
     call.on('error', (err: Error) => {
       console.error('\n\x1b[31m[Stream Error]\x1b[0m', err.message)
-      void promptUser()
+      if (!exiting && !readlineClosed) {
+        void promptUser()
+      }
     })
   }
 
@@ -103,6 +121,7 @@ async function main(): Promise<void> {
       message.trim().toLowerCase() === '/exit' ||
       message.trim().toLowerCase() === '/quit'
     ) {
+      exiting = true
       console.log('Bye!')
       rl.close()
       process.exit(0)

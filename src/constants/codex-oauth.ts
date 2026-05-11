@@ -21,6 +21,16 @@ export const CODEX_AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize'
 /** OpenAI's token exchange / refresh endpoint */
 export const CODEX_TOKEN_URL = 'https://auth.openai.com/oauth/token'
 
+/** OpenAI's device authorization endpoints for Codex CLI login */
+export const CODEX_DEVICE_USER_CODE_URL =
+  'https://auth.openai.com/api/accounts/deviceauth/usercode'
+export const CODEX_DEVICE_TOKEN_URL =
+  'https://auth.openai.com/api/accounts/deviceauth/token'
+export const CODEX_DEVICE_VERIFICATION_URL =
+  'https://auth.openai.com/codex/device'
+export const CODEX_DEVICE_REDIRECT_URI =
+  'https://auth.openai.com/deviceauth/callback'
+
 /**
  * The redirect URI registered for the Codex OAuth app.
  * OpenAI requires a fixed port (1455) — unlike Anthropic which uses OS-assigned ports.

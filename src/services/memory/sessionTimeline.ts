@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { execFileNoThrow } from '../../utils/execFileNoThrow.js'
+import { execFileNoThrowWithCwd } from '../../utils/execFileNoThrow.js'
 import { getOriginalCwd, getSessionId } from '../../bootstrap/state.js'
 import { getClaudeConfigHomeDir } from '../../utils/envUtils.js'
 
@@ -9,7 +9,7 @@ export type SessionTimelineEntry = {
   at: string
   sessionId: string
   projectPath: string
-  kind: 'goal' | 'tool' | 'assistant' | 'compact' | 'handoff' | 'commit' | 'resume'
+  kind: 'goal' | 'tool' | 'assistant' | 'compact' | 'handoff' | 'commit' | 'resume' | 'harness'
   status: string
   summary: string
   refs: string[]
@@ -24,8 +24,15 @@ type SessionTimelineStore = {
 
 const TIMELINE_LIMIT = 300
 
-function timelinePath(): string {
-  return join(getClaudeConfigHomeDir(), 'sessions', 'timeline.json')
+function getTimelinePaths(configHomeDir = getClaudeConfigHomeDir()): {
+  dir: string
+  file: string
+} {
+  const dir = join(configHomeDir, 'sessions')
+  return {
+    dir,
+    file: join(dir, 'timeline.json'),
+  }
 }
 
 function emptyStore(): SessionTimelineStore {
@@ -75,17 +82,23 @@ function normalizeStore(value: unknown): SessionTimelineStore {
   }
 }
 
-async function loadStore(): Promise<SessionTimelineStore> {
+async function loadStore(configHomeDir = getClaudeConfigHomeDir()): Promise<SessionTimelineStore> {
   try {
-    return normalizeStore(JSON.parse(await readFile(timelinePath(), 'utf8')))
+    return normalizeStore(
+      JSON.parse(await readFile(getTimelinePaths(configHomeDir).file, 'utf8')),
+    )
   } catch {
     return emptyStore()
   }
 }
 
-async function saveStore(store: SessionTimelineStore): Promise<void> {
-  await mkdir(join(getClaudeConfigHomeDir(), 'sessions'), { recursive: true })
-  await writeFile(timelinePath(), JSON.stringify(store, null, 2), 'utf8')
+async function saveStore(
+  store: SessionTimelineStore,
+  configHomeDir = getClaudeConfigHomeDir(),
+): Promise<void> {
+  const { dir, file } = getTimelinePaths(configHomeDir)
+  await mkdir(dir, { recursive: true })
+  await writeFile(file, JSON.stringify(store, null, 2), 'utf8')
 }
 
 export async function recordSessionTimelineEntry(args: {
@@ -94,7 +107,8 @@ export async function recordSessionTimelineEntry(args: {
   summary: string
   continuity?: SessionTimelineEntry['continuity']
 }): Promise<SessionTimelineEntry> {
-  const store = await loadStore()
+  const configHomeDir = getClaudeConfigHomeDir()
+  const store = await loadStore(configHomeDir)
   const entry: SessionTimelineEntry = {
     id: `e${store.nextId}`,
     at: new Date().toISOString(),
@@ -109,12 +123,12 @@ export async function recordSessionTimelineEntry(args: {
   store.nextId += 1
   store.entries.push(entry)
   store.entries = store.entries.slice(-TIMELINE_LIMIT)
-  await saveStore(store)
+  await saveStore(store, configHomeDir)
   return entry
 }
 
 async function recentCommits(): Promise<SessionTimelineEntry[]> {
-  const { stdout } = await execFileNoThrow(
+  const { stdout } = await execFileNoThrowWithCwd(
     'git',
     ['log', '-5', '--date=iso-strict', '--pretty=format:%h%x09%cI%x09%s'],
     { cwd: getOriginalCwd(), preserveOutputOnError: false },

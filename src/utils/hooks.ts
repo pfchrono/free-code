@@ -1217,8 +1217,10 @@ async function execCommandHook(
         })
         // Explicitly specify UTF-8 encoding to ensure proper handling of Unicode characters
         child.stdin.write(jsonInput + '\n', 'utf8')
-        // When requestPrompt is provided, keep stdin open for prompt responses
-        if (!requestPrompt) {
+        // Keep stdin open until prompt handshake settles. In sync mode,
+        // requestPrompt arrives later via stdout, so ending here can race and
+        // trigger "write after end" when sending the user's prompt response.
+        if (!requestPrompt && !forceSyncExecution) {
           child.stdin.end()
         }
         resolve()

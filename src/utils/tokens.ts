@@ -1,8 +1,22 @@
 import type { BetaUsage as Usage } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import { roughTokenCountEstimationForMessages } from '../services/tokenEstimation.js'
+import { IncrementalTokenCounter } from './incrementalTokenCounter.js'
 import type { AssistantMessage, Message } from '../types/message.js'
 import { SYNTHETIC_MESSAGES, SYNTHETIC_MODEL } from './messages.js'
 import { jsonStringify } from './slowOperations.js'
+
+let _tokenCounter: IncrementalTokenCounter | undefined
+
+export function getIncrementalTokenCounter(): IncrementalTokenCounter {
+  if (!_tokenCounter) {
+    _tokenCounter = new IncrementalTokenCounter({
+      tokenBudget: 100000,
+      autoInvalidate: true,
+      estimationMultiplier: 1.0,
+    })
+  }
+  return _tokenCounter
+}
 
 export function getTokenUsage(message: Message): Usage | undefined {
   if (
@@ -252,10 +266,10 @@ export function tokenCountWithEstimation(messages: readonly Message[]): number {
       }
       return (
         getTokenCountFromUsage(usage) +
-        roughTokenCountEstimationForMessages(messages.slice(i + 1))
+        getIncrementalTokenCounter().getCount(messages.slice(i + 1))
       )
     }
     i--
   }
-  return roughTokenCountEstimationForMessages(messages)
+  return getIncrementalTokenCounter().getCount(messages)
 }

@@ -16,9 +16,14 @@ All notable changes to free-code are documented here.
 <!-- GENERATED_RECENT_COMMITS_END -->
 
 ### Added
+- **Harness ratchet workflow** -- Added `/ratchet` (`/harness`) and `.free-code/harness/failures.jsonl` so observed agent failures can become durable harness improvements with evidence, proposed fixes, tags, and status.
+- **Harness engineering notes** -- Added `docs/harness-engineering.md` and `docs/harness-engineering-full.md` to capture the harness-engineering source context, product direction, and staged Free-Code improvement plan.
+- **Flue harness review** -- Captured Flue-inspired improvements for programmable headless runs, typed skill results, session/task separation, scoped command grants, provider scoping, connector recipes, and durable session IDs.
+- **Skill-chain finalizers** -- Strengthened inline skill parsing so `$tte-try-to-enhance ... then $handoff after` resolves to `tte/try-to-enhance` plus the handoff finalizer, and `$handover /goal ...` carries follow-up slash-command intent.
 - **Upstream parity refresh** -- Ported broad OpenClaude-derived feature, SDK, provider, MCP, docs, install, and runtime hardening updates while preserving Free-Code branding and config paths.
 - **Native goal continuity** -- Added `/goal` plus goal tools, looping continuation, compact state snapshots, and recent progress notes so long-running harness work can recover after compaction or resume.
 - **Runtime tool memory** -- Added compact rolling tool/assistant memory under `.free-code/memory/` and prompt injection so future turns can recover useful operational context after compaction or resume.
+- **Goal checkpoints** -- Added durable `.free-code/goals/*.checkpoint.md` snapshots so active goals carry objective, status, compact state, recent progress, budget, and resume rules across compaction or handoff.
 - **Session timeline** -- Added `/sessions timeline` and `/sessions tree` for goal, tool, assistant, commit, handoff, and compaction lineage inspection.
 - **Native Tokenjuice adapter** -- Integrated Tokenjuice as an internal tool-result compaction layer, default-on for large text outputs with safer exclusions for exact-content tools.
 

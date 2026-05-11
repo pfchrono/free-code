@@ -7,6 +7,7 @@ import type {
 } from '../types/command.js'
 import { logForDebugging } from './debug.js'
 import type { FileStateCache } from './fileStateCache.js'
+import { getMainLoopModel } from './model/model.js'
 import { parseSlashCommand } from './slashCommandParsing.js'
 
 export type HeadlessLocalCommandRunResult = {
@@ -47,6 +48,7 @@ export async function runHeadlessLocalSlashCommand(
   )
 
   const messages = options.messages ?? []
+  const appState = options.appState as Record<string, any>
   const commandContext = {
     canUseTool:
       options.canUseTool ?? (async () => ({ behavior: 'allow' as const })),
@@ -63,6 +65,15 @@ export async function runHeadlessLocalSlashCommand(
       dynamicMcpConfig: {},
       ideInstallationStatus: null,
       theme: (options.theme ?? 'dark') as never,
+      mainLoopModel:
+        appState.mainLoopModelForSession ??
+        appState.mainLoopModel ??
+        getMainLoopModel(),
+      tools: [],
+      agentDefinitions: appState.agentDefinitions ?? {
+        activeAgents: [],
+        allAgents: [],
+      },
     },
     onChangeAPIKey: () => {},
   } as const

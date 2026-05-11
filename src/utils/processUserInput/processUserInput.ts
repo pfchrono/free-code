@@ -13,7 +13,6 @@ import {
   getCommandName,
   isBridgeSafeCommand,
   type LocalJSXCommandContext,
-  type Command,
 } from '../../commands.js'
 import type { CanUseToolFn } from '../../hooks/useCanUseTool.js'
 import type { IDESelection } from '../../hooks/useIdeSelection.js'
@@ -56,6 +55,7 @@ import {
 } from '../messages.js'
 import { queryCheckpoint } from '../queryProfiler.js'
 import { parseSlashCommand } from '../slashCommandParsing.js'
+import { findInlineSkillMentions } from '../skillChainParsing.js'
 import {
   hasUltraplanKeyword,
   replaceUltraplanKeyword,
@@ -306,58 +306,6 @@ function rewriteSkillShortcut(
   if (cmd?.type !== 'prompt' || cmd.userInvocable === false) return null
 
   return `/${input.slice(1)}`
-}
-
-type InlineSkillMention = {
-  name: string
-  command: Command & { type: 'prompt' }
-  isFinalizer: boolean
-  finalizerCommand?: string
-}
-
-function findCommandWithInlineAliases(
-  name: string,
-  commands: Command[],
-): Command | undefined {
-  const command = findCommand(name, commands)
-  if (command) return command
-  if (name === 'handover') return findCommand('handoff', commands)
-  return undefined
-}
-
-function extractFinalizerCommand(rest: string): string | undefined {
-  const match = rest.match(/^\s+(\/[A-Za-z0-9:_-]+(?:\s+[^$]+?)?)(?=\s+\$|$)/)
-  return match?.[1]?.trim()
-}
-
-function findInlineSkillMentions(
-  input: string,
-  commands: Command[],
-): InlineSkillMention[] {
-  const mentions: InlineSkillMention[] = []
-  const seen = new Set<string>()
-  const mentionPattern = /\$([A-Za-z0-9][A-Za-z0-9:_/-]*)/g
-  for (const match of input.matchAll(mentionPattern)) {
-    const name = match[1]
-    if (!name || seen.has(name)) continue
-    const command = findCommandWithInlineAliases(name, commands)
-    if (command?.type !== 'prompt' || command.userInvocable === false) {
-      continue
-    }
-    const rest = input.slice((match.index ?? 0) + match[0].length)
-    const finalizerCommand = extractFinalizerCommand(rest)
-    seen.add(name)
-    mentions.push({
-      name: command.name,
-      command,
-      isFinalizer:
-        command.name === 'handoff' &&
-        (/\b(after|afterwards|last|finally)\b/i.test(rest) ||
-          finalizerCommand !== undefined),
-      finalizerCommand,
-    })
-  }
-  return mentions
 }
 
 function applyTruncation(content: string): string {

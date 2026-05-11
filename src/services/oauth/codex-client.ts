@@ -18,6 +18,10 @@ import { logEvent } from 'src/services/analytics/index.js'
 import {
   CODEX_AUTHORIZE_URL,
   CODEX_CLIENT_ID,
+  CODEX_DEVICE_REDIRECT_URI,
+  CODEX_DEVICE_TOKEN_URL,
+  CODEX_DEVICE_USER_CODE_URL,
+  CODEX_DEVICE_VERIFICATION_URL,
   CODEX_JWT_AUTH_CLAIM,
   CODEX_REDIRECT_URI,
   CODEX_SCOPES,
@@ -57,6 +61,26 @@ type LocalServer = {
   waitForCode: () => Promise<{ code: string } | null>
   cancelWait: () => void
   close: () => void
+}
+
+export type CodexDeviceCode = {
+  verificationUrl: string
+  userCode: string
+  expiresInSeconds: number
+}
+
+type CodexDeviceUserCodeResponse = {
+  device_auth_id?: string
+  user_code?: string
+  usercode?: string
+  interval?: string | number
+  expires_in?: string | number
+}
+
+type CodexDeviceTokenResponse = {
+  authorization_code?: string
+  code_verifier?: string
+  code_challenge?: string
 }
 
 // ── JWT helpers ───────────────────────────────────────────────────────────────
@@ -161,12 +185,17 @@ async function postToTokenUrl(body: URLSearchParams): Promise<TokenResult> {
   }
 }
 
-/**
- * Exchanges an authorization code for access + refresh tokens.
- */
-export async function exchangeCodexCode(
+function parseNumber(value: string | number | undefined, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value !== 'string') return fallback
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+async function exchangeCodexAuthorizationCode(
   code: string,
   verifier: string,
+  redirectUri: string,
 ): Promise<CodexTokens> {
   const result = await postToTokenUrl(
     new URLSearchParams({
@@ -174,7 +203,7 @@ export async function exchangeCodexCode(
       client_id: CODEX_CLIENT_ID,
       code,
       code_verifier: verifier,
-      redirect_uri: CODEX_REDIRECT_URI,
+      redirect_uri: redirectUri,
     }),
   )
   if (result.type !== 'success') {
@@ -190,6 +219,16 @@ export async function exchangeCodexCode(
     expiresAt: result.expires,
     accountId,
   }
+}
+
+/**
+ * Exchanges an authorization code for access + refresh tokens.
+ */
+export async function exchangeCodexCode(
+  code: string,
+  verifier: string,
+): Promise<CodexTokens> {
+  return exchangeCodexAuthorizationCode(code, verifier, CODEX_REDIRECT_URI)
 }
 
 /**
@@ -215,6 +254,109 @@ export async function refreshCodexToken(refreshToken: string): Promise<CodexToke
     refreshToken: result.refresh,
     expiresAt: result.expires,
     accountId,
+  }
+}
+
+async function requestCodexDeviceCode(): Promise<
+  CodexDeviceCode & {
+    deviceAuthId: string
+    intervalSeconds: number
+  }
+> {
+  const response = await fetch(CODEX_DEVICE_USER_CODE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: CODEX_CLIENT_ID }),
+  })
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        'Codex one-time code login is not enabled for this auth server.',
+      )
+    }
+    throw new Error(
+      `Codex one-time code request failed with status ${response.status}.`,
+    )
+  }
+
+  const json = (await response.json()) as CodexDeviceUserCodeResponse
+  const userCode = json.user_code ?? json.usercode
+  if (!json.device_auth_id || !userCode) {
+    throw new Error('Codex one-time code response missing required fields.')
+  }
+
+  return {
+    verificationUrl: CODEX_DEVICE_VERIFICATION_URL,
+    userCode,
+    deviceAuthId: json.device_auth_id,
+    intervalSeconds: parseNumber(json.interval, 5),
+    expiresInSeconds: parseNumber(json.expires_in, 15 * 60),
+  }
+}
+
+async function pollCodexDeviceToken(options: {
+  deviceAuthId: string
+  userCode: string
+  intervalSeconds: number
+  expiresInSeconds: number
+}): Promise<CodexDeviceTokenResponse> {
+  const startedAt = Date.now()
+  const expiresAt = startedAt + options.expiresInSeconds * 1000
+
+  while (Date.now() < expiresAt) {
+    const response = await fetch(CODEX_DEVICE_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        device_auth_id: options.deviceAuthId,
+        user_code: options.userCode,
+      }),
+    })
+
+    if (response.ok) {
+      const json = (await response.json()) as CodexDeviceTokenResponse
+      if (!json.authorization_code || !json.code_verifier) {
+        throw new Error('Codex one-time code token response missing fields.')
+      }
+      return json
+    }
+
+    if (response.status !== 403 && response.status !== 404) {
+      throw new Error(
+        `Codex one-time code login failed with status ${response.status}.`,
+      )
+    }
+
+    const remainingMs = expiresAt - Date.now()
+    if (remainingMs <= 0) break
+    await new Promise(resolve =>
+      setTimeout(resolve, Math.min(options.intervalSeconds * 1000, remainingMs)),
+    )
+  }
+
+  throw new Error('Codex one-time code login timed out.')
+}
+
+export async function runCodexDeviceCodeFlow(
+  onCodeReady: (deviceCode: CodexDeviceCode) => Promise<void>,
+): Promise<CodexTokens> {
+  logEvent('tengu_oauth_codex_device_flow_start', {})
+
+  try {
+    const deviceCode = await requestCodexDeviceCode()
+    await onCodeReady(deviceCode)
+    const tokenResponse = await pollCodexDeviceToken(deviceCode)
+    const tokens = await exchangeCodexAuthorizationCode(
+      tokenResponse.authorization_code!,
+      tokenResponse.code_verifier!,
+      CODEX_DEVICE_REDIRECT_URI,
+    )
+    logEvent('tengu_oauth_codex_device_success', {})
+    return tokens
+  } catch (err) {
+    logEvent('tengu_oauth_codex_device_error', {})
+    throw err
   }
 }
 

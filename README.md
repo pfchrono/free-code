@@ -95,8 +95,16 @@ The upstream CLI ships with 88 feature flags gated behind `bun:bundle` compile-t
 
 Recent updates expanded provider bootstrap, local launch workflow, provider health checks, status visibility, Windows/path handling, local skill workflow support, config-home-aware persistence, and internal provider/memory tooling:
 
+- Added harness ratchet workflow:
+  - `/ratchet add <failure>` captures agent failures under `.free-code/harness/failures.jsonl`
+  - `/ratchet list`, `/ratchet show <id>`, and status updates track whether fixes are open, planned, fixed, or wontfix
+  - entries include proposed harness fixes so failures can turn into tests, hooks, command guards, or skill updates
+- Improved skill-chain finalizers:
+  - `$tte-try-to-enhance ... then $handoff after` now resolves the namespaced `tte/try-to-enhance` skill and preserves the handoff finalizer
+  - `$handover /goal ...` aliases to handoff and carries the follow-up slash-command intent into the finalizer context
 - Added stronger memory continuity:
   - runtime tool/assistant memory under `.free-code/memory/tool-memory.json`
+  - durable active-goal checkpoints under `.free-code/goals/*.checkpoint.md`
   - bounded prompt injection for recent operational memory
   - `/sessions timeline` for goal/tool/assistant/commit event history
   - `/sessions tree` for compact/handoff/resume lineage
