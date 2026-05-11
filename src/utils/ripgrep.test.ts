@@ -1,7 +1,11 @@
 import { expect, test } from 'bun:test'
 import path from 'path'
 
-import { resolveRipgrepConfig, wrapRipgrepUnavailableError } from './ripgrep.js'
+import {
+  parseRipgrepJsonLine,
+  resolveRipgrepConfig,
+  wrapRipgrepUnavailableError,
+} from './ripgrep.js'
 
 const MOCK_BUILTIN_PATH = path.normalize(
   process.platform === 'win32'
@@ -112,4 +116,30 @@ test('wrapRipgrepUnavailableError explains missing system ripgrep', () => {
 
   expect(error.message).toContain('system ripgrep binary was not found on PATH')
   expect(error.message).toContain('apt install ripgrep')
+})
+
+test('parseRipgrepJsonLine extracts match records', () => {
+  const match = parseRipgrepJsonLine(JSON.stringify({
+    type: 'match',
+    data: {
+      path: { text: 'src/a:file.ts' },
+      line_number: 42,
+      lines: { text: 'const value = "needle"\n' },
+    },
+  }))
+
+  expect(match).toEqual({
+    path: 'src/a:file.ts',
+    line: 42,
+    text: 'const value = "needle"',
+  })
+})
+
+test('parseRipgrepJsonLine ignores non-match and malformed records', () => {
+  expect(parseRipgrepJsonLine('not json')).toBeNull()
+  expect(parseRipgrepJsonLine(JSON.stringify({ type: 'begin' }))).toBeNull()
+  expect(parseRipgrepJsonLine(JSON.stringify({
+    type: 'match',
+    data: { path: { text: 'x' }, line_number: '1' },
+  }))).toBeNull()
 })

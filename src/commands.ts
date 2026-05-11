@@ -5,6 +5,7 @@ import backfillSessions from './commands/backfill-sessions/index.js'
 import benchmark from './commands/benchmark/index.js'
 import btw from './commands/btw/index.js'
 import goodClaude from './commands/good-claude/index.js'
+import guild from './commands/guild/index.js'
 import goal from './commands/goal/index.js'
 import issue from './commands/issue/index.js'
 import feedback from './commands/feedback/index.js'
@@ -309,6 +310,7 @@ const COMMANDS = memoize((): Command[] => [
   fast,
   files,
   goal,
+  guild,
   heapDump,
   help,
   ide,

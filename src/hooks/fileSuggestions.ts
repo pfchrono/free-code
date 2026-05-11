@@ -77,11 +77,18 @@ let lastGitIndexMtime: number | null = null
 let loadedTrackedSignature: string | null = null
 let loadedMergedSignature: string | null = null
 
-/**
- * Clear all file suggestion caches.
- * Call this when resuming a session to ensure fresh file discovery.
- */
-export function clearFileSuggestionCaches(): void {
+type FileSuggestionWatcher = {
+  close: () => Promise<void> | void
+  on: (event: string, listener: () => void) => FileSuggestionWatcher
+}
+
+let fileSuggestionWatcher: FileSuggestionWatcher | null = null
+let fileSuggestionWatcherKey: string | null = null
+let fileSuggestionWatcherStartingKey: string | null = null
+let fileSuggestionWatcherRefreshTimer: ReturnType<typeof setTimeout> | null =
+  null
+
+function resetFileSuggestionCacheState(): void {
   fileIndex = null
   fileListRefreshPromise = null
   cacheGeneration++
@@ -96,6 +103,98 @@ export function clearFileSuggestionCaches(): void {
   lastGitIndexMtime = null
   loadedTrackedSignature = null
   loadedMergedSignature = null
+}
+
+/**
+ * Clear all file suggestion caches.
+ * Call this when resuming a session to ensure fresh file discovery.
+ */
+export function clearFileSuggestionCaches(): void {
+  resetFileSuggestionCacheState()
+  if (fileSuggestionWatcherRefreshTimer) {
+    clearTimeout(fileSuggestionWatcherRefreshTimer)
+    fileSuggestionWatcherRefreshTimer = null
+  }
+  void fileSuggestionWatcher?.close()
+  fileSuggestionWatcher = null
+  fileSuggestionWatcherKey = null
+  fileSuggestionWatcherStartingKey = null
+}
+
+function scheduleFileSuggestionWatcherRefresh(): void {
+  ignorePatternsCache = null
+  ignorePatternsCacheKey = null
+  if (fileSuggestionWatcherRefreshTimer) {
+    clearTimeout(fileSuggestionWatcherRefreshTimer)
+  }
+  fileSuggestionWatcherRefreshTimer = setTimeout(() => {
+    fileSuggestionWatcherRefreshTimer = null
+    startBackgroundCacheRefresh({ force: true })
+  }, 250)
+}
+
+function getFileSuggestionWatchPaths(cwd: string): string[] {
+  const repoRoot = findGitRoot(cwd)
+  const paths = [
+    repoRoot ? path.join(repoRoot, '.git', 'index') : null,
+    repoRoot ? path.join(repoRoot, '.ignore') : null,
+    repoRoot ? path.join(repoRoot, '.rgignore') : null,
+    path.join(cwd, '.ignore'),
+    path.join(cwd, '.rgignore'),
+  ].filter((p): p is string => p !== null)
+
+  return [...new Set(paths)]
+}
+
+function ensureFileSuggestionWatcher(): void {
+  if (process.env.NODE_ENV === 'test') return
+
+  const cwd = getCwd()
+  const watchPaths = getFileSuggestionWatchPaths(cwd)
+  if (watchPaths.length === 0) return
+
+  const key = watchPaths.join('\0')
+  if (
+    fileSuggestionWatcherKey === key &&
+    (fileSuggestionWatcher || fileSuggestionWatcherStartingKey === key)
+  ) {
+    return
+  }
+
+  void fileSuggestionWatcher?.close()
+  fileSuggestionWatcher = null
+  fileSuggestionWatcherKey = key
+  fileSuggestionWatcherStartingKey = key
+
+  void import('chokidar')
+    .then(({ watch }) => {
+      if (fileSuggestionWatcherKey !== key) return
+      const watcher = watch(watchPaths, {
+        ignoreInitial: true,
+        awaitWriteFinish: {
+          stabilityThreshold: 100,
+          pollInterval: 50,
+        },
+      }) as unknown as FileSuggestionWatcher
+      watcher
+        .on('add', scheduleFileSuggestionWatcherRefresh)
+        .on('change', scheduleFileSuggestionWatcherRefresh)
+        .on('unlink', scheduleFileSuggestionWatcherRefresh)
+      fileSuggestionWatcher = watcher
+      logForDebugging(
+        `[FileIndex] watching ${watchPaths.length} git/ignore path(s) for cache invalidation`,
+      )
+    })
+    .catch(error => {
+      logForDebugging(
+        `[FileIndex] watcher unavailable: ${errorMessage(error)}`,
+      )
+    })
+    .finally(() => {
+      if (fileSuggestionWatcherStartingKey === key) {
+        fileSuggestionWatcherStartingKey = null
+      }
+    })
 }
 
 /**
@@ -633,7 +732,15 @@ function findMatchingFiles(
  * and rebuilding the nucleo index.
  */
 const REFRESH_THROTTLE_MS = 5_000
-export function startBackgroundCacheRefresh(): void {
+type StartBackgroundCacheRefreshOptions = {
+  force?: boolean
+}
+
+export function startBackgroundCacheRefresh(
+  options: StartBackgroundCacheRefreshOptions = {},
+): void {
+  ensureFileSuggestionWatcher()
+
   if (fileListRefreshPromise) return
 
   // Throttle only when a cache exists — cold start must always populate.
@@ -642,7 +749,7 @@ export function startBackgroundCacheRefresh(): void {
   // files, which don't bump .git/index. The signature checks downstream skip
   // the rebuild when the 5s refresh finds nothing actually changed.
   const indexMtime = getGitIndexMtime()
-  if (fileIndex) {
+  if (!options.force && fileIndex) {
     const gitStateChanged =
       indexMtime !== null && indexMtime !== lastGitIndexMtime
     if (!gitStateChanged && Date.now() - lastRefreshMs < REFRESH_THROTTLE_MS) {

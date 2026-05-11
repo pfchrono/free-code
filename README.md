@@ -114,6 +114,7 @@ Recent updates expanded provider bootstrap, local launch workflow, provider heal
   - active goals are not accidentally overwritten
   - use `/goal replace <objective>` to replace, or `/goal clear` to stop
   - continuation prompts now require requirement-to-evidence completion audits
+- Fixed LogoV2 release notes loading so startup prefers the GitHub-fetched `changes.md` cache and falls back to bundled notes only when cache is missing
 - Added native Tokenjuice tool-result compaction for large text outputs, default-on with exclusions for exact-content tools
 - Added provider bootstrap commands for repo-local setup:
   - `free-code profile:init`

@@ -83,8 +83,10 @@ export const DEFAULT_BINDINGS: KeybindingBlock[] = [
       'ctrl+x ctrl+e': 'chat:externalEditor',
       'ctrl+g': 'chat:externalEditor',
       'ctrl+s': 'chat:stash',
-      // Image paste shortcut (platform-specific key defined above)
+      // Image paste shortcuts. alt+v mirrors Codex's fallback for terminals
+      // where ctrl+v is consumed by normal paste handling.
       [IMAGE_PASTE_KEY]: 'chat:imagePaste',
+      'alt+v': 'chat:imagePaste',
       ...(feature('MESSAGE_ACTIONS')
         ? { 'shift+up': 'chat:messageActions' as const }
         : {}),

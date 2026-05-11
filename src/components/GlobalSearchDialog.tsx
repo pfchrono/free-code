@@ -12,7 +12,7 @@ import { truncatePathMiddle, truncateToWidth } from '../utils/format.js';
 import { highlightMatch } from '../utils/highlightMatch.js';
 import { relativePath } from '../utils/permissions/filesystem.js';
 import { readFileInRange } from '../utils/readFileInRange.js';
-import { ripGrepStream } from '../utils/ripgrep.js';
+import { ripGrepJsonStream } from '../utils/ripgrep.js';
 import { FuzzyPicker } from './design-system/FuzzyPicker.js';
 import { LoadingState } from './design-system/LoadingState.js';
 type Props = {
@@ -265,20 +265,17 @@ export function GlobalSearchDialog(t0) {
 function _temp4(query_0, controller_1, setMatches_0, setTruncated_0, setIsSearching_0) {
   const cwd = getCwd();
   let collected = 0;
-  ripGrepStream(["-n", "--no-heading", "-i", "-m", String(MAX_MATCHES_PER_FILE), "-F", "-e", query_0], cwd, controller_1.signal, lines => {
+  ripGrepJsonStream(["-i", "-m", String(MAX_MATCHES_PER_FILE), "-F", "-e", query_0], cwd, controller_1.signal, matches_0 => {
     if (controller_1.signal.aborted) {
       return;
     }
     const parsed = [];
-    for (const line of lines) {
-      const m_1 = parseRipgrepLine(line);
-      if (!m_1) {
-        continue;
-      }
-      const rel = relativePath(cwd, m_1.file);
+    for (const m_1 of matches_0) {
+      const rel = relativePath(cwd, m_1.path);
       parsed.push({
-        ...m_1,
-        file: rel.startsWith("..") ? m_1.file : rel
+        file: rel.startsWith("..") ? m_1.path : rel,
+        line: m_1.line,
+        text: m_1.text
       });
     }
     if (!parsed.length) {

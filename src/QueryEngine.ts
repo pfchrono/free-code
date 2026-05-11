@@ -38,6 +38,7 @@ import {
   getGoal,
   isGoalActive,
   recordGoalProgress,
+  updateGoalStatus,
 } from './services/goals/goalStore.js'
 import {
   buildGoalBudgetLimitPrompt,
@@ -136,6 +137,23 @@ function getMaxGoalContinuations(): number {
   if (!raw) return 25
   const parsed = Number(raw)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 25
+}
+
+function getGoalMaxRssBytes(): number {
+  const raw = process.env.FREE_CODE_GOAL_MAX_RSS_MB
+  if (!raw) return 4096 * 1024 * 1024
+  const parsed = Number(raw)
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed * 1024 * 1024
+    : 4096 * 1024 * 1024
+}
+
+export function shouldPauseGoalForMemory(): boolean {
+  if (isEnvTruthy(process.env.FREE_CODE_GOAL_DISABLE_MEMORY_GUARD)) {
+    return false
+  }
+  const rss = process.memoryUsage.rss()
+  return rss >= getGoalMaxRssBytes()
 }
 
 import {
@@ -1266,7 +1284,9 @@ export class QueryEngine {
 
       if (isGoalActive(goalForContinuation)) {
         const maxGoalContinuations = getMaxGoalContinuations()
-        if (goalContinuationDepth < maxGoalContinuations) {
+        if (shouldPauseGoalForMemory()) {
+          await updateGoalStatus('paused')
+        } else if (goalContinuationDepth < maxGoalContinuations) {
           for await (const continuationMessage of this.submitMessage(
             buildGoalContinuationPrompt(goalForContinuation),
             {

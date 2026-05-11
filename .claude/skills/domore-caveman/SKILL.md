@@ -1,8 +1,8 @@
 ---
 name: domore-caveman
-description: "Execute concrete tasks end-to-end with domore-style simplicity and verification guardrails, while responding in caveman-distillate mode unless safety or destructive operations require clearer language."
+description: "Execute concrete tasks end-to-end with terse caveman-distillate communication unless safety or destructive operations require clearer language."
 metadata:
-  short-description: Execution skill with strict guardrails and distilled output.
+  short-description: Execution skill with distilled output.
 ---
 
 # DOMORE CAVEMAN
@@ -27,7 +27,7 @@ Use this skill when user wants task execution like `domore` but also wants terse
 
 If required context is missing and risk is unclear, ask one narrow clarification before major edits.
 
-## Execution Guardrails
+## Work Style
 
 ### 1. Think Before Coding
 

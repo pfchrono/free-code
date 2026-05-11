@@ -15,9 +15,41 @@
  * at 1.0) so non-test files rank slightly higher.
  */
 
+import { createRequire } from 'module'
+
 export type SearchResult = {
   path: string
   score: number
+}
+
+type NativeFileIndex = {
+  loadFromFileList: (fileList: string[]) => void
+  search: (query: string, limit: number) => SearchResult[]
+}
+
+const requireNative = createRequire(import.meta.url)
+
+function createNativeFileIndex(): NativeFileIndex | null {
+  const candidates = [
+    process.env.FREE_CODE_NATIVE_FILE_INDEX_MODULE,
+    '@free-code/file-index-native',
+    'free-code-file-index-native',
+  ].filter((name): name is string => Boolean(name))
+
+  for (const candidate of candidates) {
+    try {
+      const mod = requireNative(candidate) as {
+        FileIndex?: new () => NativeFileIndex
+        default?: new () => NativeFileIndex
+      }
+      const NativeIndex = mod.FileIndex ?? mod.default
+      if (NativeIndex) return new NativeIndex()
+    } catch {
+      // Optional acceleration only. TS implementation remains source of truth.
+    }
+  }
+
+  return null
 }
 
 // nucleo-style scoring constants (approximating fzf-v2 / nucleo bonuses)
@@ -41,6 +73,7 @@ const CHUNK_MS = 4
 const posBuf = new Int32Array(MAX_QUERY_LEN)
 
 export class FileIndex {
+  private native: NativeFileIndex | null = createNativeFileIndex()
   private paths: string[] = []
   private lowerPaths: string[] = []
   private charBits: Int32Array = new Int32Array(0)
@@ -56,6 +89,15 @@ export class FileIndex {
    * Automatically deduplicates paths.
    */
   loadFromFileList(fileList: string[]): void {
+    if (this.native) {
+      try {
+        this.native.loadFromFileList(fileList)
+        return
+      } catch {
+        this.native = null
+      }
+    }
+
     // Deduplicate and filter empty strings (matches Rust HashSet behavior)
     const seen = new Set<string>()
     const paths: string[] = []
@@ -84,6 +126,16 @@ export class FileIndex {
     queryable: Promise<void>
     done: Promise<void>
   } {
+    if (this.native) {
+      try {
+        this.native.loadFromFileList(fileList)
+        const done = Promise.resolve()
+        return { queryable: done, done }
+      } catch {
+        this.native = null
+      }
+    }
+
     let markQueryable: () => void = () => {}
     const queryable = new Promise<void>(resolve => {
       markQueryable = resolve
@@ -171,6 +223,14 @@ export class FileIndex {
    * Returns top N results sorted by match score.
    */
   search(query: string, limit: number): SearchResult[] {
+    if (this.native) {
+      try {
+        return this.native.search(query, limit)
+      } catch {
+        this.native = null
+      }
+    }
+
     if (limit <= 0) return []
     if (query.length === 0) {
       if (this.topLevelCache) {

@@ -18,9 +18,11 @@ import {
 import type { PermissionDecision } from '../../utils/permissions/PermissionResult.js'
 import { matchWildcardPattern } from '../../utils/permissions/shellRuleMatching.js'
 import { getGlobExclusionsForPluginCache } from '../../utils/plugins/orphanedPluginFilter.js'
-import { ripGrep } from '../../utils/ripgrep.js'
+import { searchContentIndex } from '../../utils/contentSearchIndex.js'
+import { ripGrep, ripGrepJsonStream } from '../../utils/ripgrep.js'
 import { semanticBoolean } from '../../utils/semanticBoolean.js'
 import { semanticNumber } from '../../utils/semanticNumber.js'
+import { searchWithAstGrep } from '../../utils/structuralSearch.js'
 import { plural } from '../../utils/stringUtils.js'
 import { GREP_TOOL_NAME, getDescription } from './prompt.js'
 import {
@@ -36,6 +38,18 @@ const inputSchema = lazySchema(() =>
       .string()
       .describe(
         'The regular expression pattern to search for in file contents',
+      ),
+    engine: z
+      .enum(['ripgrep', 'fts', 'structural'])
+      .optional()
+      .describe(
+        'Search engine. "ripgrep" is default regex search. "fts" uses the local SQLite full-text content cache for term search. "structural" uses ast-grep (`sg`) for AST pattern search when installed.',
+      ),
+    language: z
+      .string()
+      .optional()
+      .describe(
+        'Language for engine: "structural" (ast-grep -l), e.g. ts, tsx, js, rust, python.',
       ),
     path: z
       .string()
@@ -141,6 +155,23 @@ function formatLimitInfo(
   return parts.join(', ')
 }
 
+function parseGlobPatterns(glob: string | undefined): string[] {
+  if (!glob) return []
+
+  const globPatterns: string[] = []
+  const rawPatterns = glob.split(/\s+/)
+
+  for (const rawPattern of rawPatterns) {
+    if (rawPattern.includes('{') && rawPattern.includes('}')) {
+      globPatterns.push(rawPattern)
+    } else {
+      globPatterns.push(...rawPattern.split(',').filter(Boolean))
+    }
+  }
+
+  return globPatterns.filter(Boolean)
+}
+
 const outputSchema = lazySchema(() =>
   z.object({
     mode: z.enum(['content', 'files_with_matches', 'count']).optional(),
@@ -156,6 +187,59 @@ const outputSchema = lazySchema(() =>
 type OutputSchema = ReturnType<typeof outputSchema>
 
 type Output = z.infer<OutputSchema>
+
+async function streamContentOutput(
+  args: string[],
+  absolutePath: string,
+  parentSignal: AbortSignal,
+  headLimit: number | undefined,
+  offset: number,
+): Promise<Output> {
+  const effectiveLimit =
+    headLimit === 0 ? undefined : headLimit ?? DEFAULT_HEAD_LIMIT
+  const controller = new AbortController()
+  const abortFromParent = () => controller.abort()
+  parentSignal.addEventListener('abort', abortFromParent, { once: true })
+
+  const lines: string[] = []
+  let skipped = 0
+  let appliedLimit: number | undefined
+
+  try {
+    await ripGrepJsonStream(args, absolutePath, controller.signal, matches => {
+      for (const match of matches) {
+        if (skipped < offset) {
+          skipped++
+          continue
+        }
+
+        if (effectiveLimit !== undefined && lines.length >= effectiveLimit) {
+          appliedLimit = effectiveLimit
+          controller.abort()
+          return
+        }
+
+        lines.push(`${toRelativePath(match.path)}:${match.line}:${match.text}`)
+      }
+    })
+  } catch (error) {
+    if (!controller.signal.aborted || parentSignal.aborted) {
+      throw error
+    }
+  } finally {
+    parentSignal.removeEventListener('abort', abortFromParent)
+  }
+
+  return {
+    mode: 'content',
+    numFiles: 0,
+    filenames: [],
+    content: lines.join('\n'),
+    numLines: lines.length,
+    ...(appliedLimit !== undefined && { appliedLimit }),
+    ...(offset > 0 && { appliedOffset: offset }),
+  }
+}
 
 export const GrepTool = buildTool({
   name: GREP_TOOL_NAME,
@@ -310,6 +394,8 @@ export const GrepTool = buildTool({
   async call(
     {
       pattern,
+      engine = 'ripgrep',
+      language,
       path,
       glob,
       type,
@@ -328,10 +414,12 @@ export const GrepTool = buildTool({
   ) {
     const absolutePath = path ? expandPath(path) : getCwd()
     const args = ['--hidden']
+    const globPatterns = parseGlobPatterns(glob)
+    const sharedGlobs = VCS_DIRECTORIES_TO_EXCLUDE.map(dir => `!${dir}`)
 
     // Exclude VCS directories to avoid noise from version control metadata
-    for (const dir of VCS_DIRECTORIES_TO_EXCLUDE) {
-      args.push('--glob', `!${dir}`)
+    for (const exclusion of sharedGlobs) {
+      args.push('--glob', exclusion)
     }
 
     // Limit line length to prevent base64/minified content from cluttering output
@@ -388,24 +476,8 @@ export const GrepTool = buildTool({
       args.push('--type', type)
     }
 
-    if (glob) {
-      // Split on commas and spaces, but preserve patterns with braces
-      const globPatterns: string[] = []
-      const rawPatterns = glob.split(/\s+/)
-
-      for (const rawPattern of rawPatterns) {
-        // If pattern contains braces, don't split further
-        if (rawPattern.includes('{') && rawPattern.includes('}')) {
-          globPatterns.push(rawPattern)
-        } else {
-          // Split on commas for patterns without braces
-          globPatterns.push(...rawPattern.split(',').filter(Boolean))
-        }
-      }
-
-      for (const globPattern of globPatterns.filter(Boolean)) {
-        args.push('--glob', globPattern)
-      }
+    for (const globPattern of globPatterns) {
+      args.push('--glob', globPattern)
     }
 
     // Add ignore patterns
@@ -423,6 +495,7 @@ export const GrepTool = buildTool({
       const rgIgnorePattern = ignorePattern.startsWith('/')
         ? `!${ignorePattern}`
         : `!**/${ignorePattern}`
+      sharedGlobs.push(rgIgnorePattern)
       args.push('--glob', rgIgnorePattern)
     }
 
@@ -430,7 +503,169 @@ export const GrepTool = buildTool({
     for (const exclusion of await getGlobExclusionsForPluginCache(
       absolutePath,
     )) {
+      sharedGlobs.push(exclusion)
       args.push('--glob', exclusion)
+    }
+
+    if (engine === 'fts') {
+      const effectiveLimit = head_limit === undefined ? DEFAULT_HEAD_LIMIT : head_limit
+      const result = await searchContentIndex({
+        root: absolutePath,
+        query: pattern,
+        glob,
+        globs: sharedGlobs,
+        type,
+        limit: effectiveLimit,
+        offset,
+        outputMode: output_mode,
+        abortSignal: abortController.signal,
+      })
+
+      if (result.mode === 'files_with_matches') {
+        const filenames = result.paths.map(path => toRelativePath(path))
+        return {
+          data: {
+            mode: 'files_with_matches' as const,
+            filenames,
+            numFiles: filenames.length,
+            ...(result.appliedLimit !== undefined && {
+              appliedLimit: result.appliedLimit,
+            }),
+            ...(offset > 0 && { appliedOffset: offset }),
+          },
+        }
+      }
+
+      if (result.mode === 'count') {
+        const content = result.counts
+          .map(({ path, count }) => `${toRelativePath(path)}:${count}`)
+          .join('\n')
+        return {
+          data: {
+            mode: 'count' as const,
+            numFiles: result.counts.length,
+            filenames: [],
+            content,
+            numMatches: result.numMatches,
+            ...(result.appliedLimit !== undefined && {
+              appliedLimit: result.appliedLimit,
+            }),
+            ...(offset > 0 && { appliedOffset: offset }),
+          },
+        }
+      }
+
+      const content = result.matches
+        .map(
+          match => `${toRelativePath(match.path)}:${match.line}:${match.text}`,
+        )
+        .join('\n')
+      return {
+        data: {
+          mode: 'content' as const,
+          numFiles: 0,
+          filenames: [],
+          content,
+          numLines: result.matches.length,
+          ...(result.appliedLimit !== undefined && {
+            appliedLimit: result.appliedLimit,
+          }),
+          ...(offset > 0 && { appliedOffset: offset }),
+        },
+      }
+    }
+
+    if (engine === 'structural') {
+      const effectiveLimit = head_limit === undefined ? DEFAULT_HEAD_LIMIT : head_limit
+      const result = await searchWithAstGrep({
+        root: absolutePath,
+        pattern,
+        language,
+        glob,
+        globs: sharedGlobs,
+        limit: effectiveLimit,
+        offset,
+        abortSignal: abortController.signal,
+      })
+      if (result.unavailable) {
+        return {
+          data: {
+            mode: 'content' as const,
+            numFiles: 0,
+            filenames: [],
+            content: result.unavailable,
+            numLines: 1,
+          },
+        }
+      }
+
+      if (output_mode === 'files_with_matches') {
+        const filenames = [
+          ...new Set(result.matches.map(match => toRelativePath(match.path))),
+        ]
+        return {
+          data: {
+            mode: 'files_with_matches' as const,
+            filenames,
+            numFiles: filenames.length,
+            ...(result.appliedLimit !== undefined && {
+              appliedLimit: result.appliedLimit,
+            }),
+            ...(offset > 0 && { appliedOffset: offset }),
+          },
+        }
+      }
+
+      const content = result.matches
+        .map(
+          match => `${toRelativePath(match.path)}:${match.line}:${match.text}`,
+        )
+        .join('\n')
+      if (output_mode === 'count') {
+        return {
+          data: {
+            mode: 'count' as const,
+            numFiles: new Set(result.matches.map(match => match.path)).size,
+            filenames: [],
+            content,
+            numMatches: result.matches.length,
+            ...(result.appliedLimit !== undefined && {
+              appliedLimit: result.appliedLimit,
+            }),
+            ...(offset > 0 && { appliedOffset: offset }),
+          },
+        }
+      }
+      return {
+        data: {
+          mode: 'content' as const,
+          numFiles: 0,
+          filenames: [],
+          content,
+          numLines: result.matches.length,
+          ...(result.appliedLimit !== undefined && {
+            appliedLimit: result.appliedLimit,
+          }),
+          ...(offset > 0 && { appliedOffset: offset }),
+        },
+      }
+    }
+
+    const hasContext =
+      context !== undefined ||
+      context_c !== undefined ||
+      context_before !== undefined ||
+      context_after !== undefined
+    if (output_mode === 'content' && show_line_numbers && !hasContext) {
+      return {
+        data: await streamContentOutput(
+          args,
+          absolutePath,
+          abortController.signal,
+          head_limit,
+          offset,
+        ),
+      }
     }
 
     // WSL has severe performance penalty for file reads (3-5x slower on WSL2)

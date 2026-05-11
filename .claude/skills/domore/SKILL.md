@@ -1,10 +1,8 @@
 ---
 name: domore
 description: >-
-  Execute a concrete task end-to-end like the do skill, while explicitly applying
-  Karpathy-style guardrails: surface assumptions, prefer simplest solution, make
-  only surgical changes, define verifiable success criteria, and validate before
-  stopping.
+  Execute a concrete task end-to-end like the do skill, with clear scope,
+  small changes, and targeted validation before stopping.
 metadata:
   short-description: >-
     Action-oriented execution with stricter simplicity and verification
@@ -13,7 +11,7 @@ metadata:
 
 # DOMORE
 
-Use this skill when the user asks you to actually carry out a task and you should apply stronger execution discipline while doing it.
+Use this skill when the user asks you to actually carry out a task and wants practical follow-through.
 
 ## Inputs
 
@@ -33,7 +31,7 @@ Use this skill when the user asks you to actually carry out a task and you shoul
 
 If required context is missing and risk is unclear, ask one narrow clarification before major edits.
 
-## Karpathy Guardrails
+## Work Style
 
 ### 1. Think Before Coding
 

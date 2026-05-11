@@ -125,9 +125,127 @@ type Transcript = (
 // 50MB — prevents OOM in the tombstone slow path which reads + rewrites the
 // entire session file. Session files can grow to multiple GB (inc-3930).
 const MAX_TOMBSTONE_REWRITE_BYTES = 50 * 1024 * 1024
+const MAX_TRANSCRIPT_METADATA_BYTES = 64 * 1024
+const TRANSCRIPT_METADATA_PREVIEW_BYTES = 2048
 
 const SKIP_FIRST_PROMPT_PATTERN =
   /^(?:\s*<[a-z][\w-]*[\s>]|\[Request interrupted by user[^\]]*\])/
+
+let pendingPersistedSessionStateSave:
+  | { sessionId: UUID; visibleMessages: Transcript }
+  | null = null
+let persistedSessionStateSaveInFlight = false
+
+type SizedValueSummary = {
+  truncated: true
+  originalBytes: number
+  preview?: string
+}
+
+function getJsonSizeBytes(value: unknown): number {
+  try {
+    return Buffer.byteLength(jsonStringify(value), 'utf8')
+  } catch {
+    return Number.POSITIVE_INFINITY
+  }
+}
+
+function summarizeLargeValue(value: unknown): unknown {
+  const originalBytes = getJsonSizeBytes(value)
+  if (originalBytes <= MAX_TRANSCRIPT_METADATA_BYTES) {
+    return value
+  }
+
+  const summary: SizedValueSummary = {
+    truncated: true,
+    originalBytes,
+  }
+  if (typeof value === 'string') {
+    summary.preview = value.slice(0, TRANSCRIPT_METADATA_PREVIEW_BYTES)
+  }
+  return summary
+}
+
+function sanitizeTranscriptMetadata<T extends Transcript>(messages: T): T {
+  return messages.map(message => {
+    if (message.type !== 'user') {
+      return message
+    }
+
+    const record = message as Record<string, unknown>
+    let sanitized: Record<string, unknown> | null = null
+    for (const key of ['toolUseResult', 'tool_use_result'] as const) {
+      if (key in record) {
+        const value = summarizeLargeValue(record[key])
+        if (value !== record[key]) {
+          sanitized ??= { ...record }
+          sanitized[key] = value
+        }
+      }
+    }
+
+    for (const [metaKey, structuredKey] of [
+      ['mcpMeta', 'structuredContent'],
+      ['mcp_metadata', 'structured_content'],
+    ] as const) {
+      const mcpMeta = record[metaKey]
+      if (
+        typeof mcpMeta === 'object' &&
+        mcpMeta !== null &&
+        structuredKey in mcpMeta
+      ) {
+        const metaRecord = mcpMeta as Record<string, unknown>
+        const value = summarizeLargeValue(metaRecord[structuredKey])
+        if (value !== metaRecord[structuredKey]) {
+          sanitized ??= { ...record }
+          sanitized[metaKey] = {
+            ...metaRecord,
+            [structuredKey]: value,
+          }
+        }
+      }
+    }
+
+    return (sanitized ?? message) as T[number]
+  }) as T
+}
+
+function enqueuePersistedSessionStateSave(
+  sessionId: UUID,
+  visibleMessages: Transcript,
+): void {
+  pendingPersistedSessionStateSave = { sessionId, visibleMessages }
+  if (persistedSessionStateSaveInFlight) {
+    return
+  }
+  persistedSessionStateSaveInFlight = true
+  void (async () => {
+    while (pendingPersistedSessionStateSave) {
+      const next = pendingPersistedSessionStateSave
+      pendingPersistedSessionStateSave = null
+      try {
+        const existing = await loadPersistedSessionState(next.sessionId)
+        await savePersistedSessionState(next.sessionId, {
+          version: 1,
+          visibleMessages: next.visibleMessages,
+          coreMessages: undefined,
+          checkpointMetadata: existing?.checkpointMetadata,
+          resumeMetadata: existing?.resumeMetadata,
+          compactionHistory: existing?.compactionHistory,
+          continuityMetadata: existing?.continuityMetadata,
+          memoryLineage: existing?.memoryLineage,
+        })
+      } catch {}
+    }
+    persistedSessionStateSaveInFlight = false
+    if (pendingPersistedSessionStateSave) {
+      enqueuePersistedSessionStateSave(
+        pendingPersistedSessionStateSave.sessionId,
+        pendingPersistedSessionStateSave.visibleMessages,
+      )
+    }
+  })()
+}
 
 /**
  * Type guard to check if an entry is a transcript message.
@@ -1442,21 +1560,10 @@ export async function recordTranscript(
       teamInfo,
     )
   }
-  const visibleMessages = cleanMessagesForLogging(allMessages ?? messages, allMessages)
-  void loadPersistedSessionState(sessionId)
-    .then(existing =>
-      savePersistedSessionState(sessionId, {
-        version: 1,
-        visibleMessages,
-        coreMessages: visibleMessages,
-        checkpointMetadata: existing?.checkpointMetadata,
-        resumeMetadata: existing?.resumeMetadata,
-        compactionHistory: existing?.compactionHistory,
-        continuityMetadata: existing?.continuityMetadata,
-        memoryLineage: existing?.memoryLineage,
-      }),
-    )
-    .catch(() => {})
+  const visibleMessages = sanitizeTranscriptMetadata(
+    cleanMessagesForLogging(allMessages ?? messages, allMessages),
+  )
+  enqueuePersistedSessionStateSave(sessionId, visibleMessages)
   // Return the last ACTUALLY recorded chain-participant's UUID, OR the
   // prefix-tracked UUID if no new chain participants were recorded. This lets
   // callers (useLogMessages) maintain the correct parent chain even when the
@@ -4471,12 +4578,13 @@ export function cleanMessagesForLogging(
   allMessages: readonly Message[] = messages,
 ): Transcript {
   const filtered = messages.filter(isLoggableMessage) as Transcript
-  return getUserType() !== 'ant'
+  const transformed = getUserType() !== 'ant'
     ? transformMessagesForExternalTranscript(
         filtered,
         collectReplIds(allMessages),
       )
     : filtered
+  return sanitizeTranscriptMetadata(transformed)
 }
 
 /**

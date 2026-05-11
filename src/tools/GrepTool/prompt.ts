@@ -9,6 +9,7 @@ export function getDescription(): string {
   Usage:
   - ALWAYS use ${GREP_TOOL_NAME} for search tasks. NEVER invoke \`grep\` or \`rg\` as a ${BASH_TOOL_NAME} command. The ${GREP_TOOL_NAME} tool has been optimized for correct permissions and access.
   - Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")
+  - Optional engine parameter: "ripgrep" for regex (default), "fts" for SQLite full-text term search, "structural" for ast-grep AST patterns when ast-grep is installed
   - Filter files with glob parameter (e.g., "*.js", "**/*.tsx") or type parameter (e.g., "js", "py", "rust")
   - Output modes: "content" shows matching lines, "files_with_matches" shows only file paths (default), "count" shows match counts
   - Use ${AGENT_TOOL_NAME} tool for open-ended searches requiring multiple rounds

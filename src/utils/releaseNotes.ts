@@ -125,13 +125,23 @@ export async function fetchAndStoreChangelog(): Promise<void> {
 }
 
 /**
- * Get the stored changelog from cache file if available.
+ * Get the stored changelog, preferring the GitHub-fetched cache file.
  * Populates the in-memory cache for subsequent sync reads.
+ * Falls back to the bundled changelog when no fetched cache exists yet.
  * @returns The cached changelog content or empty string if not available
  */
 export async function getStoredChangelog(): Promise<string> {
   if (changelogMemoryCache !== null) {
     return changelogMemoryCache
+  }
+
+  const cachePath = getChangelogCachePath()
+  try {
+    const content = await readFile(cachePath, 'utf-8')
+    changelogMemoryCache = content
+    return content
+  } catch {
+    // Fall through to bundled changelog
   }
 
   const bundledPath = getBundledChangelogPath()
@@ -141,19 +151,12 @@ export async function getStoredChangelog(): Promise<string> {
       changelogMemoryCache = content
       return content
     } catch {
-      // Fall through to cache file
+      // Fall through to empty string
     }
   }
 
-  const cachePath = getChangelogCachePath()
-  try {
-    const content = await readFile(cachePath, 'utf-8')
-    changelogMemoryCache = content
-    return content
-  } catch {
-    changelogMemoryCache = ''
-    return ''
-  }
+  changelogMemoryCache = ''
+  return ''
 }
 
 /**

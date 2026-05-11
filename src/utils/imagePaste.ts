@@ -2,6 +2,7 @@ import { feature } from 'bun:bundle'
 import { randomBytes } from 'crypto'
 import { execa } from 'execa'
 import { basename, extname, isAbsolute, join } from 'path'
+import { fileURLToPath } from 'url'
 import {
   IMAGE_MAX_HEIGHT,
   IMAGE_MAX_WIDTH,
@@ -28,22 +29,100 @@ type SupportedPlatform = 'darwin' | 'linux' | 'win32'
 
 // Threshold in characters for when to consider text a "large paste"
 export const PASTE_THRESHOLD = 800
-function getClipboardCommands() {
-  const platform = process.platform as SupportedPlatform
 
-  // Platform-specific temporary file paths
-  // Use CLAUDE_CODE_TMPDIR if set, otherwise fall back to platform defaults
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+function getClipboardTempPath(extension = 'png'): string {
+  const platform = process.platform as SupportedPlatform
   const baseTmpDir =
     process.env.CLAUDE_CODE_TMPDIR ||
     (platform === 'win32' ? process.env.TEMP || 'C:\\Temp' : '/tmp')
-  const screenshotFilename = 'claude_cli_latest_screenshot.png'
-  const tempPaths: Record<SupportedPlatform, string> = {
-    darwin: join(baseTmpDir, screenshotFilename),
-    linux: join(baseTmpDir, screenshotFilename),
-    win32: join(baseTmpDir, screenshotFilename),
+  const fs = getFsImplementation()
+  if (!fs.existsSync(baseTmpDir)) {
+    fs.mkdirSync(baseTmpDir, { mode: 0o700 })
+  }
+  const safeExtension = extension.replace(/[^a-z0-9]/gi, '') || 'png'
+  return join(
+    baseTmpDir,
+    `free-code-clipboard-${Date.now()}-${randomBytes(6).toString('hex')}.${safeExtension}`,
+  )
+}
+
+function isProbablyWsl(): boolean {
+  if (process.platform !== 'linux') {
+    return false
+  }
+  if (process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP) {
+    return true
+  }
+  try {
+    const version = getFsImplementation()
+      .readFileSync('/proc/version', { encoding: 'utf8' })
+      .toLowerCase()
+    return version.includes('microsoft') || version.includes('wsl')
+  } catch {
+    return false
+  }
+}
+
+function convertWindowsPathToWsl(input: string): string | null {
+  if (!/^[A-Za-z]:[\\/]/.test(input)) {
+    return null
+  }
+  const drive = input[0]?.toLowerCase()
+  if (!drive) {
+    return null
+  }
+  const rest = input.slice(2).replace(/^[\\/]+/, '').split(/[\\/]+/).join('/')
+  return `/mnt/${drive}/${rest}`
+}
+
+async function tryDumpWindowsClipboardImage(): Promise<string | null> {
+  const script = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $img = Get-Clipboard -Format Image; if ($img -ne $null) { $p=[System.IO.Path]::GetTempFileName(); $p = [System.IO.Path]::ChangeExtension($p,'png'); $img.Save($p,[System.Drawing.Imaging.ImageFormat]::Png); Write-Output $p } else { exit 1 }`
+
+  for (const command of ['powershell.exe', 'pwsh', 'powershell']) {
+    const result = await execa(command, ['-NoProfile', '-Command', script], {
+      reject: false,
+    })
+    if (result.exitCode === 0 && result.stdout.trim()) {
+      const mappedPath = convertWindowsPathToWsl(result.stdout.trim())
+      if (mappedPath) {
+        return mappedPath
+      }
+    }
   }
 
-  const screenshotPath = tempPaths[platform] || tempPaths.linux
+  return null
+}
+
+export function buildLinuxImageSaveCommand(path: string): string {
+  const quotedPath = shellQuote(path)
+  const targets = [
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/webp',
+    'image/gif',
+    'image/bmp',
+  ]
+  const xclipCommands = targets.map(
+    target =>
+      `xclip -selection clipboard -t ${shellQuote(target)} -o > ${quotedPath} 2>/dev/null`,
+  )
+  const wlPasteCommands = targets.map(
+    target => `wl-paste --type ${shellQuote(target)} > ${quotedPath} 2>/dev/null`,
+  )
+  return [...xclipCommands, ...wlPasteCommands].join(' || ')
+}
+
+function getClipboardCommands() {
+  const platform = process.platform as SupportedPlatform
+
+  const screenshotPath = getClipboardTempPath('png')
+  const quotedScreenshotPath = shellQuote(screenshotPath)
+  const windowsScreenshotPath = screenshotPath.replace(/\\/g, '\\\\')
 
   // Platform-specific clipboard commands
   const commands: Record<
@@ -59,20 +138,20 @@ function getClipboardCommands() {
       checkImage: `osascript -e 'the clipboard as «class PNGf»'`,
       saveImage: `osascript -e 'set png_data to (the clipboard as «class PNGf»)' -e 'set fp to open for access POSIX file "${screenshotPath}" with write permission' -e 'write png_data to fp' -e 'close access fp'`,
       getPath: `osascript -e 'get POSIX path of (the clipboard as «class furl»)'`,
-      deleteFile: `rm -f "${screenshotPath}"`,
+      deleteFile: `rm -f ${quotedScreenshotPath}`,
     },
     linux: {
       checkImage:
-        'xclip -selection clipboard -t TARGETS -o 2>/dev/null | grep -E "image/(png|jpeg|jpg|gif|webp|bmp)" || wl-paste -l 2>/dev/null | grep -E "image/(png|jpeg|jpg|gif|webp|bmp)"',
-      saveImage: `xclip -selection clipboard -t image/png -o > "${screenshotPath}" 2>/dev/null || wl-paste --type image/png > "${screenshotPath}" 2>/dev/null || xclip -selection clipboard -t image/bmp -o > "${screenshotPath}" 2>/dev/null || wl-paste --type image/bmp > "${screenshotPath}"`,
+        'xclip -selection clipboard -t TARGETS -o 2>/dev/null | grep -E "image/(png|jpeg|jpg|gif|webp|bmp)|text/uri-list|x-special/gnome-copied-files" || wl-paste -l 2>/dev/null | grep -E "image/(png|jpeg|jpg|gif|webp|bmp)|text/uri-list|x-special/gnome-copied-files"',
+      saveImage: buildLinuxImageSaveCommand(screenshotPath),
       getPath:
-        'xclip -selection clipboard -t text/plain -o 2>/dev/null || wl-paste 2>/dev/null',
-      deleteFile: `rm -f "${screenshotPath}"`,
+        'xclip -selection clipboard -t text/uri-list -o 2>/dev/null || xclip -selection clipboard -t x-special/gnome-copied-files -o 2>/dev/null || xclip -selection clipboard -t text/plain -o 2>/dev/null || wl-paste --type text/uri-list 2>/dev/null || wl-paste --type x-special/gnome-copied-files 2>/dev/null || wl-paste 2>/dev/null',
+      deleteFile: `rm -f ${quotedScreenshotPath}`,
     },
     win32: {
       checkImage:
         'powershell -NoProfile -Command "(Get-Clipboard -Format Image) -ne $null"',
-      saveImage: `powershell -NoProfile -Command "$img = Get-Clipboard -Format Image; if ($img) { $img.Save('${screenshotPath.replace(/\\/g, '\\\\')}', [System.Drawing.Imaging.ImageFormat]::Png) }"`,
+      saveImage: `powershell -NoProfile -Command "$img = Get-Clipboard -Format Image; if ($img) { $img.Save('${windowsScreenshotPath}', [System.Drawing.Imaging.ImageFormat]::Png) }"`,
       getPath: 'powershell -NoProfile -Command "Get-Clipboard"',
       deleteFile: `del /f "${screenshotPath}"`,
     },
@@ -88,6 +167,58 @@ export type ImageWithDimensions = {
   base64: string
   mediaType: string
   dimensions?: ImageDimensions
+}
+
+const SSH_IMAGE_PASTE_URL_ENV = 'FREE_CODE_SSH_IMAGE_PASTE_URL'
+const DEFAULT_SSH_IMAGE_PASTE_URL = 'http://127.0.0.1:17654/image'
+const SSH_IMAGE_PASTE_TIMEOUT_MS = 1500
+
+function isSshSession(): boolean {
+  return Boolean(process.env.SSH_CONNECTION || process.env.SSH_TTY)
+}
+
+export function parseClipboardBridgeImageResponse(
+  value: unknown,
+): ImageWithDimensions | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+  const image = value as Partial<ImageWithDimensions>
+  if (
+    typeof image.base64 !== 'string' ||
+    image.base64.length === 0 ||
+    typeof image.mediaType !== 'string' ||
+    !image.mediaType.startsWith('image/')
+  ) {
+    return null
+  }
+  return {
+    base64: image.base64,
+    mediaType: image.mediaType,
+    dimensions: image.dimensions,
+  }
+}
+
+async function getImageFromSshPasteBridge(): Promise<ImageWithDimensions | null> {
+  if (!isSshSession() && !process.env[SSH_IMAGE_PASTE_URL_ENV]) {
+    return null
+  }
+
+  const url = process.env[SSH_IMAGE_PASTE_URL_ENV] || DEFAULT_SSH_IMAGE_PASTE_URL
+  const abortController = new AbortController()
+  const timeout = setTimeout(() => abortController.abort(), SSH_IMAGE_PASTE_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, { signal: abortController.signal })
+    if (!response.ok) {
+      return null
+    }
+    return parseClipboardBridgeImageResponse(await response.json())
+  } catch (e) {
+    logForDebugging(`SSH image paste bridge unavailable: ${e}`, { level: 'debug' })
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 /**
@@ -122,6 +253,11 @@ export async function hasImageInClipboard(): Promise<boolean> {
 }
 
 export async function getImageFromClipboard(): Promise<ImageWithDimensions | null> {
+  const sshBridgeImage = await getImageFromSshPasteBridge()
+  if (sshBridgeImage) {
+    return sshBridgeImage
+  }
+
   // Fast path: native NSPasteboard reader (macOS only). Reads PNG bytes
   // directly in-process and downsamples via CoreGraphics if over the
   // dimension cap. ~5ms cold, sub-ms warm — vs. ~1.5s for the osascript
@@ -184,6 +320,7 @@ export async function getImageFromClipboard(): Promise<ImageWithDimensions | nul
   }
 
   const { commands, screenshotPath } = getClipboardCommands()
+  let imagePath = screenshotPath
   try {
     // Check if clipboard has image
     const checkResult = await execa(commands.checkImage, {
@@ -191,20 +328,43 @@ export async function getImageFromClipboard(): Promise<ImageWithDimensions | nul
       reject: false,
     })
     if (checkResult.exitCode !== 0) {
-      return null
-    }
-
-    // Save the image
-    const saveResult = await execa(commands.saveImage, {
-      shell: true,
-      reject: false,
-    })
-    if (saveResult.exitCode !== 0) {
-      return null
+      if (process.platform === 'linux' && isProbablyWsl()) {
+        const savedPath = await tryDumpWindowsClipboardImage()
+        if (!savedPath) {
+          return null
+        }
+        imagePath = savedPath
+      } else {
+        return await getImageFromClipboardPathFallback()
+      }
+    } else {
+      // Save the image
+      const saveResult = await execa(commands.saveImage, {
+        shell: true,
+        reject: false,
+      })
+      if (saveResult.exitCode !== 0) {
+        const pathImage = await getImageFromClipboardPathFallback()
+        if (pathImage) {
+          return pathImage
+        }
+        if (process.platform === 'linux' && isProbablyWsl()) {
+          const savedPath = await tryDumpWindowsClipboardImage()
+          if (!savedPath) {
+            return null
+          }
+          imagePath = savedPath
+        } else {
+          return null
+        }
+      }
     }
 
     // Read the image and convert to base64
-    let imageBuffer = getFsImplementation().readFileBytesSync(screenshotPath)
+    let imageBuffer = getFsImplementation().readFileBytesSync(imagePath)
+    if (imageBuffer.length === 0) {
+      return null
+    }
 
     // BMP is not supported by the API — convert to PNG via Sharp.
     // This handles WSL2 where Windows copies images as BMP by default.
@@ -229,7 +389,11 @@ export async function getImageFromClipboard(): Promise<ImageWithDimensions | nul
     const mediaType = detectImageFormatFromBase64(base64Image)
 
     // Cleanup (fire-and-forget, don't await)
-    void execa(commands.deleteFile, { shell: true, reject: false })
+    if (imagePath === screenshotPath) {
+      void execa(commands.deleteFile, { shell: true, reject: false })
+    } else {
+      void execa(`rm -f ${shellQuote(imagePath)}`, { shell: true, reject: false })
+    }
 
     return {
       base64: base64Image,
@@ -258,6 +422,14 @@ export async function getImagePathFromClipboard(): Promise<string | null> {
     logError(e as Error)
     return null
   }
+}
+
+async function getImageFromClipboardPathFallback(): Promise<ImageWithDimensions | null> {
+  const clipboardPath = await getImagePathFromClipboard()
+  if (!clipboardPath) {
+    return null
+  }
+  return tryReadImageFromPath(clipboardPath)
 }
 
 /**
@@ -316,15 +488,42 @@ function stripBackslashEscapes(path: string): string {
   return withoutEscapes.replace(new RegExp(placeholder, 'g'), '\\')
 }
 
+export function normalizeClipboardImagePath(text: string): string | null {
+  const cleaned = removeOuterQuotes(text.trim())
+  const candidates = cleaned
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line && line !== 'copy' && line !== 'cut' && !line.startsWith('#'))
+
+  for (const candidate of candidates) {
+    const unquoted = removeOuterQuotes(candidate)
+    if (unquoted.startsWith('file://')) {
+      try {
+        return fileURLToPath(unquoted)
+      } catch {
+        continue
+      }
+    }
+    if (process.platform === 'linux' && isProbablyWsl()) {
+      const converted = convertWindowsPathToWsl(unquoted)
+      if (converted) {
+        return converted
+      }
+    }
+    return stripBackslashEscapes(unquoted)
+  }
+
+  return null
+}
+
 /**
  * Check if a given text represents an image file path
  * @param text Text to check
  * @returns Boolean indicating if text is an image path
  */
 export function isImageFilePath(text: string): boolean {
-  const cleaned = removeOuterQuotes(text.trim())
-  const unescaped = stripBackslashEscapes(cleaned)
-  return IMAGE_EXTENSION_REGEX.test(unescaped)
+  const normalized = normalizeClipboardImagePath(text)
+  return normalized ? IMAGE_EXTENSION_REGEX.test(normalized) : false
 }
 
 /**
@@ -333,10 +532,9 @@ export function isImageFilePath(text: string): boolean {
  * @returns Cleaned text with quotes removed, whitespace trimmed, and shell escapes removed, or null if not an image path
  */
 export function asImageFilePath(text: string): string | null {
-  const cleaned = removeOuterQuotes(text.trim())
-  const unescaped = stripBackslashEscapes(cleaned)
+  const unescaped = normalizeClipboardImagePath(text)
 
-  if (IMAGE_EXTENSION_REGEX.test(unescaped)) {
+  if (unescaped && IMAGE_EXTENSION_REGEX.test(unescaped)) {
     return unescaped
   }
 

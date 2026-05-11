@@ -438,6 +438,66 @@ export async function ripGrepStream(
   })
 }
 
+export type RipgrepJsonMatch = {
+  path: string
+  line: number
+  text: string
+}
+
+type RipgrepJsonLine = {
+  type?: unknown
+  data?: {
+    path?: { text?: unknown }
+    line_number?: unknown
+    lines?: { text?: unknown }
+  }
+}
+
+export function parseRipgrepJsonLine(line: string): RipgrepJsonMatch | null {
+  let parsed: RipgrepJsonLine
+  try {
+    parsed = JSON.parse(line) as RipgrepJsonLine
+  } catch {
+    return null
+  }
+
+  if (parsed.type !== 'match') return null
+
+  const file = parsed.data?.path?.text
+  const lineNumber = parsed.data?.line_number
+  const text = parsed.data?.lines?.text
+  if (
+    typeof file !== 'string' ||
+    typeof lineNumber !== 'number' ||
+    !Number.isFinite(lineNumber)
+  ) {
+    return null
+  }
+
+  return {
+    path: file,
+    line: lineNumber,
+    text: typeof text === 'string' ? text.replace(/\r?\n$/, '') : '',
+  }
+}
+
+export async function ripGrepJsonStream(
+  args: string[],
+  target: string,
+  abortSignal: AbortSignal,
+  onMatches: (matches: RipgrepJsonMatch[]) => void,
+): Promise<void> {
+  const fullArgs = args.includes('--json') ? args : ['--json', ...args]
+  return ripGrepStream(fullArgs, target, abortSignal, lines => {
+    const matches: RipgrepJsonMatch[] = []
+    for (const line of lines) {
+      const match = parseRipgrepJsonLine(line)
+      if (match) matches.push(match)
+    }
+    if (matches.length) onMatches(matches)
+  })
+}
+
 export async function ripGrep(
   args: string[],
   target: string,

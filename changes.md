@@ -30,7 +30,7 @@ All notable changes to free-code are documented here.
 ### Changed
 - **Goal replacement flow** -- `/goal <objective>` now starts work immediately, while existing active goals require explicit `/goal replace <objective>` or `/goal clear`.
 - **Goal completion audits** -- Goal continuation prompts now require requirement-to-evidence checks before `update_goal complete`.
-- **LogoV2 What's new feed** -- Updated changelog entries so LogoV2 surfaces parity, goal-loop, and Tokenjuice improvements from `changes.md`.
+- **LogoV2 What's new feed** -- Startup now prefers the GitHub-fetched `changes.md` cache for LogoV2 release notes and falls back to bundled notes only until cache exists.
 
 ## [0.6.4] - 2026-04-16
 
