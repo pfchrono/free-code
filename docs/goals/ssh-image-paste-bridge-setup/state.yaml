@@ -1,0 +1,28 @@
+status: active
+created_at: 2026-04-22
+current_focus: Investigate SSH image paste failures and map affected paste paths before implementation.
+owner: free-code
+success_criteria:
+  - Intended SSH image paste flow works end to end.
+  - Warp behavior is verified and documented.
+  - Local bridge behavior is verified and documented.
+  - Adjacent paste-path bugs found during investigation are fixed or explicitly documented.
+  - Setup and reproduction steps are written down.
+tracks:
+  - id: investigate-current-behavior
+    title: Reproduce SSH image paste failures and capture affected flows
+    status: pending
+  - id: map-paste-architecture
+    title: Identify code paths for SSH, Warp, local bridge, and adjacent paste handling
+    status: pending
+  - id: implement-fixes
+    title: Fix root causes across required paste paths
+    status: pending
+  - id: verify-end-to-end
+    title: Prove working behavior in intended flow and record limits
+    status: pending
+  - id: write-setup-doc
+    title: Document setup, commands, config, and reproduction steps
+    status: pending
+notes:
+  - notes/2026-04-22-kickoff.md

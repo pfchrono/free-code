@@ -190,6 +190,90 @@ Model env vars are provider-scoped: Anthropic-native sessions read
 `ANTHROPIC_MODEL`, OpenAI-compatible sessions read `OPENAI_MODEL`, Gemini reads
 `GEMINI_MODEL`, and Mistral reads `MISTRAL_MODEL`.
 
+## SSH Image Paste Bridge
+
+Use this when `free-code` runs in an SSH session but your clipboard image lives on your local machine.
+
+What it does:
+
+- Local machine runs a tiny HTTP bridge that reads your local clipboard.
+- SSH remote forwards one localhost-only port back to that bridge.
+- `free-code` detects SSH and tries the bridge first before normal remote clipboard checks.
+
+Exact setup:
+
+### 1. Start bridge on local machine
+
+```bash
+bun run dev:ssh-image-paste-bridge
+```
+
+Default listener:
+
+- URL: `http://127.0.0.1:17654/image`
+- Override with `FREE_CODE_SSH_IMAGE_PASTE_PORT` or `FREE_CODE_SSH_IMAGE_PASTE_HOST`
+
+### 2. Connect to remote host with reverse port forward
+
+```bash
+ssh -R 17654:127.0.0.1:17654 <host>
+```
+
+If you changed the port locally, use the same port on both sides.
+
+### 3. Run Free-Code on remote host
+
+Usually no extra env is needed. SSH sessions default to:
+
+```bash
+FREE_CODE_SSH_IMAGE_PASTE_URL=http://127.0.0.1:17654/image
+```
+
+Set `FREE_CODE_SSH_IMAGE_PASTE_URL` only if you need a non-default port or host.
+
+### Expected behavior
+
+- Image in local clipboard: remote paste reads it through bridge.
+- No image in local clipboard: bridge returns `404` with `{"error":"no image in clipboard"}` and Free-Code falls back to normal remote clipboard/path handling.
+- Bridge unavailable: Free-Code logs debug-only bridge unavailability and continues with existing clipboard fallbacks.
+
+### Exact repro + verification
+
+On remote host, verify tunnel before opening `free-code`:
+
+```bash
+curl -i --max-time 2 http://127.0.0.1:17654/image
+```
+
+Interpret results:
+
+- `HTTP/1.1 200 OK`: bridge returned image JSON; paste should use it.
+- `HTTP/1.1 404 Not Found` with `{"error":"no image in clipboard"}`: tunnel works; local clipboard just has no image.
+- timeout or connection error: local bridge is not running, wrong port was forwarded, or SSH reverse forwarding is blocked.
+
+Minimal end-to-end repro:
+
+1. Local machine: `bun run dev:ssh-image-paste-bridge`
+2. Local machine: copy image into clipboard
+3. Local machine: connect with `ssh -R 17654:127.0.0.1:17654 <host>`
+4. Remote host: `curl -i --max-time 2 http://127.0.0.1:17654/image`
+5. Remote host: start `free-code` and paste with normal terminal paste shortcut
+
+### Proven smoke test
+
+This setup was smoke-tested locally by starting the bridge on port `17655` and requesting `/image`; with no image in clipboard it returned the expected JSON error payload:
+
+```json
+{"error":"no image in clipboard"}
+```
+
+### Limitations
+
+- Bridge must run on machine that has clipboard access.
+- Remote host must allow SSH reverse port forwarding.
+- Bridge is localhost-only by default; keep it that way unless you fully trust your network.
+- Bridge only serves `/image`.
+
 ## Runtime Hardening
 
 Use these commands to validate your setup and catch mistakes early:

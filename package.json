@@ -52,6 +52,7 @@
     "dev:grpc": "bun run ./scripts/start-grpc.ts",
     "dev:grpc:stop": "bun run ./scripts/stop-grpc.ts",
     "dev:grpc:cli": "bun run ./scripts/grpc-cli.ts",
+    "dev:ssh-image-paste-bridge": "bun run ./scripts/ssh-image-paste-bridge.ts",
     "dev:headless-transport": "bun run ./scripts/headless-transport-server.ts",
     "test:headless-integration": "bun run ./scripts/headless-integration.ts",
     "test:headless-transport": "bun run ./scripts/headless-transport-smoke.ts",
