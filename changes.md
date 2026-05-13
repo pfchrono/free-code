@@ -4,6 +4,9 @@ All notable changes to free-code are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Workflow architecture explorer** -- Added a JSON-driven single-page architecture map for prompt, slash-command, `$skills`, headless, GUI, tool, memory, provider, compaction, and exit flows with an ordered left-to-right route lane.
+
 ### Fixed
 - **Typecheck recovery** -- Restored `bun run typecheck` to a clean pass by fixing the underlying type errors across SDK message shapes, tool/result adapters, provider/runtime edges, generated compatibility types, and tests without enabling `noCheck` or equivalent suppression.
 

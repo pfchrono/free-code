@@ -8,6 +8,7 @@ openclaw/
 *.bun-build
 *.txt
 *.html
+!docs/architecture/free-code-flows.html
 *.js
 *.original.md
 .codesight/
