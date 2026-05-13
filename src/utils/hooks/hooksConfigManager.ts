@@ -1,4 +1,5 @@
 import memoize from 'lodash-es/memoize.js'
+import { join } from 'path'
 import type { HookEvent } from 'src/entrypoints/agentSdkTypes.js'
 import { getRegisteredHooks } from '../../bootstrap/state.js'
 import type { AppState } from '../../state/AppState.js'
@@ -340,6 +341,7 @@ export function groupHooksByEventAndMatcher(
               config: hook,
               matcher: matcher.matcher,
               source: 'pluginHook',
+              sourcePath: join(matcher.pluginRoot, 'hooks', 'hooks.json'),
               pluginName: matcher.pluginId,
             })
           }

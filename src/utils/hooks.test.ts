@@ -5,6 +5,7 @@ import { setIsInteractive } from '../bootstrap/state.js'
 import type { AppState } from '../state/AppState.js'
 import type { ToolUseContext } from '../Tool.js'
 import { executePreToolHooks, getEffectiveCommandHookCommand } from './hooks.js'
+import { getHookSourcePath } from './hooks/hooksSettings.js'
 
 afterEach(() => {
   setIsInteractive(true)
@@ -111,5 +112,38 @@ describe('PreToolUse updatedInput aggregation', () => {
       permissionBehavior: 'allow',
       updatedInput: { command: 'echo rewritten' },
     })
+  })
+})
+
+describe('getHookSourcePath', () => {
+  it('returns plugin hook sourcePath when present', () => {
+    expect(
+      getHookSourcePath({
+        event: 'PreToolUse',
+        matcher: 'Bash',
+        source: 'pluginHook',
+        sourcePath: '/tmp/plugin/hooks/hooks.json',
+        pluginName: 'example-plugin',
+        config: {
+          type: 'command',
+          command: 'echo test',
+        },
+      }),
+    ).toBe('/tmp/plugin/hooks/hooks.json')
+  })
+
+  it('returns undefined for plugin hooks without a sourcePath', () => {
+    expect(
+      getHookSourcePath({
+        event: 'PreToolUse',
+        matcher: 'Bash',
+        source: 'pluginHook',
+        pluginName: 'example-plugin',
+        config: {
+          type: 'command',
+          command: 'echo test',
+        },
+      }),
+    ).toBeUndefined()
   })
 })

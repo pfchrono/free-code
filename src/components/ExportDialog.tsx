@@ -22,6 +22,10 @@ type ExportDialogProps = {
   }) => void;
 };
 type ExportOption = 'clipboard' | 'file';
+
+function ensureHtmlFilename(filename: string): string {
+  return filename.endsWith('.html') ? filename : filename.replace(/\.[^.]+$/, '') + '.html';
+}
 export function ExportDialog({
   content,
   defaultFilename,
@@ -55,8 +59,7 @@ export function ExportDialog({
     }
   };
   const handleFilenameSubmit = () => {
-    const finalFilename = filename.endsWith('.txt') ? filename : filename.replace(/\.[^.]+$/, '') + '.txt';
-    const filepath = join(getCwd(), finalFilename);
+    const filepath = join(getCwd(), ensureHtmlFilename(filename));
     try {
       writeFileSync_DEPRECATED(filepath, content, {
         encoding: 'utf-8',
@@ -93,7 +96,7 @@ export function ExportDialog({
   }, {
     label: 'Save to file',
     value: 'file',
-    description: 'Save the conversation to a file in the current directory'
+    description: 'Save the conversation as a standalone HTML file in the current directory'
   }];
 
   // Custom input guide that changes based on dialog state

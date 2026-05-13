@@ -17,7 +17,7 @@ import type { LogOption } from '../../types/logs.js';
 import { agenticSessionSearch } from '../../utils/agenticSessionSearch.js';
 import { checkCrossProjectResume } from '../../utils/crossProjectResume.js';
 import { getWorktreePaths } from '../../utils/getWorktreePaths.js';
-import { logError } from '../../utils/log.js';
+import { getLogDisplayTitle, logError } from '../../utils/log.js';
 import { loadPersistedSessionState, type PersistedSessionState } from '../../utils/persistedSessionState.js';
 import { getLastSessionLog, getSessionIdFromLog, isCustomTitleEnabled, isLiteLog, loadAllProjectsMessageLogs, loadFullLog, loadSameRepoMessageLogs, searchSessionsByCustomTitle } from '../../utils/sessionStorage.js';
 import { validateUuid } from '../../utils/uuid.js';
@@ -28,13 +28,24 @@ type ResumeResult = {
   resultType: 'multipleMatches';
   arg: string;
   count: number;
+  matches?: LogOption[];
 };
-function resumeHelpMessage(result: ResumeResult): string {
+
+function formatResumeMatch(log: LogOption): string {
+  const sessionId = getSessionIdFromLog(log) ?? 'unknown'
+  const title = getLogDisplayTitle(log)
+  return `${sessionId.slice(0, 8)}  ${title}  ${log.modified.toISOString().slice(0, 10)}`
+}
+
+export function resumeHelpMessage(result: ResumeResult): string {
   switch (result.resultType) {
     case 'sessionNotFound':
-      return `Session ${chalk.bold(result.arg)} was not found.`;
-    case 'multipleMatches':
-      return `Found ${result.count} sessions matching ${chalk.bold(result.arg)}. Please use /resume to pick a specific session.`;
+      return `Session ${chalk.bold(result.arg)} was not found. Try a longer session ID prefix or use /resume to search.`;
+    case 'multipleMatches': {
+      const lines = result.matches?.slice(0, 3).map(formatResumeMatch) ?? []
+      const matchesBlock = lines.length > 0 ? `\n\nTop matches:\n${lines.map(line => `  ${line}`).join('\n')}` : ''
+      return `Found ${result.count} sessions matching ${chalk.bold(result.arg)}. Use a longer session ID prefix or run /resume to pick a specific session.${matchesBlock}`;
+    }
   }
 }
 const MAX_RESUME_SUMMARY_HYDRATION = 25;
@@ -240,6 +251,29 @@ function ResumeCommand({
 export function filterResumableSessions(logs: LogOption[], currentSessionId: string): LogOption[] {
   return logs.filter(l => !l.isSidechain && getSessionIdFromLog(l) !== currentSessionId);
 }
+
+export function findSessionIdPrefixMatches(logs: LogOption[], arg: string): LogOption[] {
+  const normalizedArg = arg.toLowerCase();
+  if (normalizedArg.length < 8 || !/^[0-9a-f-]+$/.test(normalizedArg)) {
+    return [];
+  }
+  return logs.filter(log => {
+    const sessionId = getSessionIdFromLog(log);
+    return sessionId?.toLowerCase().startsWith(normalizedArg);
+  }).sort((a, b) => b.modified.getTime() - a.modified.getTime());
+}
+
+export async function findCustomTitleResumeMatches(
+  arg: string,
+  search: typeof searchSessionsByCustomTitle = searchSessionsByCustomTitle,
+): Promise<LogOption[]> {
+  const exactMatches = await search(arg, { exact: true });
+  if (exactMatches.length > 0) {
+    return exactMatches;
+  }
+  return search(arg, { exact: false });
+}
+
 export const call: LocalJSXCommandCall = async (onDone, context, args) => {
   const onResume = async (sessionId: UUID, log: LogOption, entrypoint: ResumeEntrypoint) => {
     try {
@@ -288,11 +322,30 @@ export const call: LocalJSXCommandCall = async (onDone, context, args) => {
     }
   }
 
-  // Next, try exact custom title match (only if feature is enabled)
-  if (isCustomTitleEnabled()) {
-    const titleMatches = await searchSessionsByCustomTitle(arg, {
-      exact: true
+  // Next, try unique session ID prefix match
+  const prefixMatches = findSessionIdPrefixMatches(logs, arg);
+  if (prefixMatches.length === 1) {
+    const log = prefixMatches[0]!;
+    const sessionId = validateUuid(getSessionIdFromLog(log));
+    if (sessionId) {
+      const fullLog = isLiteLog(log) ? await loadFullLog(log) : log;
+      void onResume(sessionId, fullLog, 'slash_command_session_id');
+      return null;
+    }
+  }
+  if (prefixMatches.length > 1) {
+    const message = resumeHelpMessage({
+      resultType: 'multipleMatches',
+      arg,
+      count: prefixMatches.length,
+      matches: prefixMatches
     });
+    return <ResumeError message={message} args={arg} onDone={() => onDone(message)} />;
+  }
+
+  // Next, try custom title match (exact first, then partial fallback)
+  if (isCustomTitleEnabled()) {
+    const titleMatches = await findCustomTitleResumeMatches(arg);
     if (titleMatches.length === 1) {
       const log = titleMatches[0]!;
       const sessionId = getSessionIdFromLog(log);
@@ -303,12 +356,12 @@ export const call: LocalJSXCommandCall = async (onDone, context, args) => {
       }
     }
 
-    // Multiple matches - show error
     if (titleMatches.length > 1) {
       const message = resumeHelpMessage({
         resultType: 'multipleMatches',
         arg,
-        count: titleMatches.length
+        count: titleMatches.length,
+        matches: titleMatches
       });
       return <ResumeError message={message} args={arg} onDone={() => onDone(message)} />;
     }

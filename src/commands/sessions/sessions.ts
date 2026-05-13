@@ -18,6 +18,6 @@ export const call: LocalCommandCall = async (args = '') => {
 
   return {
     type: 'text',
-    value: 'Usage: /sessions [timeline [entry-id]|tree]',
+    value: 'Usage: /sessions [timeline [entry-id|session-id|search]|tree]',
   }
 }

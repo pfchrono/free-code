@@ -23,6 +23,7 @@ type SessionTimelineStore = {
 }
 
 const TIMELINE_LIMIT = 300
+const SESSION_ID_PREFIX_PATTERN = /^[a-f0-9-]{8,}$/i
 
 function getTimelinePaths(configHomeDir = getClaudeConfigHomeDir()): {
   dir: string
@@ -127,6 +128,46 @@ export async function recordSessionTimelineEntry(args: {
   return entry
 }
 
+function isSessionIdPrefixLookup(value: string): boolean {
+  return SESSION_ID_PREFIX_PATTERN.test(value)
+}
+
+export function findTimelineMatches(
+  entries: SessionTimelineEntry[],
+  lookup: string,
+): SessionTimelineEntry[] {
+  const trimmed = lookup.trim()
+  if (!trimmed) return []
+
+  const exactIdMatch = entries.find(entry => entry.id === trimmed)
+  if (exactIdMatch) return [exactIdMatch]
+
+  const normalized = trimmed.toLowerCase()
+  const matches = entries.filter(entry => {
+    if (isSessionIdPrefixLookup(trimmed) && entry.sessionId.toLowerCase().startsWith(normalized)) {
+      return true
+    }
+    if (entry.refs.some(ref => ref.toLowerCase() === normalized)) return true
+    return entry.summary.toLowerCase().includes(normalized)
+  })
+
+  return matches.sort((left, right) => right.at.localeCompare(left.at))
+}
+
+export function formatTimelineEntry(entry: SessionTimelineEntry): string {
+  return [
+    'timeline entry',
+    `id: ${entry.id}`,
+    `at: ${entry.at}`,
+    `session: ${entry.sessionId}`,
+    `kind: ${entry.kind}`,
+    `status: ${entry.status}`,
+    `summary: ${entry.summary}`,
+    `continuity: ${entry.continuity ?? 'none'}`,
+    `refs: ${entry.refs.length ? entry.refs.join(' ') : 'none'}`,
+  ].join('\n')
+}
+
 async function recentCommits(): Promise<SessionTimelineEntry[]> {
   const { stdout } = await execFileNoThrowWithCwd(
     'git',
@@ -160,23 +201,22 @@ export async function formatSessionTimeline(entryId?: string): Promise<string> {
     ...(await recentCommits()),
   ].sort((left, right) => left.at.localeCompare(right.at))
   if (entryId) {
-    const entry = entries.find(candidate => candidate.id === entryId)
-    if (!entry) {
+    const matches = findTimelineMatches(entries, entryId)
+    if (matches.length === 1) return formatTimelineEntry(matches[0]!)
+    if (matches.length > 1) {
       return [
-        `timeline entry not found: ${entryId}`,
-        'available:',
-        ...entries.slice(-12).map(candidate => `  ${candidate.id} ${candidate.kind} ${candidate.summary}`),
+        `timeline lookup matched ${matches.length} entries: ${entryId}`,
+        'matches:',
+        ...matches
+          .slice(0, 12)
+          .map(candidate => `  ${candidate.id} ${candidate.at} ${candidate.kind}/${candidate.status} ${candidate.summary}`),
       ].join('\n')
     }
     return [
-      'timeline entry',
-      `id: ${entry.id}`,
-      `at: ${entry.at}`,
-      `kind: ${entry.kind}`,
-      `status: ${entry.status}`,
-      `summary: ${entry.summary}`,
-      `continuity: ${entry.continuity ?? 'none'}`,
-      `refs: ${entry.refs.length ? entry.refs.join(' ') : 'none'}`,
+      `timeline entry not found: ${entryId}`,
+      'tip: use entry id, session id prefix, ref, or summary text',
+      'available:',
+      ...entries.slice(-12).map(candidate => `  ${candidate.id} ${candidate.kind} ${candidate.summary}`),
     ].join('\n')
   }
   return [

@@ -64,6 +64,28 @@ function normalizeAndTruncateToWidth(text: string, maxWidth: number): string {
   return truncateToWidth(normalized, maxWidth);
 }
 
+export function getLogSummaryPreview(log: LogOption, maxWidth: number): string | undefined {
+  if (!log.summary) return undefined;
+  const preview = normalizeAndTruncateToWidth(log.summary, maxWidth);
+  return preview.length > 0 ? preview : undefined;
+}
+
+export function getSessionIdSearchLabel(log: LogOption): string | undefined {
+  const sessionId = getSessionIdFromLog(log);
+  return sessionId ? `session ${sessionId.slice(0, 8)}` : undefined;
+}
+
+export function matchesLogSearchQuery(log: LogOption, query: string): boolean {
+  const normalizedQuery = query.toLowerCase();
+  const displayedTitle = getLogDisplayTitle(log).toLowerCase();
+  const branch = (log.gitBranch || '').toLowerCase();
+  const tag = (log.tag || '').toLowerCase();
+  const summary = log.summary?.replace(/\s+/g, ' ').trim().toLowerCase() || '';
+  const prInfo = log.prNumber ? `pr #${log.prNumber} ${log.prRepository || ''}`.toLowerCase() : '';
+  const sessionId = getSessionIdFromLog(log)?.toLowerCase() || '';
+  return displayedTitle.includes(normalizedQuery) || branch.includes(normalizedQuery) || tag.includes(normalizedQuery) || summary.includes(normalizedQuery) || prInfo.includes(normalizedQuery) || sessionId.startsWith(normalizedQuery);
+}
+
 // Width of prefixes that TreeSelect will add
 const PARENT_PREFIX_WIDTH = 2; // '▼ ' or '▶ '
 const CHILD_PREFIX_WIDTH = 4; // '  ▸ '
@@ -129,16 +151,28 @@ function buildLogLabel(log: LogOption, maxLabelWidth: number, options?: {
 function buildLogMetadata(log: LogOption, options?: {
   isChild?: boolean;
   showProjectPath?: boolean;
+  showSessionId?: boolean;
 }): string {
   const {
     isChild = false,
-    showProjectPath = false
+    showProjectPath = false,
+    showSessionId = false
   } = options || {};
   // Match the child prefix width for proper alignment
   const childPadding = isChild ? '    ' : ''; // 4 spaces to match '  ▸ '
+  const sessionSuffix = showSessionId ? getSessionIdSearchLabel(log) : undefined;
   const baseMetadata = formatLogMetadata(log);
-  const projectSuffix = showProjectPath && log.projectPath ? ` · ${log.projectPath}` : '';
-  return childPadding + baseMetadata + projectSuffix;
+  const suffixes = [showProjectPath && log.projectPath ? log.projectPath : undefined, sessionSuffix].filter(Boolean);
+  const metadataSuffix = suffixes.length > 0 ? ` · ${suffixes.join(' · ')}` : '';
+  return childPadding + baseMetadata + metadataSuffix;
+}
+function buildLogDescription(log: LogOption, maxWidth: number, metadata: string, options?: {
+  isChild?: boolean;
+}): string {
+  const { isChild = false } = options || {};
+  const preview = getLogSummaryPreview(log, maxWidth);
+  if (!preview) return metadata;
+  return `${metadata}\n${isChild ? '      ' : '  '}${chalk.dim(preview)}`;
 }
 export function LogSelector(t0) {
   const $ = _c(247);
@@ -424,14 +458,7 @@ export function LogSelector(t0) {
     }
     let t23;
     if ($[39] !== baseFilteredLogs || $[40] !== searchQuery) {
-      const query = searchQuery.toLowerCase();
-      t23 = baseFilteredLogs.filter(log_5 => {
-        const displayedTitle = getLogDisplayTitle(log_5).toLowerCase();
-        const branch_0 = (log_5.gitBranch || "").toLowerCase();
-        const tag = (log_5.tag || "").toLowerCase();
-        const prInfo = log_5.prNumber ? `pr #${log_5.prNumber} ${log_5.prRepository || ""}`.toLowerCase() : "";
-        return displayedTitle.includes(query) || branch_0.includes(query) || tag.includes(query) || prInfo.includes(query);
-      });
+      t23 = baseFilteredLogs.filter(log_5 => matchesLogSearchQuery(log_5, searchQuery));
       $[39] = baseFilteredLogs;
       $[40] = searchQuery;
       $[41] = t23;
@@ -585,8 +612,10 @@ export function LogSelector(t0) {
         const snippetStr = snippet_0 ? formatSnippet(snippet_0, highlightColor) : null;
         if (groupLogs.length === 1) {
           const metadata = buildLogMetadata(latestLog, {
-            showProjectPath: showAllProjects
+            showProjectPath: showAllProjects,
+            showSessionId: true
           });
+          const description = snippetStr ? `${metadata}\n  ${snippetStr}` : buildLogDescription(latestLog, maxLabelWidth, metadata);
           return {
             id: `log:${sessionId}:0`,
             value: {
@@ -594,7 +623,7 @@ export function LogSelector(t0) {
               indexInFiltered
             },
             label: buildLogLabel(latestLog, maxLabelWidth),
-            description: snippetStr ? `${metadata}\n  ${snippetStr}` : metadata,
+            description,
             dimDescription: true
           };
         }
@@ -605,7 +634,11 @@ export function LogSelector(t0) {
           const childSnippetStr = childSnippet ? formatSnippet(childSnippet, highlightColor) : null;
           const childMetadata = buildLogMetadata(log_8, {
             isChild: true,
-            showProjectPath: showAllProjects
+            showProjectPath: showAllProjects,
+            showSessionId: true
+          });
+          const childDescription = childSnippetStr ? `${childMetadata}\n      ${childSnippetStr}` : buildLogDescription(log_8, maxLabelWidth, childMetadata, {
+            isChild: true
           });
           return {
             id: `log:${sessionId}:${index + 1}`,
@@ -616,13 +649,15 @@ export function LogSelector(t0) {
             label: buildLogLabel(log_8, maxLabelWidth, {
               isChild: true
             }),
-            description: childSnippetStr ? `${childMetadata}\n      ${childSnippetStr}` : childMetadata,
+            description: childDescription,
             dimDescription: true
           };
         });
         const parentMetadata = buildLogMetadata(latestLog, {
-          showProjectPath: showAllProjects
+          showProjectPath: showAllProjects,
+            showSessionId: true
         });
+        const parentDescription = snippetStr ? `${parentMetadata}\n  ${snippetStr}` : buildLogDescription(latestLog, maxLabelWidth, parentMetadata);
         return {
           id: `group:${sessionId}`,
           value: {
@@ -633,7 +668,7 @@ export function LogSelector(t0) {
             isGroupHeader: true,
             forkCount
           }),
-          description: snippetStr ? `${parentMetadata}\n  ${snippetStr}` : parentMetadata,
+          description: parentDescription,
           dimDescription: true,
           children
         };
@@ -671,13 +706,15 @@ export function LogSelector(t0) {
           const rawSummary = getLogDisplayTitle(log_9);
           const summaryWithSidechain = rawSummary + (log_9.isSidechain ? " (sidechain)" : "");
           const summary = normalizeAndTruncateToWidth(summaryWithSidechain, maxLabelWidth);
-          const baseDescription = formatLogMetadata(log_9);
-          const projectSuffix = showAllProjects && log_9.projectPath ? ` · ${log_9.projectPath}` : "";
+          const metadata = buildLogMetadata(log_9, {
+            showProjectPath: showAllProjects,
+            showSessionId: true
+          });
           const snippet_1 = snippets.get(log_9);
           const snippetStr_0 = snippet_1 ? formatSnippet(snippet_1, highlightColor) : null;
           return {
             label: summary,
-            description: snippetStr_0 ? `${baseDescription}${projectSuffix}\n  ${snippetStr_0}` : baseDescription + projectSuffix,
+            description: snippetStr_0 ? `${metadata}\n  ${snippetStr_0}` : buildLogDescription(log_9, maxLabelWidth, metadata),
             dimDescription: true,
             value: index_0.toString()
           };
