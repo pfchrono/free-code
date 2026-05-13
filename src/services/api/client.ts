@@ -42,6 +42,12 @@ import {
   getXaiBaseUrlOverride,
   resolveEnvOnlyProviderRouteId,
 } from '../../integrations/routeMetadata.js'
+import {
+  convertEffortValueToLevel,
+  standardEffortToOpenAI,
+  type EffortValue,
+  type OpenAIEffortLevel,
+} from '../../utils/effort.js'
 import { createCodexFetch } from './codex-fetch-adapter.js'
 import { createCopilotAnthropicClient } from './copilot-client.js'
 import { createOpenAIFetch } from './openai-fetch-adapter.js'
@@ -166,6 +172,7 @@ export async function getAnthropicClient({
   fetchOverride,
   source,
   providerOverride,
+  effortValue,
 }: {
   apiKey?: string
   maxRetries: number
@@ -173,7 +180,12 @@ export async function getAnthropicClient({
   fetchOverride?: ClientOptions['fetch']
   source?: string
   providerOverride?: ProviderOverride
+  effortValue?: EffortValue
 }): Promise<Anthropic> {
+  const shimReasoningEffort: OpenAIEffortLevel | undefined =
+    effortValue !== undefined
+      ? standardEffortToOpenAI(convertEffortValueToLevel(effortValue))
+      : undefined
   const containerId = process.env.CLAUDE_CODE_CONTAINER_ID
   const remoteSessionId = process.env.CLAUDE_CODE_REMOTE_SESSION_ID
   const clientApp = process.env.CLAUDE_AGENT_SDK_CLIENT_APP
@@ -264,6 +276,7 @@ export async function getAnthropicClient({
       maxRetries,
       timeout,
       providerOverride,
+      reasoningEffort: shimReasoningEffort,
     }) as unknown as Anthropic
   }
 
@@ -280,6 +293,7 @@ export async function getAnthropicClient({
       defaultHeaders,
       maxRetries,
       timeout,
+      reasoningEffort: shimReasoningEffort,
     }) as unknown as Anthropic
   }
 
@@ -671,6 +685,16 @@ function getCustomHeaders(): Record<string, string> {
 }
 
 export const CLIENT_REQUEST_ID_HEADER = 'x-client-request-id'
+export const CODEX_INFERENCE_CALL_ID_HEADER = 'x-codex-inference-call-id'
+
+export function getRequestIdHeaders(
+  requestId: string,
+): Record<string, string> {
+  return {
+    [CLIENT_REQUEST_ID_HEADER]: requestId,
+    [CODEX_INFERENCE_CALL_ID_HEADER]: requestId,
+  }
+}
 
 function buildFetch(
   fetchOverride: ClientOptions['fetch'],
@@ -685,8 +709,14 @@ function buildFetch(
   return async (input, init) => {
     // eslint-disable-next-line eslint-plugin-n/no-unsupported-features/node-builtins
     const headers = new Headers(init?.headers)
-    if (injectClientRequestId && !headers.has(CLIENT_REQUEST_ID_HEADER)) {
-      headers.set(CLIENT_REQUEST_ID_HEADER, randomUUID())
+    if (injectClientRequestId) {
+      const requestId = headers.get(CLIENT_REQUEST_ID_HEADER) ?? randomUUID()
+      if (!headers.has(CLIENT_REQUEST_ID_HEADER)) {
+        headers.set(CLIENT_REQUEST_ID_HEADER, requestId)
+      }
+      if (!headers.has(CODEX_INFERENCE_CALL_ID_HEADER)) {
+        headers.set(CODEX_INFERENCE_CALL_ID_HEADER, requestId)
+      }
     }
 
     let body = init?.body

@@ -32,6 +32,14 @@ function buildHookSchemas() {
   const BashCommandHookSchema = z.object({
     type: z.literal('command').describe('Shell command hook type'),
     command: z.string().describe('Shell command to execute'),
+    commandWindows: z
+      .string()
+      .optional()
+      .describe('Windows-only override for the shell command to execute'),
+    command_windows: z
+      .string()
+      .optional()
+      .describe('Windows-only override for the shell command to execute'),
     if: IfConditionSchema(),
     shell: z
       .enum(SHELL_TYPES)

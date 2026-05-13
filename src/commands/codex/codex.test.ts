@@ -1,13 +1,25 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 
 describe('codex command', () => {
   beforeEach(() => {
     mock.restore()
   })
 
+  afterEach(() => {
+    delete process.env.CLAUDE_CODE_USE_OPENAI
+    delete process.env.CLAUDE_CODE_USE_CODEX
+    delete process.env.CLAUDE_CODE_USE_OPENROUTER
+    delete process.env.CLAUDE_CODE_USE_COPILOT
+    delete process.env.CLAUDE_CODE_USE_LMSTUDIO
+    delete process.env.CLAUDE_CODE_USE_MINIMAX
+    delete process.env.CLAUDE_CODE_USE_BEDROCK
+    delete process.env.CLAUDE_CODE_USE_VERTEX
+    delete process.env.CLAUDE_CODE_USE_FOUNDRY
+    mock.restore()
+  })
+
   it('enables codex provider without changing prompt style toggles', async () => {
     const updateSettingsForSource = mock(() => ({}))
-    const switchProviderDirectly = mock(() => {})
     const logEvent = mock(() => {})
     const onDone = mock(() => {})
 
@@ -40,21 +52,10 @@ describe('codex command', () => {
     mock.module('../../services/analytics/index.js', () => ({
       logEvent,
     }))
-    mock.module('../../hooks/useProviderSwitch.js', () => ({
-      switchProviderDirectly,
-    }))
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'firstParty',
-      shouldAllowAnthropicHostedServices: () => true,
-      getAPIProviderForStatsig: () => 'firstParty',
-      getCurrentAPIAdapterName: () => 'firstParty-adapter',
-      isFirstPartyAnthropicBaseUrl: () => true,
-    }))
-
     const { call } = await import('./codex.js')
     await call(onDone as never, {} as never, 'on')
 
-    expect(switchProviderDirectly).toHaveBeenCalledWith('codex')
+    expect(process.env.CLAUDE_CODE_USE_CODEX).toBe('1')
     expect(updateSettingsForSource).toHaveBeenCalledWith('projectSettings', {
       apiProvider: 'codex',
     })
@@ -62,7 +63,6 @@ describe('codex command', () => {
 
   it('disables codex mode when switching back off', async () => {
     const updateSettingsForSource = mock(() => ({}))
-    const switchProviderDirectly = mock(() => {})
     const logEvent = mock(() => {})
     const onDone = mock(() => {})
 
@@ -95,21 +95,10 @@ describe('codex command', () => {
     mock.module('../../services/analytics/index.js', () => ({
       logEvent,
     }))
-    mock.module('../../hooks/useProviderSwitch.js', () => ({
-      switchProviderDirectly,
-    }))
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'codex',
-      shouldAllowAnthropicHostedServices: () => false,
-      getAPIProviderForStatsig: () => 'codex',
-      getCurrentAPIAdapterName: () => 'codex-adapter',
-      isFirstPartyAnthropicBaseUrl: () => true,
-    }))
-
     const { call } = await import('./codex.js')
     await call(onDone as never, {} as never, 'off')
 
-    expect(switchProviderDirectly).toHaveBeenCalledWith('firstParty')
+    expect(process.env.CLAUDE_CODE_USE_CODEX).toBeUndefined()
     expect(updateSettingsForSource).toHaveBeenCalledWith('projectSettings', {
       apiProvider: 'firstParty',
     })
@@ -117,7 +106,6 @@ describe('codex command', () => {
 
   it('restores the active non-codex provider when switching codex off', async () => {
     const updateSettingsForSource = mock(() => ({}))
-    const switchProviderDirectly = mock(() => {})
     const logEvent = mock(() => {})
     const onDone = mock(() => {})
 
@@ -150,21 +138,12 @@ describe('codex command', () => {
     mock.module('../../services/analytics/index.js', () => ({
       logEvent,
     }))
-    mock.module('../../hooks/useProviderSwitch.js', () => ({
-      switchProviderDirectly,
-    }))
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'openai',
-      shouldAllowAnthropicHostedServices: () => false,
-      getAPIProviderForStatsig: () => 'openai',
-      getCurrentAPIAdapterName: () => 'openai-adapter',
-      isFirstPartyAnthropicBaseUrl: () => true,
-    }))
+    process.env.CLAUDE_CODE_USE_OPENAI = '1'
 
     const { call } = await import('./codex.js')
     await call(onDone as never, {} as never, 'off')
 
-    expect(switchProviderDirectly).toHaveBeenCalledWith('openai')
+    expect(process.env.CLAUDE_CODE_USE_OPENAI).toBe('1')
     expect(updateSettingsForSource).toHaveBeenCalledWith('projectSettings', {
       apiProvider: 'openai',
     })

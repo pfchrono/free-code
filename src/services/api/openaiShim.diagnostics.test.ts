@@ -26,6 +26,13 @@ afterEach(() => {
 test('logs classified transport diagnostics with category and code', async () => {
   const debugSpy = mock(() => {})
   mock.module('../../utils/debug.js', () => ({
+    enableDebugLogging: () => true,
+    getDebugFilePath: () => null,
+    getDebugFilter: () => null,
+    getMinDebugLogLevel: () => 'debug',
+    isDebugMode: () => true,
+    isDebugToStdErr: () => false,
+    logAntError: debugSpy,
     logForDebugging: debugSpy,
   }))
 
@@ -73,6 +80,13 @@ test('logs classified transport diagnostics with category and code', async () =>
 test('redacts credentials in transport diagnostic URL logs', async () => {
   const debugSpy = mock(() => {})
   mock.module('../../utils/debug.js', () => ({
+    enableDebugLogging: () => true,
+    getDebugFilePath: () => null,
+    getDebugFilter: () => null,
+    getMinDebugLogLevel: () => 'debug',
+    isDebugMode: () => true,
+    isDebugToStdErr: () => false,
+    logAntError: debugSpy,
     logForDebugging: debugSpy,
   }))
 
@@ -120,6 +134,13 @@ test('redacts credentials in transport diagnostic URL logs', async () => {
 test('logs self-heal localhost fallback with redacted from/to URLs', async () => {
   const debugSpy = mock(() => {})
   mock.module('../../utils/debug.js', () => ({
+    enableDebugLogging: () => true,
+    getDebugFilePath: () => null,
+    getDebugFilter: () => null,
+    getMinDebugLogLevel: () => 'debug',
+    isDebugMode: () => true,
+    isDebugToStdErr: () => false,
+    logAntError: debugSpy,
     logForDebugging: debugSpy,
   }))
 
@@ -197,6 +218,13 @@ test('logs self-heal localhost fallback with redacted from/to URLs', async () =>
 test('logs self-heal toolless retry for local tool-call incompatibility', async () => {
   const debugSpy = mock(() => {})
   mock.module('../../utils/debug.js', () => ({
+    enableDebugLogging: () => true,
+    getDebugFilePath: () => null,
+    getDebugFilter: () => null,
+    getMinDebugLogLevel: () => 'debug',
+    isDebugMode: () => true,
+    isDebugToStdErr: () => false,
+    logAntError: debugSpy,
     logForDebugging: debugSpy,
   }))
 

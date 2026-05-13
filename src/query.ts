@@ -99,6 +99,10 @@ import { executeStopFailureHooks } from './utils/hooks.js'
 import type { QuerySource } from './constants/querySource.js'
 import { createDumpPromptsFetch } from './services/api/dumpPrompts.js'
 import { StreamingToolExecutor } from './services/tools/StreamingToolExecutor.js'
+import {
+  appendFileMutationFooterToAssistantMessage,
+  createFileMutationVerifier,
+} from './services/tools/fileMutationVerifier.js'
 import { queryCheckpoint } from './utils/queryProfiler.js'
 import { runTools } from './services/tools/toolOrchestration.js'
 import { applyToolResultBudget } from './utils/toolResultStorage.js'
@@ -468,6 +472,7 @@ async function* queryLoop(
   // trigger point. Loop-local (not on State) to avoid touching the 7 continue
   // sites.
   let taskBudgetRemaining: number | undefined = undefined
+  const fileMutationVerifier = createFileMutationVerifier()
 
   // Snapshot immutable env/statsig/session state once at entry. See QueryConfig
   // for what's included and why feature() gates are intentionally excluded.
@@ -1077,6 +1082,23 @@ async function* queryLoop(
                 }
               }
             }
+            const msgToolUseBlocks =
+              message.type === 'assistant'
+                ? (message.message.content.filter(
+                    content => content.type === 'tool_use',
+                  ) as ToolUseBlock[])
+                : []
+            const footer =
+              message.type === 'assistant' && msgToolUseBlocks.length === 0
+                ? fileMutationVerifier.formatFooter()
+                : null
+            if (footer) {
+              yieldMessage = appendFileMutationFooterToAssistantMessage(
+                yieldMessage,
+                footer,
+              )
+            }
+
             // Withhold recoverable errors (prompt-too-long, max-output-tokens)
             // until we know whether recovery (collapse drain / reactive
             // compact / truncation retry) can succeed. Still pushed to
@@ -1118,9 +1140,6 @@ async function* queryLoop(
             if (message.type === 'assistant') {
               assistantMessages.push(message)
 
-              const msgToolUseBlocks = message.message.content.filter(
-                content => content.type === 'tool_use',
-              ) as ToolUseBlock[]
               if (msgToolUseBlocks.length > 0) {
                 const toolInputTokens = msgToolUseBlocks.reduce(
                   (sum, block) => sum + estimateToolCallInputTokens(block),
@@ -1156,6 +1175,10 @@ async function* queryLoop(
                   } else {
                     addCurrentTurnSavedOutputTokens(toolOutputTokens)
                   }
+                  fileMutationVerifier.recordToolResultMessage(
+                    result.message,
+                    new Map(toolUseBlocks.map(block => [block.id, block])),
+                  )
                   toolResults.push(
                     ...normalizeMessagesForAPI(
                       [result.message],
@@ -1713,6 +1736,10 @@ async function* queryLoop(
             [update.message],
             toolUseContext.options.tools,
           ).filter(_ => _.type === 'user'),
+        )
+        fileMutationVerifier.recordToolResultMessage(
+          update.message,
+          new Map(toolUseBlocks.map(block => [block.id, block])),
         )
       }
       if (update.newContext) {

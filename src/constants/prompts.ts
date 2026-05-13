@@ -216,7 +216,11 @@ function getSimpleDoingTasksSection(): string {
 
   const userHelpSubitems = [
     `/help: Get help with using free-code`,
-    `To give feedback, users should ${MACRO.ISSUES_EXPLAINER}`,
+    `To give feedback, users should ${
+      typeof MACRO !== 'undefined'
+        ? MACRO.ISSUES_EXPLAINER
+        : 'open an issue'
+    }`,
   ]
 
   const items = [

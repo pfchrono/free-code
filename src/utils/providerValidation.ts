@@ -31,6 +31,7 @@ import {
   type GeminiResolvedCredential,
   resolveGeminiCredential,
 } from './geminiAuth.js'
+import { isInteractiveSession } from './interactivity.js'
 import { PROFILE_FILE_NAME } from './providerProfile.js'
 import {
   redactSecretValueForDisplay,
@@ -488,21 +489,22 @@ export async function validateProviderEnvOrExit(
 
 export function shouldExitForStartupProviderValidationError(options: {
   args?: string[]
+  env?: NodeJS.ProcessEnv
+  platform?: NodeJS.Platform
   stdoutIsTTY?: boolean
 } = {}): boolean {
   const args = options.args ?? process.argv.slice(2)
+  const env = options.env ?? process.env
+  const platform = options.platform ?? process.platform
   const stdoutIsTTY = options.stdoutIsTTY ?? process.stdout.isTTY
 
-  if (!stdoutIsTTY) {
-    return true
-  }
-
-  return (
-    args.includes('-p') ||
-    args.includes('--print') ||
-    args.includes('--init-only') ||
-    args.some(arg => arg.startsWith('--sdk-url'))
-  )
+  return !isInteractiveSession({
+    stdoutIsTTY,
+    args,
+    env,
+    platform,
+    sdkUrlIsNonInteractive: true,
+  })
 }
 
 export async function validateProviderEnvForStartupOrExit(

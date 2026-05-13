@@ -16,6 +16,10 @@ import type { ThemeName } from './theme.js'
 // causing styled text to shift right.
 const EOL = '\n'
 
+export type MarkdownFormatOptions = {
+  maxTableWidth?: number
+}
+
 let markedConfigured = false
 
 export function configureMarked(): void {
@@ -37,11 +41,12 @@ export function applyMarkdown(
   content: string,
   theme: ThemeName,
   highlight: CliHighlight | null = null,
+  options: MarkdownFormatOptions = {},
 ): string {
   configureMarked()
   return marked
     .lexer(stripPromptXMLTags(content))
-    .map(_ => formatToken(_, theme, 0, null, null, highlight))
+    .map(_ => formatToken(_, theme, 0, null, null, highlight, options))
     .join('')
     .trim()
 }
@@ -53,6 +58,7 @@ export function formatToken(
   orderedListNumber: number | null = null,
   parent: Token | null = null,
   highlight: CliHighlight | null = null,
+  options: MarkdownFormatOptions = {},
 ): string {
   switch (token.type) {
     case 'blockquote': {
@@ -224,6 +230,19 @@ export function formatToken(
         return Math.max(maxWidth, 3) // Minimum width of 3
       })
 
+      const maxTableWidth = options.maxTableWidth
+      const horizontalWidth =
+        columnWidths.reduce((sum, width) => sum + width, 0) +
+        3 * columnWidths.length +
+        1
+      if (
+        typeof maxTableWidth === 'number' &&
+        Number.isFinite(maxTableWidth) &&
+        horizontalWidth > Math.max(maxTableWidth, 20)
+      ) {
+        return renderVerticalTable(tableToken, getDisplayText, maxTableWidth) + EOL
+      }
+
       // Format header row
       let tableOutput = '| '
       tableToken.header.forEach((header, index) => {
@@ -277,6 +296,118 @@ export function formatToken(
       return ''
   }
   return ''
+}
+
+function hardWrapDisplayText(text: string, width: number): string[] {
+  if (width <= 0 || !text) return [text]
+
+  const lines: string[] = []
+  let current = ''
+  let currentWidth = 0
+
+  for (const char of Array.from(text)) {
+    const charWidth = Math.max(1, stringWidth(char))
+    if (current && currentWidth + charWidth > width) {
+      lines.push(current)
+      current = char
+      currentWidth = charWidth
+      continue
+    }
+    current += char
+    currentWidth += charWidth
+  }
+
+  if (current) lines.push(current)
+  return lines.length ? lines : ['']
+}
+
+function wrapDisplayText(text: string, width: number): string[] {
+  if (width <= 0 || !text) return [text]
+
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return ['']
+
+  const lines: string[] = []
+  let current = ''
+  let currentWidth = 0
+
+  for (const word of words) {
+    const wordWidth = stringWidth(word)
+    if (!current) {
+      if (wordWidth <= width) {
+        current = word
+        currentWidth = wordWidth
+      } else {
+        const pieces = hardWrapDisplayText(word, width)
+        lines.push(...pieces.slice(0, -1))
+        current = pieces.at(-1) ?? ''
+        currentWidth = stringWidth(current)
+      }
+      continue
+    }
+
+    if (currentWidth + 1 + wordWidth <= width) {
+      current += ` ${word}`
+      currentWidth += 1 + wordWidth
+      continue
+    }
+
+    lines.push(current)
+    if (wordWidth <= width) {
+      current = word
+      currentWidth = wordWidth
+    } else {
+      const pieces = hardWrapDisplayText(word, width)
+      lines.push(...pieces.slice(0, -1))
+      current = pieces.at(-1) ?? ''
+      currentWidth = stringWidth(current)
+    }
+  }
+
+  if (current) lines.push(current)
+  return lines.length ? lines : ['']
+}
+
+function renderVerticalTable(
+  tableToken: Tokens.Table,
+  getDisplayText: (tokens: Token[] | undefined) => string,
+  maxTableWidth: number,
+): string {
+  const width = Math.max(20, Math.floor(maxTableWidth))
+  const headers = tableToken.header.map((header, index) => {
+    const text = getDisplayText(header.tokens).trim()
+    return text || `Column ${index + 1}`
+  })
+  const separator = '-'.repeat(Math.min(width, 40))
+  const lines: string[] = []
+
+  tableToken.rows.forEach((row, rowIndex) => {
+    if (rowIndex > 0) lines.push(separator)
+
+    headers.forEach((header, index) => {
+      const value = getDisplayText(row[index]?.tokens).trim()
+      if (!value) {
+        lines.push(`${header}:`)
+        return
+      }
+
+      const firstLineBudget = Math.max(10, width - stringWidth(header) - 2)
+      const continuationBudget = Math.max(10, width - 2)
+      const wrapped = wrapDisplayText(value, firstLineBudget)
+      lines.push(`${header}: ${wrapped[0] ?? ''}`)
+
+      const continuationText = wrapped.slice(1).join(' ')
+      if (!continuationText) return
+      for (const continuation of wrapDisplayText(
+        continuationText,
+        continuationBudget,
+      )) {
+        if (continuation) lines.push(`  ${continuation}`)
+      }
+    })
+  })
+
+  return lines.join(EOL)
 }
 
 // Matches owner/repo#NNN style GitHub issue/PR references. The qualified form

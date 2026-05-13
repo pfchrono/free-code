@@ -1,17 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test'
-
-const actualSettings = await import('../utils/settings/settings.js')
-
-beforeAll(() => {
-  mock.module('../utils/settings/settings.js', () => ({
-    ...actualSettings,
-    getSettings_DEPRECATED: () => ({}),
-  }))
-})
-
-afterAll(() => {
-  mock.restore()
-})
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 
 import stripAnsi from 'strip-ansi'
 import { detectProvider, printStartupScreen } from './StartupScreen.js'

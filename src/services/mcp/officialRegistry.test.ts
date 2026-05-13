@@ -4,7 +4,6 @@ import axios from 'axios'
 const originalEnv = { ...process.env }
 
 async function importFreshModule() {
-  mock.restore()
   return import(`./officialRegistry.ts?ts=${Date.now()}-${Math.random()}`)
 }
 
@@ -20,9 +19,6 @@ afterEach(() => {
 describe('prefetchOfficialMcpUrls', () => {
   test('does not fetch registry when using OpenAI mode', async () => {
     process.env.CLAUDE_CODE_USE_OPENAI = '1'
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'openai',
-    }))
     const getSpy = mock(() => Promise.resolve({ data: { servers: [] } }))
     axios.get = getSpy as typeof axios.get
 
@@ -34,9 +30,6 @@ describe('prefetchOfficialMcpUrls', () => {
 
   test('does not fetch registry when using Gemini mode', async () => {
     process.env.CLAUDE_CODE_USE_GEMINI = '1'
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'gemini',
-    }))
     const getSpy = mock(() => Promise.resolve({ data: { servers: [] } }))
     axios.get = getSpy as typeof axios.get
 
@@ -50,10 +43,12 @@ describe('prefetchOfficialMcpUrls', () => {
     delete process.env.CLAUDE_CODE_USE_OPENAI
     delete process.env.CLAUDE_CODE_USE_GEMINI
     delete process.env.CLAUDE_CODE_USE_GITHUB
+    delete process.env.OPENAI_API_KEY
+    delete process.env.GEMINI_API_KEY
+    delete process.env.GEMINI_ACCESS_TOKEN
+    delete process.env.NVIDIA_NIM
+    process.env.ANTHROPIC_API_KEY = 'test-key'
 
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'firstParty',
-    }))
     const getSpy = mock(() =>
       Promise.resolve({
         data: {

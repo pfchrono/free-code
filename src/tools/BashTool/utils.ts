@@ -147,21 +147,28 @@ export function formatOutput(content: string): {
   const maxOutputLength = getMaxOutputLength()
   if (content.length <= maxOutputLength) {
     return {
-      totalLines: countCharInString(content, '\n') + 1,
+      totalLines: countShellOutputLines(content),
       truncatedContent: content,
       isImage,
     }
   }
 
   const truncatedPart = content.slice(0, maxOutputLength)
-  const remainingLines = countCharInString(content, '\n', maxOutputLength) + 1
+  const remainingLines = countShellOutputLines(content.slice(maxOutputLength))
   const truncated = `${truncatedPart}\n\n... [${remainingLines} lines truncated] ...`
 
   return {
-    totalLines: countCharInString(content, '\n') + 1,
+    totalLines: countShellOutputLines(content),
     truncatedContent: truncated,
     isImage,
   }
+}
+
+export function countShellOutputLines(content: string): number {
+  if (content.length === 0) return 1
+  const visibleContent = content.endsWith('\n') ? content.slice(0, -1) : content
+  if (visibleContent.length === 0) return 1
+  return countCharInString(visibleContent, '\n') + 1
 }
 
 export const stdErrAppendShellResetMessage = (stderr: string): string =>

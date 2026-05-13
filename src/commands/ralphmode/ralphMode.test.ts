@@ -1,7 +1,11 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 
 describe('ralphmode command', () => {
   beforeEach(() => {
+    mock.restore()
+  })
+
+  afterEach(() => {
     mock.restore()
   })
 
@@ -38,13 +42,6 @@ describe('ralphmode command', () => {
     }))
     mock.module('src/services/analytics/index.js', () => ({
       logEvent,
-    }))
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'firstParty',
-      shouldAllowAnthropicHostedServices: () => true,
-      getAPIProviderForStatsig: () => 'firstParty',
-      getCurrentAPIAdapterName: () => 'firstParty-adapter',
-      isFirstPartyAnthropicBaseUrl: () => true,
     }))
 
     const { call } = await import('./ralphMode.js')
@@ -93,13 +90,6 @@ describe('ralphmode command', () => {
     mock.module('src/services/analytics/index.js', () => ({
       logEvent,
     }))
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'firstParty',
-      shouldAllowAnthropicHostedServices: () => true,
-      getAPIProviderForStatsig: () => 'firstParty',
-      getCurrentAPIAdapterName: () => 'firstParty-adapter',
-      isFirstPartyAnthropicBaseUrl: () => true,
-    }))
 
     const { call } = await import('./ralphMode.js')
     const result = await call('off', {} as never)
@@ -146,13 +136,6 @@ describe('ralphmode command', () => {
     }))
     mock.module('src/services/analytics/index.js', () => ({
       logEvent,
-    }))
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'firstParty',
-      shouldAllowAnthropicHostedServices: () => true,
-      getAPIProviderForStatsig: () => 'firstParty',
-      getCurrentAPIAdapterName: () => 'firstParty-adapter',
-      isFirstPartyAnthropicBaseUrl: () => true,
     }))
 
     const { call } = await import('./ralphMode.js')
@@ -201,13 +184,6 @@ describe('ralphmode command', () => {
     mock.module('src/services/analytics/index.js', () => ({
       logEvent,
     }))
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'firstParty',
-      shouldAllowAnthropicHostedServices: () => true,
-      getAPIProviderForStatsig: () => 'firstParty',
-      getCurrentAPIAdapterName: () => 'firstParty-adapter',
-      isFirstPartyAnthropicBaseUrl: () => true,
-    }))
 
     const { call } = await import('./ralphMode.js')
     const result = await call('status', {} as never)
@@ -254,13 +230,6 @@ describe('ralphmode command', () => {
     }))
     mock.module('src/services/analytics/index.js', () => ({
       logEvent,
-    }))
-    mock.module('../../utils/model/providers.js', () => ({
-      getAPIProvider: () => 'firstParty',
-      shouldAllowAnthropicHostedServices: () => true,
-      getAPIProviderForStatsig: () => 'firstParty',
-      getCurrentAPIAdapterName: () => 'firstParty-adapter',
-      isFirstPartyAnthropicBaseUrl: () => true,
     }))
 
     const { call } = await import('./ralphMode.js')

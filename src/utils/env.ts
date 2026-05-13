@@ -233,6 +233,18 @@ function detectTerminal(): string | null {
   return null
 }
 
+export function supportsOsc52Clipboard(
+  terminal: string | null = env.terminal,
+): boolean {
+  return (
+    terminal === 'ghostty' ||
+    terminal === 'kitty' ||
+    terminal === 'WezTerm' ||
+    terminal === 'windows-terminal' ||
+    terminal === 'vscode'
+  )
+}
+
 /**
  * Detects the deployment environment/platform based on environment variables
  * @returns The deployment platform name, or 'unknown' if not detected

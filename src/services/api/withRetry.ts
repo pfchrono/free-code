@@ -693,6 +693,17 @@ function handleGcpCredentialError(error: unknown): boolean {
   return false
 }
 
+function isQuotaExhausted(error: unknown): boolean {
+  if (!(error instanceof APIError) || error.status !== 429) {
+    return false
+  }
+  const message = error.message.toLowerCase()
+  return (
+    message.includes('exceeded your current quota') ||
+    message.includes('account limit: 0')
+  )
+}
+
 function shouldRetry(error: APIError): boolean {
   // Never retry mock errors - they're from /mock-limits command for testing
   if (isMockRateLimitError(error)) {
@@ -819,4 +830,8 @@ function getRateLimitResetDelayMs(error: APIError): number | null {
   const delayMs = resetUnixSec * 1000 - Date.now()
   if (delayMs <= 0) return null
   return Math.min(delayMs, PERSISTENT_RESET_CAP_MS)
+}
+
+export const testExports = {
+  isQuotaExhausted,
 }

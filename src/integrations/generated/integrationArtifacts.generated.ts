@@ -313,7 +313,7 @@ export const PROVIDER_PRESET_MANIFEST = [
     "label": "Z.AI - GLM Coding Plan",
     "name": "Z.AI - GLM Coding Plan",
     "apiKeyEnvVars": [
-      "OPENAI_API_KEY"
+      "ZAI_API_KEY"
     ],
     "modelEnvVars": [
       "OPENAI_MODEL"

@@ -68,13 +68,15 @@ export async function setup(
   logForDiagnosticsNoPII('info', 'setup_started')
   startupRawTrace('setup: entered isBareMode=' + String(isBareMode()));
 
-  // Check for Node.js version < 18
+  // Check for Node.js version < 26 when running directly under Node.
+  // Bun exposes a Node compatibility version that can lag behind installed Node.
+  const isBunRuntime = Boolean((globalThis as { Bun?: unknown }).Bun)
   const nodeVersion = process.version.match(/^v(\d+)\./)?.[1]
-  if (!nodeVersion || parseInt(nodeVersion) < 18) {
+  if (!isBunRuntime && (!nodeVersion || parseInt(nodeVersion) < 26)) {
     // biome-ignore lint/suspicious/noConsole:: intentional console output
     console.error(
       chalk.bold.red(
-        'Error: Claude Code requires Node.js version 18 or higher.',
+        'Error: Free-Code requires Node.js version 26 or higher.',
       ),
     )
     process.exit(1)

@@ -17,6 +17,26 @@ export const EFFORT_LEVELS = [
 ] as const satisfies readonly EffortLevel[]
 
 export type EffortValue = EffortLevel | number
+export type OpenAIEffortLevel = 'low' | 'medium' | 'high' | 'xhigh'
+
+export function isOpenAIEffortLevel(
+  value: string,
+): value is OpenAIEffortLevel {
+  return (
+    value === 'low' ||
+    value === 'medium' ||
+    value === 'high' ||
+    value === 'xhigh'
+  )
+}
+
+export function openAIEffortToStandard(value: OpenAIEffortLevel): EffortLevel {
+  return value === 'xhigh' ? 'max' : value
+}
+
+export function standardEffortToOpenAI(value: EffortLevel): OpenAIEffortLevel {
+  return value === 'max' ? 'xhigh' : value
+}
 
 // @[MODEL LAUNCH]: Add the new model to the allowlist if it supports the effort parameter.
 export function modelSupportsEffort(model: string): boolean {

@@ -190,6 +190,17 @@ export function getSessionEndHookTimeoutMs(): number {
     : SESSION_END_HOOK_TIMEOUT_MS_DEFAULT
 }
 
+export function getEffectiveCommandHookCommand(
+  hook: HookCommand & { type: 'command' },
+  isWindows = getPlatform() === 'windows',
+): string {
+  if (!isWindows) {
+    return hook.command
+  }
+
+  return hook.commandWindows ?? hook.command_windows ?? hook.command
+}
+
 function executeInBackground({
   processId,
   hookId,
@@ -828,7 +839,7 @@ async function execCommandHook(
   // Order matches MCP/LSP (plugin vars FIRST, then user config) so a user-
   // entered value containing the literal text ${CLAUDE_PLUGIN_ROOT} is treated
   // as opaque — not re-interpreted as a template.
-  let command = hook.command
+  let command = getEffectiveCommandHookCommand(hook, isWindows)
   let pluginOpts: ReturnType<typeof loadPluginOptions> | undefined
   if (pluginRoot) {
     // Plugin directory gone (orphan GC race, concurrent session deleted it):
@@ -1759,7 +1770,7 @@ export async function getMatchingHooks(
           .map(m => [
             hookDedupKey(
               m,
-              `${m.hook.shell ?? DEFAULT_HOOK_SHELL}\0${m.hook.command}\0${getIfCondition(m.hook)}`,
+              `${m.hook.shell ?? DEFAULT_HOOK_SHELL}\0${getEffectiveCommandHookCommand(m.hook)}\0${getIfCondition(m.hook)}`,
             ),
             m,
           ]),
@@ -2750,6 +2761,7 @@ async function* executeHooks({
   }
 
   let permissionBehavior: PermissionResult['behavior'] | undefined
+  let permissionUpdatedInput: Record<string, unknown> | undefined
 
   // Run all hooks in parallel and wait for all to complete
   for await (const result of all(hookPromises)) {
@@ -2857,15 +2869,19 @@ async function* executeHooks({
       }
     }
 
+    if (
+      result.updatedInput &&
+      (result.permissionBehavior === 'allow' ||
+        result.permissionBehavior === 'ask')
+    ) {
+      permissionUpdatedInput = result.updatedInput
+    }
+
     // Yield permission behavior and updatedInput if provided (from allow or ask behavior)
     if (permissionBehavior !== undefined) {
       const updatedInput =
-        result.updatedInput &&
-        (result.permissionBehavior === 'allow' ||
-          result.permissionBehavior === 'ask')
-          ? result.updatedInput
-          : undefined
-      if (updatedInput) {
+        permissionBehavior === 'deny' ? undefined : permissionUpdatedInput
+      if (updatedInput && result.updatedInput === updatedInput) {
         logForDebugging(
           `Hook ${hookEvent} (${getHookDisplayText(result.hook)}) modified tool input keys: [${Object.keys(updatedInput).join(', ')}]`,
         )

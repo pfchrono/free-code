@@ -4,7 +4,7 @@ import { useMainLoopModel } from '../../hooks/useMainLoopModel.js';
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from '../../services/analytics/index.js';
 import { useAppState, useSetAppState } from '../../state/AppState.js';
 import type { LocalJSXCommandOnDone } from '../../types/command.js';
-import { type EffortValue, getDisplayedEffortLevel, getEffortEnvOverride, getEffortValueDescription, isEffortLevel, toPersistableEffort } from '../../utils/effort.js';
+import { type EffortValue, getDisplayedEffortLevel, getEffortEnvOverride, getEffortValueDescription, isEffortLevel, isOpenAIEffortLevel, openAIEffortToStandard, toPersistableEffort } from '../../utils/effort.js';
 import { updateSettingsForSource } from '../../utils/settings/settings.js';
 const COMMON_HELP_ARGS = ['help', '-h', '--help'];
 type EffortCommandResult = {
@@ -110,8 +110,11 @@ export function executeEffort(args: string): EffortCommandResult {
     return unsetEffortLevel();
   }
   if (!isEffortLevel(normalized)) {
+    if (isOpenAIEffortLevel(normalized)) {
+      return setEffortValue(openAIEffortToStandard(normalized));
+    }
     return {
-      message: `Invalid argument: ${args}. Valid options are: low, medium, high, max, auto`
+      message: `Invalid argument: ${args}. Valid options are: low, medium, high, max, xhigh, auto`
     };
   }
   return setEffortValue(normalized);
@@ -171,7 +174,7 @@ function ApplyEffortAndClose(t0) {
 export async function call(onDone: LocalJSXCommandOnDone, _context: unknown, args?: string): Promise<React.ReactNode> {
   args = args?.trim() || '';
   if (COMMON_HELP_ARGS.includes(args)) {
-    onDone('Usage: /effort [low|medium|high|max|auto]\n\nEffort levels:\n- low: Quick, straightforward implementation\n- medium: Balanced approach with standard testing\n- high: Comprehensive implementation with extensive testing\n- max: Maximum capability with deepest reasoning (Opus 4.6 only)\n- auto: Use the default effort level for your model');
+    onDone('Usage: /effort [low|medium|high|max|xhigh|auto]\n\nEffort levels:\n- low: Quick, straightforward implementation\n- medium: Balanced approach with standard testing\n- high: Comprehensive implementation with extensive testing\n- max: Maximum capability with deepest reasoning (Opus 4.6 only)\n- xhigh: Extra-high reasoning for OpenAI/Codex models (alias for max)\n- auto: Use the default effort level for your model');
     return;
   }
   if (!args || args === 'current' || args === 'status') {

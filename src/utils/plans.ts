@@ -1,7 +1,6 @@
 import { randomUUID } from 'crypto'
 import { copyFile, writeFile } from 'fs/promises'
 import memoize from 'lodash-es/memoize.js'
-import { homedir } from 'os'
 import { join, resolve, sep } from 'path'
 import type { AgentId, SessionId } from 'src/types/ids.js'
 import type { LogOption } from 'src/types/logs.js'
@@ -26,11 +25,7 @@ import { generateWordSlug } from './words.js'
 const MAX_SLUG_RETRIES = 10
 
 export function getDefaultPlansDirectory(): string {
-  return (
-    process.env.FREE_CODE_CONFIG_DIR ??
-    process.env.CLAUDE_CONFIG_DIR ??
-    join(homedir(), '.openclaude', 'plans')
-  )
+  return join(getClaudeConfigHomeDir(), 'plans')
 }
 
 /**

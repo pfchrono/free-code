@@ -226,6 +226,19 @@ function worktreePathFor(repoRoot: string, slug: string): string {
   return join(worktreesDir(repoRoot), flattenSlug(slug))
 }
 
+export function buildRevParseFailureMessage(
+  baseBranch: string,
+  stderr: string,
+  exitCode: number,
+): string {
+  const detail = stderr.trim() || `exit code ${exitCode}`
+  const hint =
+    baseBranch === 'HEAD'
+      ? ' (HEAD has no resolvable commit; make at least one commit or check whether git is installed and on PATH)'
+      : ''
+  return `Failed to resolve base branch "${baseBranch}": ${detail}${hint}`
+}
+
 /**
  * Creates a new git worktree for the given slug, or resumes it if it already exists.
  * Named worktrees reuse the same path across invocations, so the existence check
@@ -305,15 +318,13 @@ async function getOrCreateWorktree(
   // For the fetch/PR-fetch paths we still need the SHA — the fs-only resolveRef
   // above only covers the "origin/<branch> already exists locally" case.
   if (!baseSha) {
-    const { stdout, code: shaCode } = await execFileNoThrowWithCwd(
+    const { stdout, stderr, code: shaCode } = await execFileNoThrowWithCwd(
       gitExe(),
       ['rev-parse', baseBranch],
       { cwd: repoRoot },
     )
     if (shaCode !== 0) {
-      throw new Error(
-        `Failed to resolve base branch "${baseBranch}": git rev-parse failed`,
-      )
+      throw new Error(buildRevParseFailureMessage(baseBranch, stderr, shaCode))
     }
     baseSha = stdout.trim()
   }

@@ -424,7 +424,7 @@ export const WebSearchTool = buildTool({
         allowed_domains: input.allowed_domains,
         blocked_domains: input.blocked_domains,
       }, context.abortController.signal)
-      return { data: formatProviderOutput(providerOutput, query) }
+      return { data: formatProviderOutputWithEmptyHint(providerOutput, query, apiProvider) }
     }
 
     const userMessage = createUserMessage({

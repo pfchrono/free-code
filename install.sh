@@ -22,6 +22,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 USE_LOCAL_SOURCE=0
 INSTALL_DIR="$DEFAULT_INSTALL_DIR"
 
+info()  { printf "${CYAN}[*]${RESET} %s\n" "$*"; }
+ok()    { printf "${GREEN}[+]${RESET} %s\n" "$*"; }
+warn()  { printf "${YELLOW}[!]${RESET} %s\n" "$*"; }
+fail()  { printf "${RED}[x]${RESET} %s\n" "$*"; exit 1; }
+
 for arg in "$@"; do
   case "$arg" in
     --dev|-d) DEV=1 ;;
@@ -36,11 +41,6 @@ if [ -f "$SCRIPT_DIR/package.json" ] && [ -f "$SCRIPT_DIR/scripts/build.ts" ]; t
   USE_LOCAL_SOURCE=1
   INSTALL_DIR="$SCRIPT_DIR"
 fi
-
-info()  { printf "${CYAN}[*]${RESET} %s\n" "$*"; }
-ok()    { printf "${GREEN}[+]${RESET} %s\n" "$*"; }
-warn()  { printf "${YELLOW}[!]${RESET} %s\n" "$*"; }
-fail()  { printf "${RED}[x]${RESET} %s\n" "$*"; exit 1; }
 
 header() {
   echo ""
@@ -102,15 +102,33 @@ check_bun() {
 }
 
 install_bun() {
-  curl -fsSL https://bun.sh/install | bash
+  local bun_install_log bun_installer
+  bun_install_log="$(mktemp 2>/dev/null || printf '/tmp/free-code-bun-install.%s.log' "$$")"
+  bun_installer="$(mktemp 2>/dev/null || printf '/tmp/free-code-bun-installer.%s.sh' "$$")"
+
+  if ! curl -fsSL https://bun.sh/install -o "$bun_installer" 2>"$bun_install_log"; then
+    cat "$bun_install_log" >&2
+    rm -f "$bun_install_log" "$bun_installer"
+    fail "Failed to download Bun installer from https://bun.sh/install"
+  fi
+
+  if ! bash "$bun_installer" >>"$bun_install_log" 2>&1; then
+    cat "$bun_install_log" >&2
+    rm -f "$bun_install_log" "$bun_installer"
+    fail "Failed to install Bun"
+  fi
+
   # Source the updated profile so bun is on PATH for this session
   export BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
   export PATH="$BUN_INSTALL/bin:$PATH"
   if ! command -v bun &>/dev/null; then
+    cat "$bun_install_log" >&2
+    rm -f "$bun_install_log" "$bun_installer"
     fail "bun installation succeeded but binary not found on PATH.
     Add this to your shell profile and restart:
       export PATH=\"\$HOME/.bun/bin:\$PATH\""
   fi
+  rm -f "$bun_install_log" "$bun_installer"
   ok "bun: v$(bun --version) (just installed)"
 }
 

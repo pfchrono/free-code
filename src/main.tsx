@@ -68,6 +68,7 @@ import { computeInitialTeamContext } from './utils/swarm/reconnection.js';
 import { initializeWarningHandler } from './utils/warningHandler.js';
 import { isWorktreeModeEnabled } from './utils/worktreeModeEnabled.js';
 import { applyRepoLocalApiProviderOverride } from './utils/model/bootstrapProviderOverride.js';
+import { isInteractiveSession } from './utils/interactivity.js';
 
 // Lazy require to avoid circular dependency: teammate.ts -> AppState.tsx -> ... -> main.tsx
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -985,17 +986,18 @@ export async function main() {
   // Check for -p/--print and --init-only flags early to set isInteractiveSession before init()
   // This is needed because telemetry initialization calls auth functions that need this flag
   const cliArgs = process.argv.slice(2);
-  const hasPrintFlag = cliArgs.includes('-p') || cliArgs.includes('--print');
-  const hasInitOnlyFlag = cliArgs.includes('--init-only');
   const hasSdkUrl = cliArgs.some(arg => arg.startsWith('--sdk-url'));
   // --sdk-url is only valid with --print/stream-json and is validated later.
   // Do not let it force headless startup on its own, or injected bridge args
   // can incorrectly skip the interactive UI path before normal validation runs.
-  // On Windows, isatty() returns false even for interactive terminals (PowerShell, cmd).
-  // If no explicit non-interactive flags are set, assume interactive on Windows.
-  const isWindows = process.platform === 'win32';
-  const isNonInteractive = hasPrintFlag || hasInitOnlyFlag || (!isWindows && !process.stdout.isTTY);
-  logForDebugging(`[STARTUP] TTY detection stdout=${String(process.stdout.isTTY)} stdin=${String(process.stdin.isTTY)} stderr=${String(process.stderr.isTTY)} isWindows=${String(isWindows)} => isNonInteractive=${String(isNonInteractive)}`);
+  const isInteractive = isInteractiveSession({
+    stdoutIsTTY: process.stdout.isTTY,
+    args: cliArgs,
+    env: process.env,
+    sdkUrlIsNonInteractive: false,
+  });
+  const isNonInteractive = !isInteractive;
+  logForDebugging(`[STARTUP] TTY detection stdout=${String(process.stdout.isTTY)} stdin=${String(process.stdin.isTTY)} stderr=${String(process.stderr.isTTY)} isWindows=${String(process.platform === 'win32')} hasSdkUrl=${String(hasSdkUrl)} sshTty=${String(Boolean(process.env.SSH_TTY))} => isNonInteractive=${String(isNonInteractive)}`);
 
   // Stop capturing early input for non-interactive modes
   if (isNonInteractive) {
@@ -1003,7 +1005,6 @@ export async function main() {
   }
 
   // Set simplified tracking fields
-  const isInteractive = !isNonInteractive;
   setIsInteractive(isInteractive);
 
   // Initialize entrypoint based on mode - needs to be set before any event is logged

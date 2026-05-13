@@ -28,6 +28,7 @@ const ENV_KEYS = [
   'NVIDIA_NIM',
   'BNKR_API_KEY',
   'XAI_API_KEY',
+  'ZAI_API_KEY',
   'MINIMAX_API_KEY',
   'MISTRAL_MODEL',
   'ANTHROPIC_MODEL',
@@ -198,5 +199,35 @@ describe('applyProviderFlag', () => {
     expect(process.env.CLAUDE_CODE_USE_OPENAI).toBe('1')
     expect(process.env.OPENAI_BASE_URL).toBe('https://api.deepseek.com/v1')
     expect(process.env.OPENAI_MODEL).toBe('deepseek-v4-pro')
+  })
+
+  test('copies ZAI_API_KEY for Z.AI provider when OpenAI key is absent', () => {
+    process.env.ZAI_API_KEY = 'zai-live-key'
+
+    const result = applyProviderFlag('zai', [])
+
+    expect(result.error).toBeUndefined()
+    expect(process.env.CLAUDE_CODE_USE_OPENAI).toBe('1')
+    expect(process.env.OPENAI_BASE_URL).toBe('https://api.z.ai/api/coding/paas/v4')
+    expect(process.env.OPENAI_API_KEY).toBe('zai-live-key')
+  })
+
+  test('preserves explicit OpenAI key for Z.AI provider', () => {
+    process.env.ZAI_API_KEY = 'zai-live-key'
+    process.env.OPENAI_API_KEY = 'explicit-openai-key'
+
+    const result = applyProviderFlag('zai', [])
+
+    expect(result.error).toBeUndefined()
+    expect(process.env.OPENAI_API_KEY).toBe('explicit-openai-key')
+  })
+
+  test('clears stale copied Z.AI key when switching providers', () => {
+    process.env.ZAI_API_KEY = 'zai-live-key'
+    expect(applyProviderFlag('zai', []).error).toBeUndefined()
+    expect(process.env.OPENAI_API_KEY).toBe('zai-live-key')
+
+    expect(applyProviderFlag('openrouter', []).error).toBeUndefined()
+    expect(process.env.OPENAI_API_KEY).toBeUndefined()
   })
 })

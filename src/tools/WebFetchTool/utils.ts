@@ -15,6 +15,7 @@ import {
 import { shouldAllowAnthropicHostedServices } from '../../utils/model/providers.js'
 import { getSettings_DEPRECATED } from '../../utils/settings/settings.js'
 import { asSystemPrompt } from '../../utils/systemPromptType.js'
+import { isPrivateHostname } from '../WebSearchTool/providers/custom.js'
 import { isPreapprovedHost } from './preapproved.js'
 import { makeSecondaryModelPrompt } from './prompt.js'
 
@@ -45,6 +46,13 @@ class EgressBlockedError extends Error {
       }),
     )
     this.name = 'EgressBlockedError'
+  }
+}
+
+class PrivateHostBlockedError extends Error {
+  constructor(hostname: string) {
+    super(`WebFetch refused private or reserved host ${hostname}`)
+    this.name = 'PrivateHostBlockedError'
   }
 }
 
@@ -81,6 +89,12 @@ const DOMAIN_CHECK_CACHE = new LRUCache<string, true>({
 export function clearWebFetchCache(): void {
   URL_CACHE.clear()
   DOMAIN_CHECK_CACHE.clear()
+}
+
+export function assertPublicWebFetchHostname(hostname: string): void {
+  if (isPrivateHostname(hostname)) {
+    throw new PrivateHostBlockedError(hostname)
+  }
 }
 
 // Lazy singleton — defers the turndown → @mixmark-io/domino import (~1.4MB
@@ -383,6 +397,7 @@ export async function getURLMarkdownContent(
     }
 
     const hostname = parsedUrl.hostname
+    assertPublicWebFetchHostname(hostname)
 
     // Check if the user has opted to skip the blocklist check
     // This is for enterprise customers with restrictive security policies
@@ -410,7 +425,8 @@ export async function getURLMarkdownContent(
   } catch (e) {
     if (
       e instanceof DomainBlockedError ||
-      e instanceof DomainCheckFailedError
+      e instanceof DomainCheckFailedError ||
+      e instanceof PrivateHostBlockedError
     ) {
       // Expected user-facing failures - re-throw without logging as internal error
       throw e

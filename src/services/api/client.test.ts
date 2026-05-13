@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test'
-import { getAnthropicClient } from './client.js'
+import {
+  CLIENT_REQUEST_ID_HEADER,
+  CODEX_INFERENCE_CALL_ID_HEADER,
+  getAnthropicClient,
+  getRequestIdHeaders,
+} from './client.js'
 
 type FetchType = typeof globalThis.fetch
 
@@ -174,6 +179,13 @@ test('first-party Anthropic requests execute the configured fetch wrapper withou
     model: 'claude-sonnet-4-6',
   })
   expect(capturedHeaders).toBeDefined()
+})
+
+test('request id headers include codex inference call id alias', () => {
+  expect(getRequestIdHeaders('request-123')).toEqual({
+    [CLIENT_REQUEST_ID_HEADER]: 'request-123',
+    [CODEX_INFERENCE_CALL_ID_HEADER]: 'request-123',
+  })
 })
 
 test('routes Gemini provider requests through the OpenAI-compatible shim', async () => {
@@ -965,6 +977,62 @@ test('strips Anthropic-specific custom headers before sending OpenAI-compatible 
   expect(capturedHeaders?.get('api-key')).toBeNull()
   expect(capturedHeaders?.get('x-safe-header')).toBe('keep-me')
   expect(capturedHeaders?.get('authorization')).toBe('Bearer openai-test-key')
+})
+
+test('passes max effort to OpenAI-compatible shim as xhigh reasoning effort', async () => {
+  let requestBody: Record<string, unknown> | undefined
+
+  delete process.env.CLAUDE_CODE_USE_GEMINI
+  process.env.CLAUDE_CODE_USE_OPENAI = '1'
+  process.env.OPENAI_API_KEY = 'openai-test-key'
+  process.env.OPENAI_BASE_URL = 'http://example.test/v1'
+  process.env.OPENAI_MODEL = 'gpt-5.4'
+
+  globalThis.fetch = (async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body))
+
+    return new Response(
+      JSON.stringify({
+        id: 'chatcmpl-openai',
+        model: 'gpt-5.4',
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'ok',
+            },
+            finish_reason: 'stop',
+          },
+        ],
+        usage: {
+          prompt_tokens: 8,
+          completion_tokens: 3,
+          total_tokens: 11,
+        },
+      }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      },
+    )
+  }) as FetchType
+
+  const client = (await getAnthropicClient({
+    maxRetries: 0,
+    model: 'gpt-5.4',
+    effortValue: 'max',
+  })) as unknown as ShimClient
+
+  await client.beta.messages.create({
+    model: 'gpt-5.4',
+    system: 'test system',
+    messages: [{ role: 'user', content: 'hello' }],
+    max_tokens: 64,
+    stream: false,
+  })
+
+  expect(requestBody?.reasoning_effort).toBe('xhigh')
 })
 
 test('strips Anthropic-specific custom headers on providerOverride shim requests too', async () => {

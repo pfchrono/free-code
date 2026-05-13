@@ -4,7 +4,7 @@
   "private": true,
   "description": "Freecode CLI workspace for agentic coding.",
   "type": "module",
-  "packageManager": "bun@1.3.11",
+  "packageManager": "bun@1.3.13",
   "bin": {
     "free-code": "cli",
     "free-code-source": "cli"
@@ -17,7 +17,8 @@
     }
   },
   "engines": {
-    "bun": ">=1.3.11"
+    "node": ">=26.0.0",
+    "bun": ">=1.3.13"
   },
   "scripts": {
     "preinstall": "bun run ./scripts/preinstall.ts",
@@ -81,7 +82,7 @@
     "hardening:check": "bun run compile && bun run verify:no-phone-home:compile && bun run doctor:runtime",
     "hardening:strict": "bun run typecheck && bun run hardening:check",
     "typecheck": "bunx tsc --noEmit -p tsconfig.json",
-    "test": "bun test",
+    "test": "bun test --isolate",
     "test:coverage": "bun test --coverage && bun run ./scripts/render-coverage-heatmap.ts",
     "test:coverage:ui": "bun run test:coverage",
     "test:provider": "bun test ./src/utils/model/providers.test.ts"

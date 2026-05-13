@@ -90,17 +90,23 @@ export function formatReachabilityFailureDetail(
 }
 
 function checkNodeVersion(): CheckResult {
-  const raw = process.versions.node
+  const bunVersion = (globalThis as { Bun?: { version?: string } }).Bun?.version
+  const raw = bunVersion
+    ? spawnSync('node', ['--version'], { encoding: 'utf8' }).stdout.trim().replace(/^v/, '')
+    : process.versions.node
+  if (!raw) {
+    return fail('Node.js version', 'Could not find node on PATH. Require >= 26.')
+  }
   const major = Number(raw.split('.')[0] ?? '0')
   if (Number.isNaN(major)) {
     return fail('Node.js version', `Could not parse version: ${raw}`)
   }
 
-  if (major < 20) {
-    return fail('Node.js version', `Detected ${raw}. Require >= 20.`)
+  if (major < 26) {
+    return fail('Node.js version', `Detected ${raw}. Require >= 26.`)
   }
 
-  return pass('Node.js version', raw)
+  return pass('Node.js version', bunVersion ? `${raw} (node binary)` : raw)
 }
 
 function checkBunRuntime(): CheckResult {

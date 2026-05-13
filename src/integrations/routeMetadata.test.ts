@@ -37,6 +37,10 @@ test('getRouteCredentialEnvVars keeps descriptor env vars and openai fallback fo
     'DEEPSEEK_API_KEY',
     'OPENAI_API_KEY',
   ])
+  expect(getRouteCredentialEnvVars('zai')).toEqual([
+    'ZAI_API_KEY',
+    'OPENAI_API_KEY',
+  ])
   expect(getRouteCredentialEnvVars('hicap')).toEqual([
     'HICAP_API_KEY',
     'OPENAI_API_KEY',
@@ -55,6 +59,12 @@ test('getRouteCredentialValue reads the first configured route credential', () =
       OPENAI_API_KEY: 'sk-openai-fallback',
     }),
   ).toBe('sk-openai-fallback')
+  expect(
+    getRouteCredentialValue('zai', {
+      ZAI_API_KEY: 'zai-key',
+      OPENAI_API_KEY: 'sk-openai-fallback',
+    }),
+  ).toBe('zai-key')
 })
 
 test('resolveActiveRouteIdFromEnv treats MiniMax credential-only env as MiniMax', () => {

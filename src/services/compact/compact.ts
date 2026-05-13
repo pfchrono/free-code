@@ -223,6 +223,51 @@ export function stripReinjectedAttachments(messages: Message[]): Message[] {
   return messages
 }
 
+const LEGACY_COMPACTION_WARNING_PREFIXES = [
+  'Warning: The maximum number of unified exec processes you can keep open is',
+  'Warning: Your account was flagged for potentially high-risk cyber activity',
+]
+
+const LEGACY_APPLY_PATCH_EXEC_COMMAND_WARNING_PREFIX =
+  'Warning: apply_patch was requested via '
+
+const LEGACY_APPLY_PATCH_EXEC_COMMAND_WARNING_SUFFIX =
+  'Use the apply_patch tool instead of exec_command.'
+
+function getPlainUserMessageText(message: Message): string | null {
+  if (message.type !== 'user') return null
+
+  const { content } = message.message
+  if (typeof content === 'string') return content
+  if (!Array.isArray(content)) return null
+
+  const parts = content
+    .map(block => (block.type === 'text' ? block.text : null))
+    .filter((text): text is string => text !== null && text.length > 0)
+
+  return parts.length > 0 ? parts.join('\n') : null
+}
+
+function isLegacyCompactionWarningMessage(message: Message): boolean {
+  const text = getPlainUserMessageText(message)?.trim()
+  if (!text) return false
+
+  if (LEGACY_COMPACTION_WARNING_PREFIXES.some(prefix => text.startsWith(prefix))) {
+    return true
+  }
+
+  return (
+    text.startsWith(LEGACY_APPLY_PATCH_EXEC_COMMAND_WARNING_PREFIX) &&
+    text.endsWith(LEGACY_APPLY_PATCH_EXEC_COMMAND_WARNING_SUFFIX)
+  )
+}
+
+export function stripLegacyWarningMessagesForCompaction(
+  messages: Message[],
+): Message[] {
+  return messages.filter(message => !isLegacyCompactionWarningMessage(message))
+}
+
 export const ERROR_MESSAGE_NOT_ENOUGH_MESSAGES =
   'Not enough messages to compact.'
 const MAX_PTL_RETRIES = 3
@@ -329,13 +374,13 @@ export type RecompactionInfo = {
  * Order: boundaryMarker, summaryMessages, messagesToKeep, attachments, hookResults
  */
 export function buildPostCompactMessages(result: CompactionResult): Message[] {
-  return [
+  return stripLegacyWarningMessagesForCompaction([
     result.boundaryMarker,
     ...result.summaryMessages,
     ...(result.messagesToKeep ?? []),
     ...result.attachments,
     ...result.hookResults,
-  ]
+  ])
 }
 
 function summarizeCompactionRetention(
@@ -460,7 +505,7 @@ export async function compactConversation(
       content: compactPrompt,
     })
 
-    let messagesToSummarize = messages
+    let messagesToSummarize = stripLegacyWarningMessagesForCompaction(messages)
     let retryCacheSafeParams = cacheSafeParams
     let summaryResponse: AssistantMessage
     let summary: string | null
@@ -823,10 +868,11 @@ export async function partialCompactConversation(
   direction: PartialCompactDirection = 'from',
 ): Promise<CompactionResult> {
   try {
-    const messagesToSummarize =
+    const messagesToSummarize = stripLegacyWarningMessagesForCompaction(
       direction === 'up_to'
         ? allMessages.slice(0, pivotIndex)
-        : allMessages.slice(pivotIndex)
+        : allMessages.slice(pivotIndex),
+    )
     // 'up_to' must strip old compact boundaries/summaries: for 'up_to',
     // summary_B sits BEFORE kept, so a stale boundary_A in kept wins
     // findLastCompactBoundaryIndex's backward scan and drops summary_B.
@@ -1364,10 +1410,12 @@ async function streamCompactSummary({
       const streamingGen = queryModelWithStreaming({
         messages: normalizeMessagesForAPI(
           stripImagesFromMessages(
-            stripReinjectedAttachments([
-              ...getMessagesAfterCompactBoundary(messages),
-              summaryRequest,
-            ]),
+            stripReinjectedAttachments(
+              stripLegacyWarningMessagesForCompaction([
+                ...getMessagesAfterCompactBoundary(messages),
+                summaryRequest,
+              ]),
+            ),
           ),
           context.options.tools,
         ),

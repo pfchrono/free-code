@@ -7,6 +7,8 @@ import { getProjectDir } from '../../src/utils/sessionStoragePortable.js'
 import { query } from '../../src/entrypoints/sdk/index.js'
 import { unstable_v2_resumeSession } from '../../src/entrypoints/sdk/index.js'
 
+const originalAnthropicApiKey = process.env.ANTHROPIC_API_KEY
+
 /**
  * Regression test for compact preserved segment handling in SDK resume.
  *
@@ -140,11 +142,20 @@ function createCompactTranscriptWithPreservedSegment(
 
 let tempDirs: string[] = []
 
+beforeEach(() => {
+  process.env.ANTHROPIC_API_KEY = 'test-key'
+})
+
 afterEach(() => {
   for (const dir of tempDirs) {
     rmSync(dir, { recursive: true, force: true })
   }
   tempDirs = []
+  if (originalAnthropicApiKey === undefined) {
+    delete process.env.ANTHROPIC_API_KEY
+  } else {
+    process.env.ANTHROPIC_API_KEY = originalAnthropicApiKey
+  }
 })
 
 describe('Compact preserved segment regression', () => {

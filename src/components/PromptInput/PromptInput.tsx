@@ -110,7 +110,7 @@ import { BackgroundTasksDialog } from '../tasks/BackgroundTasksDialog.js';
 import { shouldHideTasksFooter } from '../tasks/taskStatusUtils.js';
 import { TeamsDialog } from '../teams/TeamsDialog.js';
 import VimTextInput from '../VimTextInput.js';
-import { getModeFromInput, getValueFromInput } from './inputModes.js';
+import { detectModeEntry, getModeFromInput, getValueFromInput } from './inputModes.js';
 import { FOOTER_TEMPORARY_STATUS_TIMEOUT, Notifications } from './Notifications.js';
 import PromptInputFooter from './PromptInputFooter.js';
 import type { SuggestionItem } from './PromptInputFooterSuggestions.js';
@@ -876,24 +876,18 @@ function PromptInput({
     abortPromptSuggestion();
     abortSpeculation(setAppState);
 
-    // Check if this is a single character insertion at the start
-    const isSingleCharInsertion = value.length === input.length + 1;
-    const insertedAtStart = cursorOffset === 0;
-    const mode = getModeFromInput(value);
-    if (insertedAtStart && mode !== 'prompt') {
-      if (isSingleCharInsertion) {
-        onModeChange(mode);
-        return;
-      }
-      // Multi-char insertion into empty input (e.g. tab-accepting "! gcloud auth login")
-      if (input.length === 0) {
-        onModeChange(mode);
-        const valueWithoutMode = getValueFromInput(value).replaceAll('\t', '    ');
-        pushToBuffer(input, cursorOffset, pastedContents);
-        trackAndSetInput(valueWithoutMode);
-        setCursorOffset(valueWithoutMode.length);
-        return;
-      }
+    const modeEntry = detectModeEntry({
+      value,
+      prevInputLength: input.length,
+      cursorOffset,
+    });
+    if (modeEntry) {
+      onModeChange(modeEntry.mode);
+      const valueWithoutMode = modeEntry.strippedValue.replaceAll('\t', '    ');
+      pushToBuffer(input, cursorOffset, pastedContents);
+      trackAndSetInput(valueWithoutMode);
+      setCursorOffset(valueWithoutMode.length);
+      return;
     }
     const processedValue = value.replaceAll('\t', '    ');
 

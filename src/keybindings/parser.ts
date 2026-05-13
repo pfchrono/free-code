@@ -132,6 +132,8 @@ function keyToDisplayName(key: string): string {
       return 'Home'
     case 'end':
       return 'End'
+    case 'minus':
+      return '-'
     default:
       return key
   }

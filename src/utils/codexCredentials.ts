@@ -39,7 +39,7 @@ let inFlightCodexRefresh:
 let inMemoryLastRefreshFailureAt: number | null = null
 
 function getCodexSecureStorage() {
-  return getSecureStorage()
+  return getSecureStorage({ allowPlainTextFallback: false })
 }
 
 function parseJwtExpiryMs(token: string | undefined): number | undefined {

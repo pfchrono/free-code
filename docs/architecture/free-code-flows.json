@@ -1,0 +1,737 @@
+{
+  "title": "Free-Code Workflow Explorer",
+  "generatedAt": "2026-05-12",
+  "repository": "free-code",
+  "summary": "JSON source for the single-page workflow explorer. Each component/package is listed once. Each action documents the exact routing path, what payload is passed at every hop, and which packages should be highlighted.",
+  "components": [
+    {
+      "id": "cli",
+      "label": "CLI Router",
+      "group": "entry",
+      "package": "src/entrypoints",
+      "files": ["src/entrypoints/cli.tsx"],
+      "description": "Process entry. Reads argv/env, applies fast paths, then chooses REPL, headless, GUI, MCP/native-host, runner, or update routes."
+    },
+    {
+      "id": "repl",
+      "label": "Ink REPL",
+      "group": "surface",
+      "package": "src/screens",
+      "files": ["src/screens/REPL.tsx"],
+      "description": "Interactive terminal UI. Owns prompt input, render state, queued commands, scheduled tasks, bridge hooks, notifications, and visible message stream."
+    },
+    {
+      "id": "headless",
+      "label": "Headless / SDK",
+      "group": "surface",
+      "package": "src/cli",
+      "files": ["src/cli/print.ts", "src/cli/structuredIO.ts"],
+      "description": "Non-interactive runtime for --print, stream-json, SDK, CCR, control requests, and permission prompts."
+    },
+    {
+      "id": "gui",
+      "label": "GUI Protocol",
+      "group": "surface",
+      "package": "src/gui",
+      "files": ["src/gui/guiMode.ts", "src/gui/guiProtocol.ts", "src/gui/sessionTransport.ts"],
+      "description": "Persistent JSON stdio protocol for Tauri GUI. Converts GUI commands to runtime operations and SDK-style events back to GUI."
+    },
+    {
+      "id": "harness",
+      "label": "Headless Harness",
+      "group": "surface",
+      "package": "src/headless",
+      "files": ["src/headless/sessionHarness.ts"],
+      "description": "Automation/test surface. Runs slash commands and prompts against real commands, tools, app state, and QueryEngine."
+    },
+    {
+      "id": "commands",
+      "label": "Command Registry",
+      "group": "registry",
+      "package": "src/commands",
+      "files": ["src/commands.ts", "src/commands/"],
+      "description": "Builds built-in, skill, plugin, MCP, remote-safe, bridge-safe, and alias command lists."
+    },
+    {
+      "id": "slash",
+      "label": "Slash Runner",
+      "group": "dispatch",
+      "package": "src/utils/processUserInput",
+      "files": ["src/utils/processUserInput/processSlashCommand.tsx", "src/utils/headlessLocalCommandRunner.js"],
+      "description": "Parses slash input, resolves command calls, and returns text, prompts, compact results, state changes, or UI actions."
+    },
+    {
+      "id": "state",
+      "label": "App State",
+      "group": "state",
+      "package": "src/state + src/bootstrap",
+      "files": ["src/state/AppStateStore.ts", "src/state/AppState.tsx", "src/bootstrap/state.ts"],
+      "description": "Mutable runtime state: permissions, MCP tools/commands/resources, tasks, read-file cache, prompt counters, session ids, compaction flags, GUI/REPL state."
+    },
+    {
+      "id": "tools",
+      "label": "Tool Pool",
+      "group": "registry",
+      "package": "src/tools",
+      "files": ["src/tools.ts", "src/tools/"],
+      "description": "Builds and filters base tools, REPL-only tools, MCP/SDK tools, dynamic tools, deny rules, and permission-sensitive tool lists."
+    },
+    {
+      "id": "mcp",
+      "label": "MCP / Plugins / Skills",
+      "group": "integration",
+      "package": "src/services/mcp + src/skills + src/services/plugins",
+      "files": ["src/services/mcp/", "src/skills/", "src/services/plugins/"],
+      "description": "External server, plugin, and skill loading. Contributes tools, commands, resources, hooks, and instructions."
+    },
+    {
+      "id": "hooks",
+      "label": "Hooks",
+      "group": "integration",
+      "package": "src/utils/hooks + src/services/hooks",
+      "files": ["src/utils/hooks.js", "src/utils/sessionStart.js", "src/services/compact/compactWarningHook.ts"],
+      "description": "Session, pre/post compact, stop, permission, and plugin hook execution. Can inject instructions, messages, or user-visible notes."
+    },
+    {
+      "id": "engine",
+      "label": "QueryEngine",
+      "group": "core",
+      "package": "src",
+      "files": ["src/QueryEngine.ts"],
+      "description": "Conversation facade used by headless, GUI, harness, and SDK paths. Builds context, persists messages, emits SDK events, and calls query()."
+    },
+    {
+      "id": "query",
+      "label": "query() Loop",
+      "group": "core",
+      "package": "src",
+      "files": ["src/query.ts"],
+      "description": "Main model/tool loop. Applies context reducers, streams model output, executes tools, appends tool results, and recurses until turn completion."
+    },
+    {
+      "id": "api",
+      "label": "Provider API",
+      "group": "integration",
+      "package": "src/services/api",
+      "files": ["src/services/api/claude.ts", "src/services/api/client.ts", "src/services/api/errors.ts"],
+      "description": "Normalizes messages/tools into provider requests, streams responses, tracks usage, handles retries, fallbacks, and rate-limit metadata."
+    },
+    {
+      "id": "adapters",
+      "label": "Provider Adapters",
+      "group": "integration",
+      "package": "src/integrations + src/services/api",
+      "files": ["src/services/api/copilot-fetch-adapter.ts", "src/integrations/"],
+      "description": "Provider descriptors and adapters, including Copilot/OpenAI-compatible request and response translation."
+    },
+    {
+      "id": "toolExec",
+      "label": "Tool Execution",
+      "group": "core",
+      "package": "src/services/tools",
+      "files": ["src/services/tools/toolOrchestration.ts", "src/services/tools/StreamingToolExecutor.ts", "src/services/tools/toolExecution.ts"],
+      "description": "Runs tool_use blocks, permission checks, streaming execution, result normalization, and tool progress events."
+    },
+    {
+      "id": "builtInTools",
+      "label": "Built-in Tools",
+      "group": "tooling",
+      "package": "src/tools",
+      "files": ["src/tools/BashTool/", "src/tools/FileReadTool/", "src/tools/FileEditTool/", "src/tools/AgentTool/", "src/tools/SkillTool/"],
+      "description": "Bash, file read/edit/write, agent, skill, search, notebook, web, synthetic output, and other local tools."
+    },
+    {
+      "id": "mcpTools",
+      "label": "MCP / SDK Tools",
+      "group": "tooling",
+      "package": "src/services/mcp",
+      "files": ["src/services/mcp/client.ts", "src/services/mcp/SdkControlTransport.ts", "src/services/mcp/MCPConnectionManager.tsx"],
+      "description": "Tools discovered from MCP or SDK-provided servers. Can be connected, removed, refreshed, and permission-filtered at runtime."
+    },
+    {
+      "id": "compact",
+      "label": "Compaction",
+      "group": "memory",
+      "package": "src/services/compact",
+      "files": ["src/services/compact/compact.ts", "src/services/compact/autoCompact.ts", "src/services/compact/microCompact.ts", "src/services/compact/snipCompact.ts"],
+      "description": "Manual, partial, auto, micro, snip, cached, and reactive compaction. Rebuilds context with summary, kept messages, attachments, and hook output."
+    },
+    {
+      "id": "persist",
+      "label": "Persistence / Resume",
+      "group": "storage",
+      "package": "src/utils + src/commands/resume",
+      "files": ["src/utils/sessionStorage.js", "src/utils/persistedSessionState.js", "src/commands/resume/"],
+      "description": "Transcript, compact snapshots, metadata, message parentage, session lists, and resume reconstruction."
+    },
+    {
+      "id": "bridge",
+      "label": "Remote Bridge",
+      "group": "remote",
+      "package": "src/bridge",
+      "files": ["src/bridge/"],
+      "description": "Remote control sessions. Moves messages, interrupts, permission callbacks, capacity signals, and bridge-safe commands across local/remote boundary."
+    },
+    {
+      "id": "tasks",
+      "label": "Tasks / Agents",
+      "group": "async",
+      "package": "src/tasks + src/tools/AgentTool",
+      "files": ["src/tasks/", "src/tools/AgentTool/"],
+      "description": "Background shell tasks, local agents, scheduled prompts, notifications, and task state."
+    },
+    {
+      "id": "output",
+      "label": "Output Surfaces",
+      "group": "exit",
+      "package": "REPL / stdout / GUI / bridge",
+      "files": ["src/screens/REPL.tsx", "src/cli/print.ts", "src/gui/guiMode.ts", "src/bridge/"],
+      "description": "Final user-visible surfaces: Ink messages, stream-json, SDK events, GUI protocol events, bridge events, and persisted transcripts."
+    }
+  ],
+  "actions": [
+    {
+      "id": "prompt",
+      "label": "Prompt",
+      "description": "Default interactive user prompt from the terminal REPL.",
+      "highlight": ["cli", "repl", "state", "commands", "tools", "mcp", "hooks", "query", "api", "toolExec", "compact", "persist", "output"],
+      "steps": [
+        {
+          "from": "cli",
+          "to": "repl",
+          "title": "Route to interactive UI",
+          "passes": "argv/env plus initial cwd, TTY, feature flags, and startup state.",
+          "notes": "Default mode renders the Ink REPL after early fast paths are skipped."
+        },
+        {
+          "from": "repl",
+          "to": "state",
+          "title": "Capture user input",
+          "passes": "Text blocks, pasted image/file refs, cwd, session id, permissions, queued commands, and app state refs.",
+          "notes": "REPL keeps visible UI state while AppState carries runtime state used by tools and MCP."
+        },
+        {
+          "from": "state",
+          "to": "tools",
+          "title": "Assemble tools",
+          "passes": "ToolPermissionContext, MCP tools, local base tools, deny rules, REPL mode flags.",
+          "notes": "Tool list can change between turns when MCP/plugin state changes."
+        },
+        {
+          "from": "repl",
+          "to": "query",
+          "title": "Start model loop",
+          "passes": "Message history, new user message, tool pool, command list, abort controller, hooks, read-file state.",
+          "notes": "Interactive REPL owns extra rendering state but enters the same query() model/tool loop."
+        },
+        {
+          "from": "query",
+          "to": "compact",
+          "title": "Check context budget",
+          "passes": "Current messages, token estimates, read-file state, tool result budget, compaction policy.",
+          "notes": "May no-op, microcompact, snip, auto-compact, or later reactive-compact on provider failure."
+        },
+        {
+          "from": "query",
+          "to": "api",
+          "title": "Stream model request",
+          "passes": "Normalized messages, tool schemas, system prompt, model/provider settings, thinking config, cache controls.",
+          "notes": "queryModelWithStreaming() yields assistant content and tool_use blocks."
+        },
+        {
+          "from": "query",
+          "to": "toolExec",
+          "title": "Execute requested tools",
+          "passes": "tool_use id/name/input, assistant message, ToolUseContext, permission callback.",
+          "notes": "If model emits no tool_use, flow skips tool execution and finishes."
+        },
+        {
+          "from": "toolExec",
+          "to": "query",
+          "title": "Append tool results and recurse",
+          "passes": "tool_result blocks, attachments, progress, read-file state, output token accounting.",
+          "notes": "query() repeats model call with appended tool results until assistant turn completes."
+        },
+        {
+          "from": "query",
+          "to": "output",
+          "title": "Render response",
+          "passes": "Assistant text, tool progress, summaries, notifications, stop reason, usage.",
+          "notes": "REPL renders streaming updates and final visible transcript."
+        },
+        {
+          "from": "query",
+          "to": "persist",
+          "title": "Persist turn",
+          "passes": "User/assistant/tool_result messages, compact boundaries, metadata, parent UUIDs.",
+          "notes": "Resume depends on this transcript and compacted state."
+        }
+      ]
+    },
+    {
+      "id": "test-prompt",
+      "label": "test prompt",
+      "description": "Automated prompt through the headless session harness.",
+      "highlight": ["harness", "commands", "state", "tools", "engine", "query", "api", "toolExec", "compact", "persist", "output"],
+      "steps": [
+        {
+          "from": "harness",
+          "to": "commands",
+          "title": "Prepare harness command set",
+          "passes": "Test cwd, harness session state, command cache, local command availability.",
+          "notes": "Harness can run slash commands directly or submit normal prompts."
+        },
+        {
+          "from": "harness",
+          "to": "state",
+          "title": "Create isolated AppState",
+          "passes": "Default app state, test session id, permissions, MCP state, read-file state.",
+          "notes": "Test harness avoids full Ink rendering but uses real runtime structures."
+        },
+        {
+          "from": "state",
+          "to": "tools",
+          "title": "Build test tool pool",
+          "passes": "Permission context and available MCP/tools for this test session.",
+          "notes": "Same getTools() path as runtime."
+        },
+        {
+          "from": "harness",
+          "to": "engine",
+          "title": "Submit prompt",
+          "passes": "Input string, app state, commands, tools, abort controller, session harness context.",
+          "notes": "sessionHarness calls QueryEngine.submitMessage() for normal prompts."
+        },
+        {
+          "from": "engine",
+          "to": "query",
+          "title": "Run core loop",
+          "passes": "SDK-compatible message stream, mutable transcript, ToolUseContext.",
+          "notes": "Harness observes emitted messages instead of rendering REPL UI."
+        },
+        {
+          "from": "query",
+          "to": "api",
+          "title": "Model call",
+          "passes": "Normalized prompt and tools.",
+          "notes": "Tests can mock or exercise provider path depending on harness scenario."
+        },
+        {
+          "from": "query",
+          "to": "output",
+          "title": "Collect result",
+          "passes": "SDK messages, assistant response, tool events, status.",
+          "notes": "Harness exposes messages through getMessages/readFileState helpers."
+        }
+      ]
+    },
+    {
+      "id": "slash-command",
+      "label": "Slash command",
+      "description": "Interactive slash command such as /compact, /status, /model, or custom skill commands.",
+      "highlight": ["repl", "commands", "slash", "state", "tools", "compact", "engine", "query", "output"],
+      "steps": [
+        {
+          "from": "repl",
+          "to": "slash",
+          "title": "Detect command input",
+          "passes": "Raw slash string, preceding input blocks, image blocks, cwd, command context.",
+          "notes": "Headless uses a parallel local slash runner, but command semantics are shared."
+        },
+        {
+          "from": "slash",
+          "to": "commands",
+          "title": "Resolve command",
+          "passes": "Command name/alias, cwd, remote/bridge availability filters.",
+          "notes": "Registry can include built-ins, skills, plugins, and MCP-provided commands."
+        },
+        {
+          "from": "commands",
+          "to": "state",
+          "title": "Run command call",
+          "passes": "LocalCommandCall context, current app state, permissions, selected model, command args.",
+          "notes": "Command may mutate state or return output without model involvement."
+        },
+        {
+          "from": "slash",
+          "to": "compact",
+          "title": "Optional compaction result",
+          "passes": "Current messages and custom compact instructions.",
+          "notes": "/compact and partial compact commands return compacted message sets."
+        },
+        {
+          "from": "slash",
+          "to": "engine",
+          "title": "Optional prompt expansion",
+          "passes": "Generated prompt or queued prompt from command result.",
+          "notes": "Prompt commands re-enter normal model route."
+        },
+        {
+          "from": "slash",
+          "to": "output",
+          "title": "Display command result",
+          "passes": "Text result, UI action, status message, or command error.",
+          "notes": "Many commands finish here with no provider call."
+        }
+      ]
+    },
+    {
+      "id": "headless-prompt",
+      "label": "Headless prompt",
+      "description": "Prompt sent through --print, SDK, or stream-json.",
+      "highlight": ["cli", "headless", "state", "mcp", "commands", "tools", "engine", "query", "api", "toolExec", "output"],
+      "steps": [
+        {
+          "from": "cli",
+          "to": "headless",
+          "title": "Enter non-interactive runtime",
+          "passes": "Prompt string/stream, outputFormat, verbose flag, permission prompt tool config, cwd.",
+          "notes": "runHeadless() owns output protocol and SDK control behavior."
+        },
+        {
+          "from": "headless",
+          "to": "mcp",
+          "title": "Initialize dynamic MCP/SDK servers",
+          "passes": "mcpServers config, clients, discovered tools, commands, resources.",
+          "notes": "SDK can inject servers at runtime; AppState and dynamic tool state are synchronized."
+        },
+        {
+          "from": "headless",
+          "to": "commands",
+          "title": "Load commands",
+          "passes": "cwd and runtime mode.",
+          "notes": "Slash command input can short-circuit before model."
+        },
+        {
+          "from": "headless",
+          "to": "engine",
+          "title": "Stream prompt into QueryEngine",
+          "passes": "Prompt chunks, system context, tool pool, canUseTool handler, structured IO.",
+          "notes": "runHeadlessStreaming() converts QueryEngine messages to output format."
+        },
+        {
+          "from": "engine",
+          "to": "query",
+          "title": "Run model/tool loop",
+          "passes": "Mutable messages, ToolUseContext, output/event hooks.",
+          "notes": "Same core as GUI/harness."
+        },
+        {
+          "from": "query",
+          "to": "output",
+          "title": "Emit output",
+          "passes": "Plain text, JSON result, stream-json event, SDK control response, or error.",
+          "notes": "Stream-json requires verbose for full event stream."
+        }
+      ]
+    },
+    {
+      "id": "gui-prompt",
+      "label": "GUI prompt",
+      "description": "Prompt submitted from the Tauri GUI over the stdio JSON protocol.",
+      "highlight": ["cli", "gui", "commands", "state", "tools", "engine", "query", "api", "toolExec", "output"],
+      "steps": [
+        {
+          "from": "cli",
+          "to": "gui",
+          "title": "Start GUI mode",
+          "passes": "--gui argv, original cwd, stdio transport.",
+          "notes": "runGuiMode() holds one persistent runtime for the GUI process."
+        },
+        {
+          "from": "gui",
+          "to": "commands",
+          "title": "Load GUI-visible commands",
+          "passes": "cwd, command metadata, mode filters.",
+          "notes": "GUI can submit normal prompts and slash-command actions."
+        },
+        {
+          "from": "gui",
+          "to": "engine",
+          "title": "Submit GUI message",
+          "passes": "JSON command payload, text content, runtime app state, tool map.",
+          "notes": "guiMode tracks tool_use_id to label later tool_result events."
+        },
+        {
+          "from": "engine",
+          "to": "query",
+          "title": "Core loop",
+          "passes": "Messages, tools, permissions, abort signal.",
+          "notes": "GUI path uses QueryEngine.submitMessage() directly."
+        },
+        {
+          "from": "query",
+          "to": "gui",
+          "title": "Convert SDK messages to GUI events",
+          "passes": "Assistant chunks, tool_use, tool_result, compact boundary, status, errors.",
+          "notes": "The frontend receives structured protocol events, not terminal rendering."
+        },
+        {
+          "from": "gui",
+          "to": "output",
+          "title": "Render in Tauri",
+          "passes": "GUI protocol events over stdio.",
+          "notes": "Rust/Tauri side owns final desktop UI display."
+        }
+      ]
+    },
+    {
+      "id": "tool-call",
+      "label": "Tool call",
+      "description": "Model asks for a tool and result returns to the next model turn.",
+      "highlight": ["query", "tools", "toolExec", "builtInTools", "mcpTools", "state", "mcp", "output"],
+      "steps": [
+        {
+          "from": "query",
+          "to": "toolExec",
+          "title": "Receive tool_use block",
+          "passes": "Tool name, tool_use id, JSON input, assistant message id, stream timing.",
+          "notes": "Streaming execution may start tools before full assistant message is complete."
+        },
+        {
+          "from": "toolExec",
+          "to": "tools",
+          "title": "Find matching tool",
+          "passes": "Tool name/aliases and current permission-filtered tool list.",
+          "notes": "Tool pool includes built-in and dynamic MCP/SDK tools."
+        },
+        {
+          "from": "toolExec",
+          "to": "state",
+          "title": "Ask permission",
+          "passes": "Tool metadata, input, permission mode, canUseTool callback, optional custom permission tool.",
+          "notes": "Deny returns tool_result error; allow proceeds to implementation."
+        },
+        {
+          "from": "toolExec",
+          "to": "builtInTools",
+          "title": "Run built-in tool",
+          "passes": "Typed tool input plus ToolUseContext.",
+          "notes": "File, shell, agent, skill, and search tools update runtime state as needed."
+        },
+        {
+          "from": "toolExec",
+          "to": "mcpTools",
+          "title": "Or call MCP/SDK tool",
+          "passes": "MCP tool name, server/client handle, input schema payload.",
+          "notes": "Dynamic tools route through MCP transports and may require server reconnect handling."
+        },
+        {
+          "from": "toolExec",
+          "to": "query",
+          "title": "Normalize result",
+          "passes": "tool_result content blocks, attachments, progress, error status, token budget metadata.",
+          "notes": "Result becomes user-role tool_result content for the next model request."
+        },
+        {
+          "from": "toolExec",
+          "to": "output",
+          "title": "Surface progress",
+          "passes": "Tool progress/status messages, summaries, notifications.",
+          "notes": "REPL/GUI/headless show progress differently but consume same event concepts."
+        }
+      ]
+    },
+    {
+      "id": "compaction",
+      "label": "Compaction",
+      "description": "Manual or automatic context reduction while preserving useful state.",
+      "highlight": ["query", "compact", "hooks", "api", "persist", "state", "output"],
+      "steps": [
+        {
+          "from": "query",
+          "to": "compact",
+          "title": "Trigger compact",
+          "passes": "Messages, token estimates, trigger type, custom instructions, cache-safe params.",
+          "notes": "Can be manual /compact, partial compact, auto-compact, microcompact, snip, or reactive compact."
+        },
+        {
+          "from": "compact",
+          "to": "hooks",
+          "title": "Run pre-compact hooks",
+          "passes": "Trigger type and custom compact instructions.",
+          "notes": "Hooks can add display messages or modify compact instructions."
+        },
+        {
+          "from": "compact",
+          "to": "api",
+          "title": "Summarize old context",
+          "passes": "Messages after prior compact boundary, compact prompt, minimal tools for file reads.",
+          "notes": "Summary call uses model streaming and strips media/reinjected/legacy warning noise."
+        },
+        {
+          "from": "compact",
+          "to": "state",
+          "title": "Restore important state",
+          "passes": "Read-file cache, plan state, agent listing, MCP instruction deltas, invoked skills.",
+          "notes": "Post-compact attachments keep next turn useful without full old transcript."
+        },
+        {
+          "from": "compact",
+          "to": "persist",
+          "title": "Write compact snapshot",
+          "passes": "Boundary marker, summary message, kept messages, attachments, hook results, token metadata.",
+          "notes": "Resume loads compacted core/visible messages instead of full pre-compact history."
+        },
+        {
+          "from": "compact",
+          "to": "query",
+          "title": "Continue with compacted history",
+          "passes": "buildPostCompactMessages() output.",
+          "notes": "query() resumes model call using smaller context."
+        }
+      ]
+    },
+    {
+      "id": "mcp-change",
+      "label": "MCP tool change",
+      "description": "Adding, enabling, disabling, or reconnecting MCP/SDK servers during a session.",
+      "highlight": ["headless", "gui", "mcp", "state", "tools", "commands", "query", "output"],
+      "steps": [
+        {
+          "from": "output",
+          "to": "mcp",
+          "title": "Receive control request",
+          "passes": "Server config, enable/disable/reconnect action, SDK client info.",
+          "notes": "Headless/SDK path has the richest dynamic MCP control handling."
+        },
+        {
+          "from": "mcp",
+          "to": "state",
+          "title": "Update runtime MCP state",
+          "passes": "Clients, connection status, tools, commands, resources, server names.",
+          "notes": "AppState is updated so subagents and later turns see new tools."
+        },
+        {
+          "from": "state",
+          "to": "tools",
+          "title": "Refresh tool pool",
+          "passes": "New MCP/SDK tools plus base tools and permission filters.",
+          "notes": "query() can refresh tools between turns."
+        },
+        {
+          "from": "state",
+          "to": "commands",
+          "title": "Refresh commands",
+          "passes": "MCP commands and command cache invalidation.",
+          "notes": "New slash commands become available after registry refresh."
+        },
+        {
+          "from": "tools",
+          "to": "query",
+          "title": "Expose changed tools to model",
+          "passes": "Updated tool schemas and deferred tool metadata.",
+          "notes": "Next model request sees current tool list."
+        }
+      ]
+    },
+    {
+      "id": "resume",
+      "label": "Resume session",
+      "description": "Reloading prior conversation state.",
+      "highlight": ["cli", "commands", "persist", "state", "repl", "headless", "compact", "output"],
+      "steps": [
+        {
+          "from": "cli",
+          "to": "commands",
+          "title": "Route resume command",
+          "passes": "Resume args, session selection options, cwd.",
+          "notes": "Resume can be explicit command or startup flow depending on invocation."
+        },
+        {
+          "from": "commands",
+          "to": "persist",
+          "title": "Load session metadata",
+          "passes": "Session id, transcript paths, compact history, saved title/tags.",
+          "notes": "Compacted snapshots avoid loading full pre-compact history."
+        },
+        {
+          "from": "persist",
+          "to": "state",
+          "title": "Rehydrate runtime hints",
+          "passes": "Messages, compact markers, read-file state hints, prompt counts, mode flags.",
+          "notes": "AppState and bootstrap state regain enough context for next turn."
+        },
+        {
+          "from": "state",
+          "to": "repl",
+          "title": "Render resumed REPL",
+          "passes": "Visible messages, compact boundaries, session title, notifications.",
+          "notes": "Interactive resume returns user to terminal UI."
+        },
+        {
+          "from": "state",
+          "to": "headless",
+          "title": "Or continue headless",
+          "passes": "Loaded messages and SDK/headless runtime config.",
+          "notes": "Non-interactive resume can keep emitting stream-json/SDK events."
+        }
+      ]
+    },
+    {
+      "id": "bridge-event",
+      "label": "Bridge event",
+      "description": "Remote bridge sends prompts, interrupts, permissions, or capacity signals.",
+      "highlight": ["bridge", "repl", "commands", "state", "tools", "query", "tasks", "output"],
+      "steps": [
+        {
+          "from": "bridge",
+          "to": "state",
+          "title": "Receive remote event",
+          "passes": "Remote session message, interrupt, permission callback, capacity wake, or status update.",
+          "notes": "Bridge layer translates remote control into local runtime state changes."
+        },
+        {
+          "from": "state",
+          "to": "commands",
+          "title": "Filter bridge-safe commands",
+          "passes": "Current command registry and bridge mode restrictions.",
+          "notes": "Local-only unsafe commands stay hidden from remote bridge mode."
+        },
+        {
+          "from": "state",
+          "to": "tools",
+          "title": "Filter tool availability",
+          "passes": "Bridge permissions, MCP state, current task context.",
+          "notes": "Tool calls still pass through normal permission machinery."
+        },
+        {
+          "from": "bridge",
+          "to": "query",
+          "title": "Forward prompt or control",
+          "passes": "Prompt text or interrupt/control signal.",
+          "notes": "Prompt events run through query(); interrupts abort current query/tool work."
+        },
+        {
+          "from": "tasks",
+          "to": "bridge",
+          "title": "Return async progress",
+          "passes": "Task notifications, agent progress, shell state, completion.",
+          "notes": "Remote side sees progress without owning local task execution."
+        },
+        {
+          "from": "bridge",
+          "to": "output",
+          "title": "Sync visible state",
+          "passes": "Messages, status, capacity, permission state.",
+          "notes": "Bridge and local REPL stay aligned."
+        }
+      ]
+    }
+  ],
+  "groups": [
+    { "id": "entry", "label": "Entry" },
+    { "id": "surface", "label": "Surfaces" },
+    { "id": "registry", "label": "Registries" },
+    { "id": "dispatch", "label": "Dispatch" },
+    { "id": "state", "label": "State" },
+    { "id": "core", "label": "Core Loop" },
+    { "id": "integration", "label": "Integrations" },
+    { "id": "tooling", "label": "Tools" },
+    { "id": "memory", "label": "Memory" },
+    { "id": "storage", "label": "Storage" },
+    { "id": "remote", "label": "Remote" },
+    { "id": "async", "label": "Async Work" },
+    { "id": "exit", "label": "Output" }
+  ]
+}

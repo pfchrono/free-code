@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 
 import type { Message } from '../../types/message.js'
 import {
@@ -20,10 +20,6 @@ mock.module('../../utils/systemPrompt.js', () => ({
   asSystemPrompt: (prompts: string[]) => prompts.join('\n'),
 }))
 
-mock.module('../../utils/model/providers.js', () => ({
-  getAPIProvider: () => 'firstParty',
-}))
-
 mock.module('./microCompact.js', () => ({
   estimateMessageTokens: (messages: Message[]) => {
     const [message] = messages
@@ -31,6 +27,10 @@ mock.module('./microCompact.js', () => ({
     return Number(message.uuid.split('-')[1]) * 100
   },
 }))
+
+afterAll(() => {
+  mock.restore()
+})
 
 function createUserMessage(index: number, text = `message ${index}`): Message {
   return {

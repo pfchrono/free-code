@@ -3,7 +3,7 @@
  */
 
 import { Buffer } from 'buffer'
-import { env } from '../../utils/env.js'
+import { env, supportsOsc52Clipboard } from '../../utils/env.js'
 import { execFileNoThrow } from '../../utils/execFileNoThrow.js'
 import { BEL, ESC, ESC_TYPE, SEP } from './ansi.js'
 import type { Action, Color, TabStatusAction } from './types.js'
@@ -146,7 +146,7 @@ export async function setClipboard(text: string): Promise<string> {
   // Gated on SSH_CONNECTION (not SSH_TTY) since tmux panes inherit SSH_TTY
   // forever but SSH_CONNECTION is in tmux's default update-environment and
   // clears on local attach. Fire-and-forget.
-  if (!process.env['SSH_CONNECTION']) copyNative(text)
+  if (shouldUseNativeClipboard()) copyNative(text)
 
   const tmuxBufferLoaded = await tmuxLoadBuffer(text)
 
@@ -154,6 +154,15 @@ export async function setClipboard(text: string): Promise<string> {
   // too, and BEL works everywhere for OSC 52.
   if (tmuxBufferLoaded) return tmuxPassthrough(`${ESC}]52;c;${b64}${BEL}`)
   return raw
+}
+
+export function shouldUseNativeClipboard(
+  processEnv: NodeJS.ProcessEnv = process.env,
+  terminal: string | null = env.terminal,
+): boolean {
+  if (processEnv.SSH_CONNECTION) return false
+  if (processEnv.TMUX || processEnv.STY) return true
+  return !supportsOsc52Clipboard(terminal)
 }
 
 // Linux clipboard tool: undefined = not yet probed, null = none available.

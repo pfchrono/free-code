@@ -214,7 +214,7 @@ import stats from './commands/stats/index.js'
 const usageReport: Command = {
   type: 'prompt',
   name: 'insights',
-  description: 'Generate a report analyzing your Claude Code sessions',
+  description: 'Generate a report analyzing your Free-Code sessions',
   contentLength: 0,
   progressMessage: 'analyzing your sessions',
   source: 'builtin',
@@ -693,25 +693,31 @@ export const getSlashCommandToolSkills = memoize(
  * 1. Pre-filtering commands in main.tsx before REPL renders (prevents race with CCR init)
  * 2. Preserving local-only commands in REPL's handleRemoteInit after CCR filters
  */
-export const REMOTE_SAFE_COMMANDS: Set<Command> = new Set([
-  session, // Shows QR code / URL for remote session
-  exit, // Exit the TUI
-  clear, // Clear screen
-  help, // Show help
-  theme, // Change terminal theme
-  color, // Change agent color
-  vim, // Toggle vim mode
-  cost, // Show session cost (local cost tracking)
-  usage, // Show usage info
-  copy, // Copy last message
-  btw, // Quick note
-  feedback, // Send feedback
-  plan, // Plan mode toggle
-  keybindings, // Keybinding management
-  statusline, // Status line toggle
-  stickers, // Stickers
-  mobile, // Mobile QR code
+const REMOTE_SAFE_COMMAND_NAMES = new Set([
+  'session', // Shows QR code / URL for remote session
+  'exit', // Exit the TUI
+  'clear', // Clear screen
+  'help', // Show help
+  'theme', // Change terminal theme
+  'color', // Change agent color
+  'vim', // Toggle vim mode
+  'cost', // Show session cost (local cost tracking)
+  'usage', // Show usage info
+  'copy', // Copy last message
+  'btw', // Quick note
+  'feedback', // Send feedback
+  'plan', // Plan mode toggle
+  'keybindings', // Keybinding management
+  'statusline', // Status line toggle
+  'stickers', // Stickers
+  'mobile', // Mobile QR code
 ])
+
+export const REMOTE_SAFE_COMMANDS: Pick<Set<Command>, 'has'> = {
+  has(command: Command): boolean {
+    return REMOTE_SAFE_COMMAND_NAMES.has(command.name)
+  },
+}
 
 /**
  * Builtin commands of type 'local' that ARE safe to execute when received

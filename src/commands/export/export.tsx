@@ -53,6 +53,10 @@ async function exportWithReactRenderer(context: ToolUseContext): Promise<string>
 export async function call(onDone: LocalJSXCommandOnDone, context: ToolUseContext, args: string): Promise<React.ReactNode> {
   // Render the conversation content
   const content = await exportWithReactRenderer(context);
+  if (content.trim().length === 0) {
+    onDone('Nothing to export — conversation is empty');
+    return null;
+  }
 
   // If args are provided, write directly to file and skip dialog
   const filename = args.trim();

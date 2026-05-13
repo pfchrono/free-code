@@ -215,9 +215,12 @@ export function applyProviderFlag(
             process.env.OPENAI_API_KEY === process.env.XAI_API_KEY
           ? 'xai'
           : process.env.OPENAI_API_KEY !== undefined &&
-              process.env.OPENAI_API_KEY === process.env.MINIMAX_API_KEY
-            ? 'minimax'
-            : null
+              process.env.OPENAI_API_KEY === process.env.ZAI_API_KEY
+            ? 'zai'
+            : process.env.OPENAI_API_KEY !== undefined &&
+                process.env.OPENAI_API_KEY === process.env.MINIMAX_API_KEY
+              ? 'minimax'
+              : null
 
   delete process.env.CLAUDE_CODE_USE_OPENAI
   delete process.env.CLAUDE_CODE_USE_OPENROUTER
@@ -323,6 +326,20 @@ export function applyProviderFlag(
       if (model) process.env.OPENAI_MODEL = model
       if (process.env.BNKR_API_KEY && !process.env.OPENAI_API_KEY) {
         process.env.OPENAI_API_KEY = process.env.BNKR_API_KEY
+      }
+      break
+
+    case 'zai':
+      process.env.CLAUDE_CODE_USE_OPENAI = '1'
+      if (defaultBaseUrl) {
+        process.env.OPENAI_BASE_URL ??= defaultBaseUrl
+      }
+      if (defaultModel) {
+        process.env.OPENAI_MODEL ??= defaultModel
+      }
+      if (model) process.env.OPENAI_MODEL = model
+      if (process.env.ZAI_API_KEY && !process.env.OPENAI_API_KEY) {
+        process.env.OPENAI_API_KEY = process.env.ZAI_API_KEY
       }
       break
 

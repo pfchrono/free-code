@@ -6,11 +6,11 @@ export default defineVendor({
   classification: 'openai-compatible',
   defaultBaseUrl: 'https://api.z.ai/api/coding/paas/v4',
   defaultModel: 'GLM-5.1',
-  requiredEnvVars: ['OPENAI_API_KEY'],
+  requiredEnvVars: ['ZAI_API_KEY'],
   setup: {
     requiresAuth: true,
     authMode: 'api-key',
-    credentialEnvVars: ['OPENAI_API_KEY'],
+    credentialEnvVars: ['ZAI_API_KEY'],
   },
   transportConfig: {
     kind: 'openai-compatible',
@@ -28,7 +28,7 @@ export default defineVendor({
     description: 'Z.AI GLM coding subscription endpoint',
     label: 'Z.AI - GLM Coding Plan',
     name: 'Z.AI - GLM Coding Plan',
-    apiKeyEnvVars: ['OPENAI_API_KEY'],
+    apiKeyEnvVars: ['ZAI_API_KEY'],
     modelEnvVars: ['OPENAI_MODEL'],
   },
   validation: {
@@ -37,9 +37,9 @@ export default defineVendor({
       matchDefaultBaseUrl: true,
       matchBaseUrlHosts: ['api.z.ai'],
     },
-    credentialEnvVars: ['OPENAI_API_KEY'],
+    credentialEnvVars: ['ZAI_API_KEY'],
     missingCredentialMessage:
-      'OPENAI_API_KEY is required for Z.AI GLM Coding Plan.',
+      'ZAI_API_KEY is required for Z.AI GLM Coding Plan.',
   },
   catalog: {
     source: 'static',

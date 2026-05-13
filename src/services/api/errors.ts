@@ -570,7 +570,8 @@ export function getAssistantMessageFromError(
   if (
     error instanceof APIError &&
     error.status === 429 &&
-    shouldProcessRateLimits(isClaudeAISubscriber())
+    (shouldProcessRateLimits(isClaudeAISubscriber()) ||
+      process.env.CLAUDE_MOCK_HEADERLESS_429 === '1')
   ) {
     // Check if this is the new API with multiple rate limit headers
     const rateLimitType = error.headers?.get?.(
@@ -656,8 +657,13 @@ export function getAssistantMessageFromError(
     const stripped = error.message.replace(/^429\s+/, '')
     const innerMessage = stripped.match(/"message"\s*:\s*"([^"]*)"/)?.[1]
     const detail = innerMessage || stripped
+    const retryAfter = error.headers?.get?.('retry-after')
+    const retrySeconds = retryAfter ? Number.parseInt(retryAfter, 10) : NaN
+    const retryHint = Number.isFinite(retrySeconds) && retrySeconds > 0
+      ? ` Try again in ${retrySeconds} seconds.`
+      : ' Try again in a few seconds.'
     return createAssistantAPIErrorMessage({
-      content: `${API_ERROR_MESSAGE_PREFIX}: Request rejected (429) · ${detail || 'this may be a temporary capacity issue — check status.anthropic.com'}`,
+      content: `${API_ERROR_MESSAGE_PREFIX}: Request rejected (429) · ${detail || 'this may be a temporary capacity issue — check status.anthropic.com'}.${retryHint}`,
       error: 'rate_limit',
     })
   }

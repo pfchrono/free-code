@@ -313,6 +313,11 @@ export function convertToSandboxRuntimeConfig(
             resolvePathPatternForSandbox(rule.ruleContent, source),
           )
         }
+        if (rule.toolName === FILE_READ_TOOL_NAME && rule.ruleContent) {
+          if (!shouldAllowManagedReadPathsOnly() || source === 'policySettings') {
+            allowRead.push(resolvePathPatternForSandbox(rule.ruleContent, source))
+          }
+        }
       }
 
       for (const ruleString of sourceSettings.permissions.deny || []) {

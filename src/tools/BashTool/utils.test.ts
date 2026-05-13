@@ -4,6 +4,7 @@ import {
   isImageOutput,
   parseDataUri,
   formatOutput,
+  countShellOutputLines,
   createContentSummary,
 } from './utils.js'
 
@@ -158,6 +159,33 @@ describe('formatOutput', () => {
   test('single line no trailing newline', () => {
     const result = formatOutput('hello')
     expect(result.totalLines).toBe(1)
+  })
+
+  test('does not count a trailing newline as an extra output line', () => {
+    expect(countShellOutputLines('line1\nline2\n')).toBe(2)
+    expect(formatOutput('line1\nline2\n').totalLines).toBe(2)
+  })
+
+  test('counts intentional blank output lines before the final newline', () => {
+    expect(countShellOutputLines('line1\n\n')).toBe(2)
+  })
+
+  test('truncation footer uses actual remaining line count', () => {
+    const previous = process.env.BASH_MAX_OUTPUT_LENGTH
+    process.env.BASH_MAX_OUTPUT_LENGTH = '6'
+    try {
+      const result = formatOutput('head1\nrest\nlast\n')
+      expect(result.truncatedContent).toContain(
+        '... [2 lines truncated] ...',
+      )
+      expect(result.totalLines).toBe(3)
+    } finally {
+      if (previous === undefined) {
+        delete process.env.BASH_MAX_OUTPUT_LENGTH
+      } else {
+        process.env.BASH_MAX_OUTPUT_LENGTH = previous
+      }
+    }
   })
 })
 
