@@ -4,6 +4,8 @@ All notable changes to free-code are documented here.
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-05-13
+
 <!-- GENERATED_RECENT_COMMITS_START -->
 ### Recent commits
 - 2026-05-10 feat: improve Free-Code memory continuity with tool memory and session timeline
