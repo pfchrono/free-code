@@ -4,6 +4,16 @@ All notable changes to free-code are documented here.
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-05-13
+
+### Recent commits
+- 2026-05-13 feat(runtime): expand provider and token handling coverage
+- 2026-05-13 chore(release): bump version to 0.6.5
+
+### Changed
+- **Provider/runtime coverage** -- Expanded tests for GitHub provider config, provider flags/runtime, bootstrap overrides, release notes, MCP registry behavior, domain checks, content search, custom headers, streaming token counting, and thinking token extraction.
+- **Release metadata** -- Bumped package metadata for the 0.6.6 release.
+
 ## [0.6.5] - 2026-05-13
 
 <!-- GENERATED_RECENT_COMMITS_START -->
