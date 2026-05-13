@@ -113,10 +113,9 @@ test('searchContentIndex files_with_matches mode returns all files when limit is
       abortSignal: AbortSignal.timeout(5_000),
     })
 
-    expect(result).toEqual({
-      mode: 'files_with_matches',
-      paths: [aPath, bPath],
-    })
+    expect(result.mode).toBe('files_with_matches')
+    expect(result.paths.toSorted()).toEqual([aPath, bPath])
+    expect(result.appliedLimit).toBeUndefined()
   } finally {
     await rm(root, { recursive: true, force: true })
   }

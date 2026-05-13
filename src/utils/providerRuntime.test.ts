@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import { getProviderRuntimeValidationError } from './providerRuntime.js'
 
 const ENV_KEYS = [
@@ -14,9 +14,13 @@ const ENV_KEYS = [
 ]
 
 const originalEnv = new Map<string, string | undefined>()
-for (const key of ENV_KEYS) {
-  originalEnv.set(key, process.env[key])
-}
+
+beforeEach(() => {
+  for (const key of ENV_KEYS) {
+    originalEnv.set(key, process.env[key])
+    delete process.env[key]
+  }
+})
 
 afterEach(() => {
   for (const key of ENV_KEYS) {
@@ -27,6 +31,7 @@ afterEach(() => {
       process.env[key] = value
     }
   }
+  originalEnv.clear()
 })
 
 describe('getProviderRuntimeValidationError', () => {

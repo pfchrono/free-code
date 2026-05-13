@@ -20,6 +20,7 @@ const originalFetch = globalThis.fetch
 const originalMacro = (globalThis as Record<string, unknown>).MACRO
 const originalEnv = {
   CLAUDE_CODE_USE_OPENAI: process.env.CLAUDE_CODE_USE_OPENAI,
+  CLAUDE_CODE_USE_CODEX: process.env.CLAUDE_CODE_USE_CODEX,
   CLAUDE_CODE_USE_BEDROCK: process.env.CLAUDE_CODE_USE_BEDROCK,
   CLAUDE_CODE_SKIP_BEDROCK_AUTH: process.env.CLAUDE_CODE_SKIP_BEDROCK_AUTH,
   CLAUDE_CODE_USE_VERTEX: process.env.CLAUDE_CODE_USE_VERTEX,
@@ -63,6 +64,7 @@ beforeEach(() => {
   process.env.GEMINI_AUTH_MODE = 'api-key'
 
   delete process.env.CLAUDE_CODE_USE_OPENAI
+  delete process.env.CLAUDE_CODE_USE_CODEX
   delete process.env.CLAUDE_CODE_USE_BEDROCK
   delete process.env.CLAUDE_CODE_SKIP_BEDROCK_AUTH
   delete process.env.CLAUDE_CODE_USE_VERTEX
@@ -86,6 +88,7 @@ beforeEach(() => {
 afterEach(() => {
   ;(globalThis as Record<string, unknown>).MACRO = originalMacro
   restoreEnv('CLAUDE_CODE_USE_OPENAI', originalEnv.CLAUDE_CODE_USE_OPENAI)
+  restoreEnv('CLAUDE_CODE_USE_CODEX', originalEnv.CLAUDE_CODE_USE_CODEX)
   restoreEnv('CLAUDE_CODE_USE_BEDROCK', originalEnv.CLAUDE_CODE_USE_BEDROCK)
   restoreEnv('CLAUDE_CODE_SKIP_BEDROCK_AUTH', originalEnv.CLAUDE_CODE_SKIP_BEDROCK_AUTH)
   restoreEnv('CLAUDE_CODE_USE_VERTEX', originalEnv.CLAUDE_CODE_USE_VERTEX)
@@ -122,6 +125,7 @@ test('first-party Anthropic requests execute the configured fetch wrapper withou
   delete process.env.GEMINI_BASE_URL
   delete process.env.GEMINI_AUTH_MODE
   delete process.env.CLAUDE_CODE_USE_OPENAI
+  delete process.env.CLAUDE_CODE_USE_CODEX
   delete process.env.CLAUDE_CODE_USE_BEDROCK
   delete process.env.CLAUDE_CODE_USE_VERTEX
   delete process.env.CLAUDE_CODE_USE_FOUNDRY
@@ -870,7 +874,7 @@ test('env-only MiniMax fallback yields to explicit Bedrock selection', async () 
 
   globalThis.fetch = (async () => {
     throw new Error('MiniMax/OpenAI shim fetch should not run')
-  }) as FetchType
+  }) as unknown as FetchType
 
   await getAnthropicClient({
     maxRetries: 0,
@@ -895,7 +899,7 @@ test('env-only xAI fallback yields to explicit Bedrock selection', async () => {
 
   globalThis.fetch = (async () => {
     throw new Error('xAI/OpenAI shim fetch should not run')
-  }) as FetchType
+  }) as unknown as FetchType
 
   await getAnthropicClient({
     maxRetries: 0,

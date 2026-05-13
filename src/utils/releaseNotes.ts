@@ -12,7 +12,24 @@ import { logError } from './log.js'
 import { isEssentialTrafficOnly } from './privacyLevel.js'
 import { gt } from './semver.js'
 
+const UNRELEASED_VERSION = 'Unreleased'
+
 const MAX_RELEASE_NOTES_SHOWN = 5
+
+function cleanReleaseNote(note: string): string {
+  return note
+    .trim()
+    .replace(/\*\*/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+}
+
+function cleanChangelogVersion(versionLine: string): string {
+  const withoutDate = versionLine.split(' - ')[0]?.trim() ?? ''
+  const linkedVersion = withoutDate.match(/^\[([^\]]+)\]\([^)]+\)$/)
+  if (linkedVersion) return linkedVersion[1]?.trim() ?? ''
+  return withoutDate.replace(/^\[(.+)\]$/, '$1').trim()
+}
 
 /**
  * We fetch the changelog from GitHub instead of bundling it with the build.
@@ -188,24 +205,17 @@ export function parseChangelog(content: string): Record<string, string[]> {
       const lines = section.trim().split('\n')
       if (lines.length === 0) continue
 
-      // Extract version from the first line
-      // Handle both "1.2.3" and "1.2.3 - YYYY-MM-DD" formats
       const versionLine = lines[0]
       if (!versionLine) continue
 
-      // First part before any dash is the version
-      const version =
-        versionLine
-          .split(' - ')[0]
-          ?.trim()
-          .replace(/^\[(.+)\]$/, '$1') || ''
+      const version = cleanChangelogVersion(versionLine)
       if (!version) continue
 
-      // Extract bullet points
       const notes = lines
         .slice(1)
-        .filter(line => line.trim().startsWith('- '))
-        .map(line => line.trim().substring(2).trim())
+        .map(line => line.trim())
+        .filter(line => line.startsWith('- ') || line.startsWith('* '))
+        .map(line => cleanReleaseNote(line.substring(2)))
         .filter(Boolean)
 
       if (notes.length > 0) {
@@ -267,19 +277,26 @@ export function getRecentReleaseNoteGroups(
       return []
     }
 
-    if (
-      basePreviousVersion &&
-      !gt(baseCurrentVersion.version, basePreviousVersion.version)
-    ) {
-      return []
-    }
+    const hasNewReleasedVersion =
+      !basePreviousVersion || gt(baseCurrentVersion.version, basePreviousVersion.version)
 
     return Object.entries(releaseNotes)
-      .filter(
-        ([version]) =>
-          !basePreviousVersion || gt(version, basePreviousVersion.version),
-      )
-      .sort(([versionA], [versionB]) => (gt(versionA, versionB) ? -1 : 1))
+      .filter(([version]) => {
+        if (version === UNRELEASED_VERSION) {
+          return true
+        }
+
+        if (!basePreviousVersion) {
+          return true
+        }
+
+        return hasNewReleasedVersion && gt(version, basePreviousVersion.version)
+      })
+      .sort(([versionA], [versionB]) => {
+        if (versionA === UNRELEASED_VERSION) return -1
+        if (versionB === UNRELEASED_VERSION) return 1
+        return gt(versionA, versionB) ? -1 : 1
+      })
       .slice(0, maxVersions)
       .map(([version, notes]) => [version, notes.filter(Boolean)] as [string, string[]])
       .filter(([, notes]) => notes.length > 0)
@@ -302,10 +319,12 @@ export function getAllReleaseNotes(
   try {
     const releaseNotes = parseChangelog(changelogContent)
 
-    // Sort versions with oldest first
-    const sortedVersions = Object.keys(releaseNotes).sort((a, b) =>
-      gt(a, b) ? 1 : -1,
-    )
+    // Sort versions with oldest first, keeping Unreleased as the newest entry.
+    const sortedVersions = Object.keys(releaseNotes).sort((a, b) => {
+      if (a === UNRELEASED_VERSION) return 1
+      if (b === UNRELEASED_VERSION) return -1
+      return gt(a, b) ? 1 : -1
+    })
 
     // Return array of [version, notes] arrays
     return sortedVersions

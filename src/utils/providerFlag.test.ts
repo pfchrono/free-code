@@ -9,6 +9,7 @@ import {
 } from './providerFlag.js'
 
 const ENV_KEYS = [
+  'CLAUDE_CODE_USE_CODEX',
   'CLAUDE_CODE_USE_OPENAI',
   'CLAUDE_CODE_USE_OPENROUTER',
   'CLAUDE_CODE_USE_COPILOT',

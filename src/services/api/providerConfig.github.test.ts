@@ -7,6 +7,7 @@ import {
 } from './providerConfig.js'
 
 const ENV_KEYS = [
+  'CLAUDE_CODE_USE_CODEX',
   'CLAUDE_CODE_USE_GITHUB',
   'CLAUDE_CODE_USE_OPENAI',
   'OPENAI_MODEL',

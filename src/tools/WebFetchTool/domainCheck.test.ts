@@ -50,6 +50,7 @@ describe('checkDomainBlocklist', () => {
     delete process.env.CLAUDE_CODE_USE_OPENAI
     delete process.env.CLAUDE_CODE_USE_GEMINI
     delete process.env.CLAUDE_CODE_USE_GITHUB
+    delete process.env.CLAUDE_CODE_USE_CODEX
     delete process.env.OPENAI_API_KEY
     delete process.env.GEMINI_API_KEY
     delete process.env.GEMINI_ACCESS_TOKEN
