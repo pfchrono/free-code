@@ -416,7 +416,22 @@ export const SettingsSchema = lazySchema(() =>
             'enterprise administrators.',
         ),
       apiProvider: z
-        .enum(['firstParty', 'codex', 'openai', 'openrouter', 'copilot', 'lmstudio', 'zen', 'minimax'])
+        .enum([
+          'firstParty',
+          'bedrock',
+          'vertex',
+          'foundry',
+          'codex',
+          'openai',
+          'openrouter',
+          'copilot',
+          'lmstudio',
+          'zen',
+          'minimax',
+          'gemini',
+          'mistral',
+          'nvidia',
+        ])
         .optional()
         .describe(
           'Repo-local API provider preference. "codex" enables ChatGPT Codex mode, "openai" enables native OpenAI API mode, "openrouter" enables OpenRouter mode, "copilot" enables GitHub Copilot mode, "lmstudio" enables local LM Studio mode, "zen" enables OpenCode Zen mode, "minimax" enables MiniMax Anthropic-compatible mode, and "firstParty" forces default Anthropic mode for this project on the next launch.',
@@ -794,7 +809,7 @@ export const SettingsSchema = lazySchema(() =>
         ),
       effortLevel: z
         .enum(
-          process.env.USER_TYPE === 'ant'
+          ((process.env.USER_TYPE as string) === 'ant')
             ? ['low', 'medium', 'high', 'max']
             : ['low', 'medium', 'high'],
         )
@@ -920,7 +935,7 @@ export const SettingsSchema = lazySchema(() =>
           'Custom directory for plan files, relative to project root. ' +
             'If not set, defaults to ~/.free-code/plans/',
         ),
-      ...(process.env.USER_TYPE === 'ant'
+      ...(((process.env.USER_TYPE as string) === 'ant')
         ? {
             classifierPermissionsEnabled: z
               .boolean()
@@ -1099,7 +1114,7 @@ export const SettingsSchema = lazySchema(() =>
                   .array(z.string())
                   .optional()
                   .describe('Rules for the auto mode classifier deny section'),
-                ...(process.env.USER_TYPE === 'ant'
+                ...(((process.env.USER_TYPE as string) === 'ant')
                   ? {
                       // Back-compat alias for ant users; external users use soft_deny
                       deny: z.array(z.string()).optional(),

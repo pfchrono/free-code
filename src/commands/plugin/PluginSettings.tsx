@@ -28,7 +28,7 @@ import { type ParsedCommand, parsePluginArgs } from './parseArgs.js';
 import type { PluginSettingsProps, ViewState } from './types.js';
 import { ValidatePlugin } from './ValidatePlugin.js';
 type TabId = 'discover' | 'installed' | 'marketplaces' | 'errors';
-function MarketplaceList(t0) {
+function MarketplaceList(t0: any) {
   const $ = _c(4);
   const {
     onComplete
@@ -354,7 +354,7 @@ function removeExtraMarketplace(name: string, sources: Array<{
     }
   }
 }
-function ErrorsTabContent(t0) {
+function ErrorsTabContent(t0: any) {
   const $ = _c(26);
   const {
     setViewState,
@@ -721,11 +721,12 @@ function getInitialViewState(parsedCommand: ParsedCommand): ViewState {
   }
 }
 function getInitialTab(viewState: ViewState): TabId {
+  if (typeof viewState === 'string') return 'discover';
   if (viewState.type === 'manage-plugins') return 'installed';
   if (viewState.type === 'manage-marketplaces') return 'marketplaces';
   return 'discover';
 }
-export function PluginSettings(t0) {
+export function PluginSettings(t0: any) {
   const $ = _c(75);
   const {
     onComplete,

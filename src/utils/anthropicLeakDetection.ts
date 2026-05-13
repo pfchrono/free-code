@@ -215,7 +215,7 @@ export function installAnthropicLeakFetchDetector(): void {
     {
       preconnect: originalFetch.preconnect?.bind(originalFetch),
     },
-  ) as typeof fetch
+  ) as unknown as typeof fetch
 
   globalThis.fetch = wrappedFetch
 }

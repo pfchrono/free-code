@@ -114,6 +114,7 @@ async function removeRemoteAgentMetadata(taskId: string): Promise<void> {
 // Precondition error result
 export type RemoteAgentPreconditionResult = {
   eligible: true;
+  errors?: BackgroundRemoteSessionPrecondition[];
 } | {
   eligible: false;
   errors: BackgroundRemoteSessionPrecondition[];
@@ -190,12 +191,12 @@ function enqueueRemoteNotification(taskId: string, title: string, status: 'compl
 function markTaskNotified(taskId: string, setAppState: SetAppState): boolean {
   let shouldEnqueue = false;
   updateTaskState(taskId, setAppState, task => {
-    if (task.notified) {
+    if ((task as any).notified) {
       return task;
     }
     shouldEnqueue = true;
     return {
-      ...task,
+      ...(task as any),
       notified: true
     };
   });
@@ -751,7 +752,7 @@ function startRemoteSessionPolling(taskId: string, context: TaskContext): () => 
 
           // No output or remote error — mark failed with a review-specific message.
           updateTaskState(taskId, context.setAppState, t => ({
-            ...t,
+            ...(t as any),
             status: 'failed'
           }));
           const reason = result && result.subtype !== 'success' ? 'remote session returned an error' : reviewTimedOut && !sessionDone ? 'remote session exceeded 30 minutes' : 'no review output — orchestrator may have exited early';
@@ -777,7 +778,7 @@ function startRemoteSessionPolling(taskId: string, context: TaskContext): () => 
         const task = appState.tasks?.[taskId] as RemoteAgentTaskState | undefined;
         if (task?.isRemoteReview && task.status === 'running' && Date.now() - task.pollStartedAt > REMOTE_REVIEW_TIMEOUT_MS) {
           updateTaskState(taskId, context.setAppState, t => ({
-            ...t,
+            ...(t as any),
             status: 'failed',
             endTime: Date.now()
           }));

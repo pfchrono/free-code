@@ -1022,7 +1022,7 @@ export function useManageMCPConnections(
         else if (serverConfig.scope === 'managed') counts.managed++
 
         if (
-          process.env.USER_TYPE === 'ant' &&
+          ((process.env.USER_TYPE as string) === 'ant') &&
           !isMcpServerDisabled(name) &&
           (serverConfig.type === undefined || serverConfig.type === 'stdio') &&
           'command' in serverConfig
@@ -1032,7 +1032,7 @@ export function useManageMCPConnections(
       }
       logEvent('tengu_mcp_servers', {
         ...counts,
-        ...(process.env.USER_TYPE === 'ant' && stdioCommands.length > 0
+        ...(((process.env.USER_TYPE as string) === 'ant') && stdioCommands.length > 0
           ? {
               stdio_commands: stdioCommands
                 .sort()

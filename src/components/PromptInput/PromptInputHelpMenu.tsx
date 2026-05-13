@@ -19,7 +19,7 @@ type Props = {
   gap?: number;
   paddingX?: number;
 };
-export function PromptInputHelpMenu(props) {
+export function PromptInputHelpMenu(props: any) {
   const $ = _c(99);
   const {
     dimColor,

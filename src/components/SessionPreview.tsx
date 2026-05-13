@@ -18,7 +18,7 @@ type Props = {
   onExit: () => void;
   onSelect: (log: LogOption) => void;
 };
-export function SessionPreview(t0) {
+export function SessionPreview(t0: any) {
   const $ = _c(33);
   const {
     log,

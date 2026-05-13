@@ -34,7 +34,7 @@ type TabType = 'recent' | 'allow' | 'ask' | 'deny' | 'workspace';
 type RuleSourceTextProps = {
   rule: PermissionRule;
 };
-function RuleSourceText(t0) {
+function RuleSourceText(t0: any) {
   const $ = _c(4);
   const {
     rule
@@ -72,7 +72,7 @@ function getRuleBehaviorLabel(ruleBehavior: PermissionBehavior): string {
 }
 
 // Component for showing tool details and managing the interactive deletion workflow
-function RuleDetails(t0) {
+function RuleDetails(t0: any) {
   const $ = _c(42);
   const {
     rule,
@@ -265,7 +265,7 @@ type RulesTabContentProps = {
 };
 
 // Component for rendering rules tab content with full width support
-function RulesTabContent(props) {
+function RulesTabContent(props: any) {
   const $ = _c(26);
   const {
     options,
@@ -361,7 +361,7 @@ function RulesTabContent(props) {
 }
 
 // Composes the subtitle + search + Select for a single allow/ask/deny tab.
-function PermissionRulesTab(t0) {
+function PermissionRulesTab(t0: any) {
   const $ = _c(27);
   let T0;
   let T1;
@@ -470,7 +470,7 @@ type Props = {
   initialTab?: TabType;
   onRetryDenials?: (commands: string[]) => void;
 };
-export function PermissionRuleList(t0) {
+export function PermissionRuleList(t0: any) {
   const $ = _c(113);
   const {
     onExit,
@@ -795,7 +795,7 @@ export function PermissionRuleList(t0) {
   if ($[30] !== changes || $[31] !== onExit || $[32] !== onRetryDenials) {
     t18 = () => {
       const s_1 = denialStateRef.current;
-      const denialsFor = set => Array.from(set).map(idx => s_1.denials[idx]).filter(_temp2);
+      const denialsFor = (set: any) => Array.from(set).map(idx => (s_1.denials as any)[idx as any]).filter(_temp2);
       const retryDenials = denialsFor(s_1.retry);
       if (retryDenials.length > 0) {
         const commands = retryDenials.map(_temp3);
@@ -845,7 +845,7 @@ export function PermissionRuleList(t0) {
       }
       const {
         options: options_0
-      } = getRulesOptions(selectedRule.ruleBehavior as TabType);
+      } = getRulesOptions((selectedRule as any).ruleBehavior as TabType);
       const selectedKey = jsonStringify(selectedRule);
       const ruleKeys = options_0.filter(_temp5).map(_temp6);
       const currentIndex = ruleKeys.indexOf(selectedKey);
@@ -861,7 +861,7 @@ export function PermissionRuleList(t0) {
       }
       setLastFocusedRuleKey(nextFocusKey);
       deletePermissionRule({
-        rule: selectedRule,
+        rule: selectedRule as any,
         initialContext: toolPermissionContext,
         setToolPermissionContext(toolPermissionContext_0) {
           setAppState(prev_1 => ({
@@ -870,7 +870,7 @@ export function PermissionRuleList(t0) {
           }));
         }
       });
-      setChanges(prev_2 => [...prev_2, `Deleted ${selectedRule.ruleBehavior} rule ${chalk.bold(permissionRuleValueToString(selectedRule.ruleValue))}`]);
+      setChanges(prev_2 => [...prev_2, `Deleted ${(selectedRule as any).ruleBehavior} rule ${chalk.bold(permissionRuleValueToString((selectedRule as any).ruleValue))}`]);
       setSelectedRule(undefined);
     };
     $[36] = getRulesOptions;
@@ -957,13 +957,13 @@ export function PermissionRuleList(t0) {
           directories: [path_0],
           destination
         };
-        const updatedContext = applyPermissionUpdate(toolPermissionContext, permissionUpdate);
+        const updatedContext = applyPermissionUpdate(toolPermissionContext, permissionUpdate as any);
         setAppState(prev_4 => ({
           ...prev_4,
           toolPermissionContext: updatedContext
         }));
         if (remember) {
-          persistPermissionUpdate(permissionUpdate);
+          persistPermissionUpdate(permissionUpdate as any);
         }
         setChanges(prev_5 => [...prev_5, `Added directory ${chalk.bold(path_0)} to workspace${remember ? " and saved to local settings" : " for this session"}`]);
         setIsAddingWorkspaceDirectory(false);

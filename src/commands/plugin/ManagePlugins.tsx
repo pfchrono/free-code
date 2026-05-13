@@ -635,7 +635,7 @@ export function ManagePlugins({
         id: `mcp:${client_1.name}`,
         name: client_1.name,
         description: undefined,
-        scope: client_1.config.scope,
+        scope: client_1.config.scope as any,
         status: getMcpStatus(client_1),
         client: client_1
       });
@@ -729,8 +729,8 @@ export function ManagePlugins({
         scope: 'flagged',
         reason: 'delisted',
         text: 'Removed from marketplace',
-        flaggedAt: entry.flaggedAt
-      });
+        flaggedAt: entry.flaggedAt as any
+      } as any);
     }
 
     // Sort scopes and build final list
@@ -1168,7 +1168,7 @@ export function ManagePlugins({
       const isEnabled_0 = mergedSettings_0?.enabledPlugins?.[pluginId_4] !== false;
       const pluginScope_0 = item_7.scope;
       const isBuiltin_0 = pluginScope_0 === 'builtin';
-      if (isBuiltin_0 || isInstallableScope(pluginScope_0)) {
+      if (isBuiltin_0 || isInstallableScope(pluginScope_0 as any)) {
         const newPending = new Map(pendingToggles);
         // Omit scope — see handleSingleOperation's enable/disable comment.
         if (currentPending) {
@@ -1227,11 +1227,11 @@ export function ManagePlugins({
           id: item_8.id,
           name: item_8.name,
           marketplace: item_8.marketplace,
-          reason: item_8.reason,
-          text: item_8.text,
+          reason: (item_8 as any).reason,
+          text: (item_8 as any).text,
           flaggedAt: item_8.flaggedAt
         }
-      });
+      } as any);
       setProcessError(null);
     } else if (item_8?.type === 'failed-plugin') {
       setViewState({

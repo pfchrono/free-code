@@ -334,7 +334,10 @@ class PersistentMemorySystem {
   /**
    * Add a new memory entry
    */
-  async addEntry(entry: Omit<MemoryEntry, 'id' | 'timestamp'>): Promise<string> {
+  async addEntry(
+    entry: Omit<MemoryEntry, 'id' | 'timestamp' | 'provider' | 'source'> &
+      Partial<Pick<MemoryEntry, 'provider' | 'source'>>,
+  ): Promise<string> {
     const id = this.generateId()
     const timestamp = Date.now()
 

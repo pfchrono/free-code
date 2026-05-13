@@ -323,7 +323,7 @@ async function runLocalUltraplan(opts: {
       }
 
       if (message.type === 'result') {
-        finalResult = message
+        finalResult = message as any
       }
 
       const text = getMessageText(message)

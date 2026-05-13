@@ -51,7 +51,7 @@ function ThinkingProcessInline(): React.ReactNode {
 }
 
 /** Render a single tool use in verbose mode */
-function VerboseToolUse(t0) {
+function VerboseToolUse(t0: any) {
   const $ = _c(24);
   const {
     content,

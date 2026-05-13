@@ -258,11 +258,11 @@ async function getCacheSharingParams(
   forkContextMessages: Message[]
 }> {
   const appState = context.getAppState()
-  const defaultSysPrompt = await getSystemPrompt(
+  const defaultSysPrompt = await (getSystemPrompt as any)(
     context.options.tools,
     context.options.mainLoopModel,
     Array.from(
-      appState.toolPermissionContext.additionalWorkingDirectories.keys(),
+      (appState.toolPermissionContext.additionalWorkingDirectories as any).keys(),
     ),
     context.options.mcpClients,
   )

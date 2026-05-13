@@ -21,8 +21,8 @@ describe('sessionTransport createGuiCommandStream', () => {
     stream.onData('{"type":"get_models"}\n{"type":"get_commands"}\n');
 
     expect(onCommand).toHaveBeenCalledTimes(2);
-    expect(onCommand.mock.calls[0]?.[0]).toEqual({ type: 'get_models' });
-    expect(onCommand.mock.calls[1]?.[0]).toEqual({ type: 'get_commands' });
+    expect((onCommand.mock.calls as any[])[0]?.[0]).toEqual({ type: 'get_models' });
+    expect((onCommand.mock.calls as any[])[1]?.[0]).toEqual({ type: 'get_commands' });
   });
 
   test('surfaces malformed lines through decode error callback', () => {

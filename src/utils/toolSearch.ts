@@ -629,7 +629,7 @@ export type DeferredToolsDeltaScanContext = {
  */
 export function isDeferredToolsDeltaEnabled(): boolean {
   return (
-    process.env.USER_TYPE === 'ant' ||
+    ((process.env.USER_TYPE as string) === 'ant') ||
     getFeatureValue_CACHED_MAY_BE_STALE('tengu_glacier_2xr', false)
   )
 }

@@ -261,16 +261,17 @@ export function useVoiceIntegration({
     // window between CloseStream and WS close — this catches refined
     // TranscriptText arriving then and re-filling a cleared input.
     if (inputValueRef.current !== lastSetInputRef.current) return;
-    const needsSpace = prefix_0.length > 0 && !/\s$/.test(prefix_0) && voiceInterimTranscript.length > 0;
+    const interimTranscript = String(voiceInterimTranscript);
+    const needsSpace = prefix_0.length > 0 && !/\s$/.test(prefix_0) && interimTranscript.length > 0;
     // Don't gate on voiceInterimTranscript.length -- when interim clears to ''
     // after handleVoiceTranscript sets the final text, the trailing space
     // between prefix and suffix must still be preserved.
     const needsTrailingSpace = suffix_0.length > 0 && !/^\s/.test(suffix_0);
     const leadingSpace = needsSpace ? ' ' : '';
     const trailingSpace = needsTrailingSpace ? ' ' : '';
-    const newValue_0 = prefix_0 + leadingSpace + voiceInterimTranscript + trailingSpace + suffix_0;
+    const newValue_0 = prefix_0 + leadingSpace + interimTranscript + trailingSpace + suffix_0;
     // Position cursor after the transcribed text (before suffix)
-    const cursorPos = prefix_0.length + leadingSpace.length + voiceInterimTranscript.length;
+    const cursorPos = prefix_0.length + leadingSpace.length + interimTranscript.length;
     if (insertTextRef.current) {
       insertTextRef.current.setInputWithCursor(newValue_0, cursorPos);
     } else {
@@ -328,11 +329,12 @@ export function useVoiceIntegration({
   const interimRange = useMemo((): InterimRange | null => {
     if (!feature('VOICE_MODE')) return null;
     if (voicePrefixRef.current === null) return null;
-    if (voiceInterimTranscript.length === 0) return null;
+    const interimTranscript = String(voiceInterimTranscript);
+    if (interimTranscript.length === 0) return null;
     const prefix_2 = voicePrefixRef.current;
-    const needsSpace_1 = prefix_2.length > 0 && !/\s$/.test(prefix_2) && voiceInterimTranscript.length > 0;
+    const needsSpace_1 = prefix_2.length > 0 && !/\s$/.test(prefix_2) && interimTranscript.length > 0;
     const start = prefix_2.length + (needsSpace_1 ? 1 : 0);
-    const end = start + voiceInterimTranscript.length;
+    const end = start + interimTranscript.length;
     return {
       start,
       end
@@ -670,7 +672,7 @@ export function useVoiceKeybindingHandler({
 // TODO(onKeyDown-migration): temporary shim so existing JSX callers
 // (<VoiceKeybindingHandler .../>) keep compiling. Remove once REPL.tsx
 // wires handleKeyDown directly.
-export function VoiceKeybindingHandler(props) {
+export function VoiceKeybindingHandler(props: any) {
   useVoiceKeybindingHandler(props);
   return null;
 }

@@ -24,7 +24,7 @@ afterEach(() => {
 })
 
 test('logs classified transport diagnostics with category and code', async () => {
-  const debugSpy = mock(() => {})
+  const debugSpy = (mock as any)(() => {})
   mock.module('../../utils/debug.js', () => ({
     enableDebugLogging: () => true,
     getDebugFilePath: () => null,
@@ -46,9 +46,9 @@ test('logs classified transport diagnostics with category and code', async () =>
     code: 'ECONNREFUSED',
   })
 
-  globalThis.fetch = mock(async () => {
+  globalThis.fetch = (mock as any)(async () => {
     throw transportError
-  }) as typeof globalThis.fetch
+  }) as any
 
   const client = createOpenAIShimClient({}) as {
     beta: {
@@ -78,7 +78,7 @@ test('logs classified transport diagnostics with category and code', async () =>
 })
 
 test('redacts credentials in transport diagnostic URL logs', async () => {
-  const debugSpy = mock(() => {})
+  const debugSpy = (mock as any)(() => {})
   mock.module('../../utils/debug.js', () => ({
     enableDebugLogging: () => true,
     getDebugFilePath: () => null,
@@ -100,9 +100,9 @@ test('redacts credentials in transport diagnostic URL logs', async () => {
     code: 'ECONNREFUSED',
   })
 
-  globalThis.fetch = mock(async () => {
+  globalThis.fetch = (mock as any)(async () => {
     throw transportError
-  }) as typeof globalThis.fetch
+  }) as any
 
   const client = createOpenAIShimClient({}) as {
     beta: {
@@ -132,7 +132,7 @@ test('redacts credentials in transport diagnostic URL logs', async () => {
   expect(logLine).not.toContain('supersecret@')
 })
 test('logs self-heal localhost fallback with redacted from/to URLs', async () => {
-  const debugSpy = mock(() => {})
+  const debugSpy = (mock as any)(() => {})
   mock.module('../../utils/debug.js', () => ({
     enableDebugLogging: () => true,
     getDebugFilePath: () => null,
@@ -150,7 +150,7 @@ test('logs self-heal localhost fallback with redacted from/to URLs', async () =>
   process.env.OPENAI_BASE_URL = 'http://user:supersecret@localhost:11434/v1'
   process.env.OPENAI_API_KEY = 'supersecret'
 
-  globalThis.fetch = mock(async (input: string | Request) => {
+  globalThis.fetch = (mock as any)(async (input: string | Request) => {
     const url = typeof input === 'string' ? input : input.url
     if (url.includes('localhost')) {
       throw Object.assign(new TypeError('fetch failed'), {
@@ -184,7 +184,7 @@ test('logs self-heal localhost fallback with redacted from/to URLs', async () =>
         },
       },
     )
-  }) as typeof globalThis.fetch
+  }) as any
 
   const client = createOpenAIShimClient({}) as {
     beta: {
@@ -216,7 +216,7 @@ test('logs self-heal localhost fallback with redacted from/to URLs', async () =>
 })
 
 test('logs self-heal toolless retry for local tool-call incompatibility', async () => {
-  const debugSpy = mock(() => {})
+  const debugSpy = (mock as any)(() => {})
   mock.module('../../utils/debug.js', () => ({
     enableDebugLogging: () => true,
     getDebugFilePath: () => null,
@@ -235,7 +235,7 @@ test('logs self-heal toolless retry for local tool-call incompatibility', async 
   process.env.OPENAI_API_KEY = 'ollama'
 
   let callCount = 0
-  globalThis.fetch = mock(async () => {
+  globalThis.fetch = (mock as any)(async () => {
     callCount += 1
     if (callCount === 1) {
       return new Response('tool_calls are not supported', {
@@ -272,7 +272,7 @@ test('logs self-heal toolless retry for local tool-call incompatibility', async 
         },
       },
     )
-  }) as typeof globalThis.fetch
+  }) as any
 
   const client = createOpenAIShimClient({}) as {
     beta: {

@@ -15,25 +15,26 @@ type SetAppStateFn = (updater: (prev: AppState) => AppState) => void
 
 export function killTask(taskId: string, setAppState: SetAppStateFn): void {
   updateTaskState(taskId, setAppState, task => {
-    if (task.status !== 'running' || !isLocalShellTask(task)) {
+    if ((task as any).status !== 'running' || !isLocalShellTask(task as any)) {
       return task
     }
+    const shellTask = task as any
 
     try {
       logForDebugging(`LocalShellTask ${taskId} kill requested`)
-      task.shellCommand?.kill()
-      task.shellCommand?.cleanup()
+      shellTask.shellCommand?.kill()
+      shellTask.shellCommand?.cleanup()
     } catch (error) {
       logError(error)
     }
 
-    task.unregisterCleanup?.()
-    if (task.cleanupTimeoutId) {
-      clearTimeout(task.cleanupTimeoutId)
+    shellTask.unregisterCleanup?.()
+    if (shellTask.cleanupTimeoutId) {
+      clearTimeout(shellTask.cleanupTimeoutId)
     }
 
     return {
-      ...task,
+      ...(task as any),
       status: 'killed',
       notified: true,
       shellCommand: null,

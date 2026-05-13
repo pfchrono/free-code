@@ -117,6 +117,7 @@ describe('collectContextData', () => {
         tools: [],
         agentDefinitions: {
           activeAgents: [],
+          allAgents: [],
           allSourceMetadata: [],
           loadedFromCache: false,
         },

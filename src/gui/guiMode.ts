@@ -520,7 +520,7 @@ function emitGuiEventsForSdkMessage(
       });
       return;
     case 'result':
-      emitResultEvents(message, runtime.lastUserInputIntent ?? 'default');
+      emitResultEvents(message as any, runtime.lastUserInputIntent ?? 'default');
       return;
     default:
       return;
@@ -550,8 +550,8 @@ function emitResultEvents(
     outputTokens: getUsageNumber(message.usage, 'output'),
     inputTokens: getUsageNumber(message.usage, 'input'),
     durationMs: message.duration_ms,
-    intent,
-  });
+    intent: intent as any,
+  } as any);
 }
 
 function getUsageNumber(

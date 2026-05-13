@@ -358,6 +358,7 @@ async function buildQueryAugmentationMessage(
 
   return createSystemMessage(
     `${QUERY_AUGMENTATION_MARKER}\n${truncateForQueryAugmentation(sections.join('\n\n'), 900)}`,
+    'info',
   )
 }
 
@@ -516,7 +517,7 @@ async function* queryLoop(
       null,
       messages,
       toolUseContext,
-    )
+    ) as any
 
     yield { type: 'stream_request_start' }
 
@@ -560,10 +561,7 @@ async function* queryLoop(
     const persistReplacements =
       querySource.startsWith('agent:') ||
       querySource.startsWith('repl_main_thread')
-    const {
-      messages: budgetedMessages,
-      estimatedSavedTokens: toolResultBudgetSavedTokens,
-    } = await applyToolResultBudget(
+    const budgetResult = await applyToolResultBudget(
       messagesForQuery,
       toolUseContext.contentReplacementState,
       persistReplacements
@@ -578,7 +576,11 @@ async function* queryLoop(
           .filter(t => !Number.isFinite(t.maxResultSizeChars))
           .map(t => t.name),
       ),
-    )
+    ) as any
+    const {
+      messages: budgetedMessages,
+      estimatedSavedTokens: toolResultBudgetSavedTokens,
+    } = budgetResult
     messagesForQuery = budgetedMessages
     if (toolResultBudgetSavedTokens > 0) {
       addCurrentTurnSavedInputTokens(toolResultBudgetSavedTokens)
@@ -1252,7 +1254,7 @@ async function* queryLoop(
             // Thinking signatures are model-bound: replaying a protected-thinking
             // block (e.g. capybara) to an unprotected fallback (e.g. opus) 400s.
             // Strip before retry so the fallback model gets clean history.
-            if (process.env.USER_TYPE === 'ant') {
+            if (((process.env.USER_TYPE as string) === 'ant')) {
               messagesForQuery = stripSignatureBlocks(messagesForQuery)
             }
 

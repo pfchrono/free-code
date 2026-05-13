@@ -2160,7 +2160,7 @@
   dependencies:
     tslib "^2.6.2"
 
-"@types/bun@^1.3.11":
+"@types/bun@1.3.11":
   version "1.3.11"
   resolved "https://registry.npmjs.org/@types/bun/-/bun-1.3.11.tgz"
   integrity sha512-5vPne5QvtpjGpsGYXiFyycfpDF2ECyPcTSsFBMa0fraoxiQyMJ3SmuQIGhzPg2WJuWxVBoxWJ2kClYTcw/4fAg==
@@ -2186,12 +2186,26 @@
   dependencies:
     "@types/node" "*"
 
-"@types/node@*", "@types/node@^22.5.5", "@types/node@>=13.7.0":
-  version "22.19.15"
-  resolved "https://registry.npmjs.org/@types/node/-/node-22.19.15.tgz"
-  integrity sha512-F0R/h2+dsy5wJAUe3tAU6oqa2qbWY5TpNfL/RGmo1y38hiyO1w3x2jPtt76wmuaJI4DQnOBu21cNXQ2STIUUWg==
+"@types/node@*", "@types/node@>=13.7.0", "@types/node@25.5.0":
+  version "25.5.0"
+  resolved "https://registry.npmjs.org/@types/node/-/node-25.5.0.tgz"
+  integrity sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw==
+  dependencies:
+    undici-types "~7.18.0"
+
+"@types/node@^22.5.5":
+  version "22.19.19"
+  resolved "https://registry.npmjs.org/@types/node/-/node-22.19.19.tgz"
+  integrity sha512-dyh/xO2Fh5bYrfWaaqGrRQQGkNdmYw6AmaAUvYeUMNTWQtvb796ikLdmTchRmOlOiIJ1TDXfWgVx1QkUlQ6Hew==
   dependencies:
     undici-types "~6.21.0"
+
+"@types/react@>=19.0.0", "@types/react@19.2.14":
+  version "19.2.14"
+  resolved "https://registry.npmjs.org/@types/react/-/react-19.2.14.tgz"
+  integrity sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==
+  dependencies:
+    csstype "^3.2.2"
 
 "@types/wrap-ansi@^3.0.0":
   version "3.0.0"
@@ -2634,6 +2648,11 @@ cssfilter@0.0.10:
   version "0.0.10"
   resolved "https://registry.npmjs.org/cssfilter/-/cssfilter-0.0.10.tgz"
   integrity sha512-FAaLDaplstoRsDR8XGYH51znUN0UY7nMc6Z9/fvE8EXGwvJE9hu7W2vHwx1+bd6gCYnln9nLbzxFTrcO9YQDZw==
+
+csstype@^3.2.2:
+  version "3.2.3"
+  resolved "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz"
+  integrity sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==
 
 data-uri-to-buffer@^4.0.0:
   version "4.0.1"
@@ -4058,7 +4077,7 @@ run-applescript@^7.0.0:
   resolved "https://registry.npmjs.org/run-applescript/-/run-applescript-7.1.0.tgz"
   integrity sha512-DPe5pVFaAsinSaV6QjQ6gdiedWDcRCbUuiQfQa2wmWV7+xC9bGulGI8+TdRmoFkAPaBXk8CrAbnlY2ISniJ47Q==
 
-safe-buffer@^5.0.1, safe-buffer@^5.1.2, safe-buffer@^5.2.1:
+safe-buffer@^5.0.1:
   version "5.2.1"
   resolved "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz"
   integrity sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==
@@ -4368,6 +4387,11 @@ toidentifier@~1.0.1:
   resolved "https://registry.npmjs.org/toidentifier/-/toidentifier-1.0.1.tgz"
   integrity sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==
 
+tokenjuice@0.7.0:
+  version "0.7.0"
+  resolved "https://registry.npmjs.org/tokenjuice/-/tokenjuice-0.7.0.tgz"
+  integrity sha512-RZIyFmzztf/8V4q1cUS5L+q8UISMSfsjzh4UoWVxQbE7/zX91SfNmHpNqopqyB4oc5hwH4XqC9O/yakVzJCu8g==
+
 tr46@~0.0.3:
   version "0.0.3"
   resolved "https://registry.npmjs.org/tr46/-/tr46-0.0.3.tgz"
@@ -4426,15 +4450,20 @@ typescript-event-target@^1.1.1:
   resolved "https://registry.npmjs.org/typescript-event-target/-/typescript-event-target-1.1.2.tgz"
   integrity sha512-TvkrTUpv7gCPlcnSoEwUVUBwsdheKm+HF5u2tPAKubkIGMfovdSizCTaZRY/NhR8+Ijy8iZZUapbVQAsNrkFrw==
 
-typescript@^6.0.2:
-  version "6.0.2"
-  resolved "https://registry.npmjs.org/typescript/-/typescript-6.0.2.tgz"
-  integrity sha512-bGdAIrZ0wiGDo5l8c++HWtbaNCWTS4UTv7RaTH/ThVIgjkveJt83m74bBHMJkuCbslY8ixgLBVZJIOiQlQTjfQ==
+typescript@5.9.3:
+  version "5.9.3"
+  resolved "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz"
+  integrity sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==
 
 undici-types@~6.21.0:
   version "6.21.0"
   resolved "https://registry.npmjs.org/undici-types/-/undici-types-6.21.0.tgz"
   integrity sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==
+
+undici-types@~7.18.0:
+  version "7.18.2"
+  resolved "https://registry.npmjs.org/undici-types/-/undici-types-7.18.2.tgz"
+  integrity sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==
 
 undici@^7.24.6:
   version "7.24.6"

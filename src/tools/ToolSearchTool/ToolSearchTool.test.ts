@@ -20,7 +20,7 @@ describe('ToolSearchTool', () => {
       async call() {
         return { data: 'ok' }
       },
-    })
+    } as any)
 
     const brokenTool = buildTool({
       name: 'mcp__broken__explode',
@@ -37,10 +37,10 @@ describe('ToolSearchTool', () => {
       async call() {
         return { data: 'ok' }
       },
-    })
+    } as any)
 
-    const tools: Tools = [ToolSearchTool, healthyTool, brokenTool]
-    const result = await ToolSearchTool.call(
+    const tools: Tools = [ToolSearchTool, healthyTool as any, brokenTool as any]
+    const result = await (ToolSearchTool.call as any)(
       { query: 'slack send', max_results: 5 },
       {
         options: { tools },

@@ -413,7 +413,7 @@ async function countBuiltInToolTokens(
   // split of the bulk count based on rough schema size estimation). Excludes
   // SkillTool since its tokens are shown in the separate Skills category.
   let systemToolDetails: SystemToolDetail[] = []
-  if (process.env.USER_TYPE === 'ant') {
+  if (((process.env.USER_TYPE as string) === 'ant')) {
     const toolsForBreakdown = alwaysLoadedTools.filter(
       t => !toolMatchesName(t, SKILL_TOOL_NAME),
     )
@@ -898,7 +898,7 @@ async function approximateMessageTokens(
     } else if (msg.type === 'user') {
       processUserMessage(msg, breakdown, toolUseIdToName)
     } else if (msg.type === 'attachment') {
-      processAttachment(msg, breakdown)
+      processAttachment(msg as any, breakdown)
     }
   }
 
@@ -947,7 +947,7 @@ export async function analyzeContextUsage(
   const effectiveSystemPrompt = buildEffectiveSystemPrompt({
     mainThreadAgentDefinition,
     toolUseContext: toolUseContext ?? {
-      options: {} as ToolUseContext['options'],
+      options: {} as unknown as ToolUseContext['options'],
     },
     customSystemPrompt: toolUseContext?.options.customSystemPrompt,
     defaultSystemPrompt,
@@ -1038,7 +1038,7 @@ export async function analyzeContextUsage(
   if (systemToolsTokens > 0) {
     cats.push({
       name:
-        process.env.USER_TYPE === 'ant'
+        ((process.env.USER_TYPE as string) === 'ant')
           ? '[ANT-ONLY] System tools'
           : 'System tools',
       tokens: systemToolsTokens,
@@ -1367,11 +1367,11 @@ export async function analyzeContextUsage(
     memoryFiles: memoryFileDetails,
     mcpTools: mcpToolDetails,
     deferredBuiltinTools:
-      process.env.USER_TYPE === 'ant' ? deferredBuiltinDetails : undefined,
+      ((process.env.USER_TYPE as string) === 'ant') ? deferredBuiltinDetails : undefined,
     systemTools:
-      process.env.USER_TYPE === 'ant' ? systemToolDetails : undefined,
+      ((process.env.USER_TYPE as string) === 'ant') ? systemToolDetails : undefined,
     systemPromptSections:
-      process.env.USER_TYPE === 'ant' ? systemPromptSections : undefined,
+      ((process.env.USER_TYPE as string) === 'ant') ? systemPromptSections : undefined,
     agents: agentDetails,
     slashCommands:
       slashCommandTokens > 0

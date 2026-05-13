@@ -96,7 +96,7 @@ export async function call(
 
   switchProviderDirectly(nextProvider)
   updateSettingsForSource('projectSettings', {
-    apiProvider: nextProvider,
+    apiProvider: nextProvider as any,
   })
 
   logEvent('tengu_api_provider_preference_changed', {

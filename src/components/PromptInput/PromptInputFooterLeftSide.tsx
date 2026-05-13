@@ -50,6 +50,9 @@ const proactiveModule = feature('PROACTIVE') || feature('KAIROS') ? require('../
 const NO_OP_SUBSCRIBE = (_cb: () => void) => () => {};
 const NULL = () => null;
 const MAX_VOICE_HINT_SHOWS = 3;
+function TungstenPill(_props: { selected?: boolean }): React.ReactNode {
+  return null;
+}
 type Props = {
   exitMessage: {
     show: boolean;
@@ -125,7 +128,7 @@ function ProactiveCountdown() {
   }
   return t4;
 }
-export function PromptInputFooterLeftSide(t0) {
+export function PromptInputFooterLeftSide(t0: any) {
   const $ = _c(27);
   const {
     exitMessage,
@@ -262,7 +265,7 @@ function ModeIndicator({
   const expandedView = useAppState(s_3 => s_3.expandedView);
   const showSpinnerTree = expandedView === 'teammates';
   const prStatus = usePrStatus(isLoading, isPrStatusEnabled());
-  const hasTmuxSession = useAppState(s_4 => process.env.USER_TYPE === 'ant' && s_4.tungstenActiveSession !== undefined);
+  const hasTmuxSession = useAppState(s_4 => ((process.env.USER_TYPE as string) === 'ant') && s_4.tungstenActiveSession !== undefined);
   const nextTickAt = useSyncExternalStore(proactiveModule?.subscribeToProactiveChanges ?? NO_OP_SUBSCRIBE, proactiveModule?.getNextTickAt ?? NULL, NULL);
   // biome-ignore lint/correctness/useHookAtTopLevel: feature() is a compile-time constant
   const voiceEnabled = feature('VOICE_MODE') ? useVoiceEnabled() : false;
@@ -276,7 +279,7 @@ function ModeIndicator({
   const selGetState = useSelection().getState;
   const hasNextTick = nextTickAt !== null;
   const isCoordinator = feature('COORDINATOR_MODE') ? coordinatorModule?.isCoordinatorMode() === true : false;
-  const runningTaskCount = useMemo(() => count(Object.values(tasks), t => isBackgroundTask(t) && !(process.env.USER_TYPE === 'ant' && isPanelAgentTask(t))), [tasks]);
+  const runningTaskCount = useMemo(() => count(Object.values(tasks), t => isBackgroundTask(t) && !(((process.env.USER_TYPE as string) === 'ant') && isPanelAgentTask(t))), [tasks]);
   const tasksV2 = useTasksV2();
   const hasTaskItems = tasksV2 !== undefined && tasksV2.length > 0;
   const escShortcut = useShortcutDisplay('chat:cancel', 'Chat', 'esc').toLowerCase();
@@ -371,7 +374,7 @@ function ModeIndicator({
   // its click-target Box isn't nested inside the <Text wrap="truncate">
   // wrapper (reconciler throws on Box-in-Text).
   // Tmux pill (ant-only) — appears right after tasks in nav order
-  ...(process.env.USER_TYPE === 'ant' && hasTmuxSession ? [<TungstenPill key="tmux" selected={tmuxSelected} />] : []), ...(isAgentSwarmsEnabled() && hasTeams ? [<TeamStatus key="teams" teamsSelected={teamsSelected} showHint={showHint && !hasBackgroundTasks} />] : []), ...(shouldShowPrStatus ? [<PrBadge key="pr-status" number={prStatus.number!} url={prStatus.url!} reviewState={prStatus.reviewState!} />] : [])];
+  ...(((process.env.USER_TYPE as string) === 'ant') && hasTmuxSession ? [<TungstenPill key="tmux" selected={tmuxSelected} />] : []), ...(isAgentSwarmsEnabled() && hasTeams ? [<TeamStatus key="teams" teamsSelected={teamsSelected} showHint={showHint && !hasBackgroundTasks} />] : []), ...(shouldShowPrStatus ? [<PrBadge key="pr-status" number={prStatus.number!} url={prStatus.url!} reviewState={prStatus.reviewState!} />] : [])];
 
   // Check if any in-process teammates exist (for hint text cycling)
   const hasAnyInProcessTeammates = Object.values(tasks).some(t_2 => t_2.type === 'in_process_teammate' && t_2.status === 'running');
@@ -405,7 +408,7 @@ function ModeIndicator({
   }
 
   // Add "↓ to manage tasks" hint when panel has visible rows
-  const hasCoordinatorTasks = process.env.USER_TYPE === 'ant' && getVisibleAgentTasks(tasks).length > 0;
+  const hasCoordinatorTasks = ((process.env.USER_TYPE as string) === 'ant') && getVisibleAgentTasks(tasks).length > 0;
 
   // Tasks pill renders as a Box sibling (not a parts entry) so its
   // click-target Box isn't nested inside <Text wrap="truncate"> — the

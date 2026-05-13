@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { buildTool, type ToolDef } from '../../Tool.js'
+import { buildTool } from '../../Tool.js'
 import { getGoal } from '../../services/goals/goalStore.js'
 import { lazySchema } from '../../utils/lazySchema.js'
 import { GET_GOAL_TOOL_NAME } from './constants.js'
@@ -111,4 +111,4 @@ export const GetGoalTool = buildTool({
         : 'No session goal is set.',
     }
   },
-} satisfies ToolDef<InputSchema, Output>)
+} as any)

@@ -59,7 +59,7 @@ export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXComma
     onDone(success ? 'Login successful' : 'Login interrupted');
   }} />;
 }
-export function Login(props) {
+export function Login(props: any) {
   const $ = _c(12);
   const mainLoopModel = useMainLoopModel();
   let t0;

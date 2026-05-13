@@ -31,7 +31,7 @@ type InnerProps = {
   width: number;
   promise: Promise<NotebookContent | null>;
 };
-export function NotebookEditToolDiff(props) {
+export function NotebookEditToolDiff(props: any) {
   const $ = _c(5);
   let t0;
   if ($[0] !== props.notebook_path) {
@@ -61,7 +61,7 @@ function _temp2() {
 function _temp(content) {
   return safeParseJSON(content) as NotebookContent | null;
 }
-function NotebookEditToolDiffInner(t0) {
+function NotebookEditToolDiffInner(t0: any) {
   const $ = _c(34);
   const {
     notebook_path,
@@ -84,8 +84,8 @@ function NotebookEditToolDiffInner(t0) {
       }
       const cellIndex = parseCellId(cell_id);
       if (cellIndex !== undefined) {
-        if (notebookData.cells[cellIndex]) {
-          const source = notebookData.cells[cellIndex].source;
+            if ((notebookData as any).cells[cellIndex]) {
+          const source = (notebookData as any).cells[cellIndex].source;
           let t3;
           if ($[3] !== source) {
             t3 = Array.isArray(source) ? source.join("") : source;
@@ -108,7 +108,7 @@ function NotebookEditToolDiffInner(t0) {
       } else {
         t3 = $[6];
       }
-      const cell_0 = notebookData.cells.find(t3);
+      const cell_0 = (notebookData as any).cells.find(t3);
       if (!cell_0) {
         t2 = "";
         break bb0;

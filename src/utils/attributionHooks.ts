@@ -12,14 +12,14 @@ import { logForDebugging } from './debug.js'
 const fileContentCache = new Map<string, string>()
 
 function getFilePathFromInput(input: HookInput): string | null {
-  const toolInput = input.tool_input
+  const toolInput = (input as any).tool_input
   if (!toolInput || typeof toolInput !== 'object') return null
   if (!('file_path' in toolInput)) return null
   return typeof toolInput.file_path === 'string' ? toolInput.file_path : null
 }
 
 function getWriteContentFromInput(input: HookInput): string | null {
-  const toolInput = input.tool_input
+  const toolInput = (input as any).tool_input
   if (!toolInput || typeof toolInput !== 'object') return null
   if (!('content' in toolInput)) return null
   return typeof toolInput.content === 'string' ? toolInput.content : null

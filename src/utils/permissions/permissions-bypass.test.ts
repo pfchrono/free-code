@@ -31,7 +31,7 @@ function createToolWithPermissionResult(
     async checkPermissions() {
       return permissionResult
     },
-  } as Tool
+  } as unknown as Tool
 }
 
 function createContext(mode: ToolPermissionContext['mode']) {
@@ -39,7 +39,7 @@ function createContext(mode: ToolPermissionContext['mode']) {
     getAppState: () => ({
       toolPermissionContext: createPermissionContext(mode),
     }),
-  } as Parameters<typeof checkRuleBasedPermissions>[2]
+  } as unknown as Parameters<typeof checkRuleBasedPermissions>[2]
 }
 
 describe('checkRuleBasedPermissions bypass mode', () => {

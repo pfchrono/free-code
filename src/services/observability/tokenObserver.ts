@@ -14,7 +14,7 @@ interface TokenObserverEvent {
   timestamp?: number
 }
 
-interface TokenMetrics {
+export interface TokenMetrics {
   totalRequests: number
   totalTokensUsed: number
   avgTokensPerRequest: number

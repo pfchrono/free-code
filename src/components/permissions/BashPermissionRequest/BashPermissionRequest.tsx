@@ -68,7 +68,7 @@ function ClassifierCheckingSubtitle() {
   }
   return t2;
 }
-export function BashPermissionRequest(props) {
+export function BashPermissionRequest(props: any) {
   const $ = _c(21);
   const {
     toolUseConfirm,

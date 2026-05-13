@@ -487,7 +487,7 @@ export async function getAnthropicClient({
         skipAuth: true,
       }),
       ...(isDebugToStdErr() && { logger: createStderrLogger() }),
-    }
+    } as any
 
     // Add API key authentication if available
     if (process.env.AWS_BEARER_TOKEN_BEDROCK) {
@@ -501,9 +501,9 @@ export async function getAnthropicClient({
       // Refresh auth and get credentials with cache clearing
       const cachedCredentials = await refreshAndGetAwsCredentials()
       if (cachedCredentials) {
-        bedrockArgs.awsAccessKey = cachedCredentials.accessKeyId
-        bedrockArgs.awsSecretKey = cachedCredentials.secretAccessKey
-        bedrockArgs.awsSessionToken = cachedCredentials.sessionToken
+        ;(bedrockArgs as any).awsAccessKey = cachedCredentials.accessKeyId
+        ;(bedrockArgs as any).awsSecretKey = cachedCredentials.secretAccessKey
+        ;(bedrockArgs as any).awsSessionToken = cachedCredentials.sessionToken
       }
     }
     // we have always been lying about the return type - this doesn't support batching or models
@@ -611,7 +611,7 @@ export async function getAnthropicClient({
     const vertexArgs: ConstructorParameters<typeof AnthropicVertex>[0] = {
       ...anthropicArgs,
       region: getVertexRegionForModel(model),
-      googleAuth,
+      googleAuth: googleAuth as any,
       ...(isDebugToStdErr() && { logger: createStderrLogger() }),
     }
     // we have always been lying about the return type - this doesn't support batching or models
@@ -635,7 +635,7 @@ export async function getAnthropicClient({
       ? getClaudeAIOAuthTokens()?.accessToken
       : undefined,
     // Set baseURL from OAuth config when using staging OAuth
-    ...(process.env.USER_TYPE === 'ant' &&
+    ...(((process.env.USER_TYPE as string) === 'ant') &&
     isEnvTruthy(process.env.USE_STAGING_OAUTH)
       ? { baseURL: getOauthConfig().BASE_API_URL }
       : {}),

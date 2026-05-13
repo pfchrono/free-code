@@ -17,6 +17,7 @@ import { jsonStringify } from '../../utils/slowOperations.js';
 import { ConfigurableShortcutHint } from '../ConfigurableShortcutHint.js';
 import { Byline } from '../design-system/Byline.js';
 import { ProgressBar } from '../design-system/ProgressBar.js';
+import { CodexUsage } from './CodexUsage.js';
 import { isEligibleForOverageCreditGrant, OverageCreditUpsell } from '../LogoV2/OverageCreditUpsell.js';
 type LimitBarProps = {
   title: string;
@@ -25,7 +26,7 @@ type LimitBarProps = {
   showTimeInReset?: boolean;
   extraSubtext?: string;
 };
-function LimitBar(t0) {
+function LimitBar(t0: any) {
   const $ = _c(34);
   const {
     title,
@@ -174,7 +175,7 @@ function LimitBar(t0) {
     return t8;
   }
 }
-function CurrentSessionUsageSection(t0) {
+function CurrentSessionUsageSection(t0: any) {
   const {
     providerLabel,
     showProviderNote
@@ -255,6 +256,9 @@ export function Usage(): React.ReactNode {
     context: 'Settings',
     isActive: !!error && !isLoading
   });
+  if (apiProvider === 'codex') {
+    return <CodexUsage />;
+  }
   if (error) {
     return <Box flexDirection="column" gap={1}>
         <Text color="error">Error: {error}</Text>
@@ -326,7 +330,7 @@ type ExtraUsageSectionProps = {
   maxWidth: number;
 };
 const EXTRA_USAGE_SECTION_TITLE = 'Extra usage';
-function ExtraUsageSection(t0) {
+function ExtraUsageSection(t0: any) {
   const $ = _c(20);
   const {
     extraUsage,

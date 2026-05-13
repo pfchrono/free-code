@@ -44,6 +44,12 @@ import { getEffortSuffix } from '../../utils/effort.js';
 import { useMainLoopModel } from '../../hooks/useMainLoopModel.js';
 import { renderModelSetting } from '../../utils/model/model.js';
 const LEFT_PANEL_MAX_WIDTH = 50;
+function GateOverridesWarning(): React.ReactNode {
+  return null;
+}
+function ExperimentEnrollmentNotice(): React.ReactNode {
+  return null;
+}
 export function LogoV2() {
   const $ = _c(94);
   const activities = getRecentActivitySync();

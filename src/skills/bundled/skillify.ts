@@ -7,7 +7,7 @@ function extractUserMessages(messages: Message[]): string[] {
   return messages
     .filter((m): m is Extract<typeof m, { type: 'user' }> => m.type === 'user')
     .map(m => {
-      const content = m.message.content
+      const content = (m as any).message.content
       if (typeof content === 'string') return content
       return content
         .filter(
@@ -156,7 +156,7 @@ After writing, tell the user:
 `
 
 export function registerSkillifySkill(): void {
-  if (process.env.USER_TYPE !== 'ant') {
+  if (((process.env.USER_TYPE as string) !== 'ant')) {
     return
   }
 

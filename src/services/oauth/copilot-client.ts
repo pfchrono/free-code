@@ -1,5 +1,6 @@
 import { logEvent } from 'src/services/analytics/index.js'
 import {
+  COPILOT_API_BASE_URL,
   COPILOT_ACCESS_TOKEN_URL,
   COPILOT_DEVICE_CODE_URL,
   COPILOT_GITHUB_APP_ID,

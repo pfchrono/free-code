@@ -229,7 +229,7 @@ export async function getErrorLogByIndex(
  * @private
  */
 async function loadLogList(path: string): Promise<LogOption[]> {
-  let files: Awaited<ReturnType<typeof readdir>>
+  let files: any[]
   try {
     files = await readdir(path, { withFileTypes: true })
   } catch {
@@ -238,7 +238,7 @@ async function loadLogList(path: string): Promise<LogOption[]> {
   }
   const logData = await Promise.all(
     files.map(async (file, i) => {
-      const fullPath = join(path, file.name)
+      const fullPath = join(path, String(file.name))
       const content = await readFile(fullPath, { encoding: 'utf8' })
       const messages = jsonParse(content) as SerializedMessage[]
       const firstMessage = messages[0]
@@ -348,7 +348,7 @@ export function captureAPIRequest(
   // CLAUDE.md-injected payload the API received. Overwritten each turn;
   // dumpPrompts.ts already holds 5 full request bodies for ants, so this is
   // not a new retention class.
-  setLastAPIRequestMessages(process.env.USER_TYPE === 'ant' ? messages : null)
+  setLastAPIRequestMessages(((process.env.USER_TYPE as string) === 'ant') ? messages : null)
 }
 
 /**

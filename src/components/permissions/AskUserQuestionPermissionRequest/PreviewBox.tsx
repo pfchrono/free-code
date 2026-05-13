@@ -36,7 +36,7 @@ const BOX_CHARS = {
  * Truncates content that exceeds maxLines with an indicator.
  * The parent component should pass maxLines based on its available height budget.
  */
-export function PreviewBox(props) {
+export function PreviewBox(props: any) {
   const $ = _c(4);
   const settings = useSettings();
   if (settings.syntaxHighlightingDisabled) {
@@ -60,7 +60,7 @@ export function PreviewBox(props) {
   }
   return t0;
 }
-function PreviewBoxWithHighlight(props) {
+function PreviewBoxWithHighlight(props: any) {
   const $ = _c(4);
   let t0;
   if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
@@ -81,7 +81,7 @@ function PreviewBoxWithHighlight(props) {
   }
   return t1;
 }
-function PreviewBoxBody(t0) {
+function PreviewBoxBody(t0: any) {
   const $ = _c(34);
   const {
     content,

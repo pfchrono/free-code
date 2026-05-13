@@ -43,7 +43,7 @@ describe('hook command Windows override', () => {
       command_windows: 'powershell -File .\\hooks\\pre.ps1',
     })
 
-    expect(getEffectiveCommandHookCommand(parsed, true)).toBe(
+    expect(getEffectiveCommandHookCommand(parsed as any, true)).toBe(
       'powershell -File .\\hooks\\pre.ps1',
     )
   })

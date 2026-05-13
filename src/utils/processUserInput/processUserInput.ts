@@ -40,6 +40,7 @@ import { logForDebugging } from '../debug.js'
 import type { EffortValue } from '../effort.js'
 import { toArray } from '../generators.js'
 import {
+  type AggregatedHookResult,
   executeUserPromptSubmitHooks,
   getUserPromptSubmitHookBlockingMessage,
 } from '../hooks.js'
@@ -183,9 +184,7 @@ export async function processUserInput({
   // Execute UserPromptSubmit hooks and handle blocking
   queryCheckpoint('query_hooks_start')
   const inputMessage = getContentText(input) || ''
-  let hookResults: Awaited<
-    ReturnType<typeof toArray<ReturnType<typeof executeUserPromptSubmitHooks>>>
-  >
+  let hookResults: AggregatedHookResult[]
   try {
     hookResults = await withTimeout(
       toArray(

@@ -4,6 +4,9 @@ All notable changes to free-code are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **Typecheck recovery** -- Restored `bun run typecheck` to a clean pass by fixing the underlying type errors across SDK message shapes, tool/result adapters, provider/runtime edges, generated compatibility types, and tests without enabling `noCheck` or equivalent suppression.
+
 ## [0.6.6] - 2026-05-13
 
 ### Recent commits

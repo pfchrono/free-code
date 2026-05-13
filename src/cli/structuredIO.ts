@@ -350,8 +350,9 @@ export class StructuredIO {
         // Used by bridge session runner for auth token refresh
         // (CLAUDE_CODE_SESSION_ACCESS_TOKEN) which must be readable
         // by the REPL process itself, not just child Bash commands.
-        const keys = Object.keys(message.variables)
-        for (const [key, value] of Object.entries(message.variables)) {
+        const variables = message.variables as Record<string, string>
+        const keys = Object.keys(variables)
+        for (const [key, value] of Object.entries(variables)) {
           process.env[key] = value
         }
         logForDebugging(

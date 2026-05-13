@@ -3,7 +3,7 @@
  * Compresses large code files for context-efficient API submissions
  */
 
-interface FileSummary {
+export interface FileSummary {
   filePath: string
   fileSize: number
   lineCount: number
@@ -19,7 +19,7 @@ interface FileSummary {
   compressionRatio: number
 }
 
-interface DirectorySummary {
+export interface DirectorySummary {
   dirPath: string
   filesAnalyzed: number
   totalOriginalSize: number

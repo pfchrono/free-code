@@ -96,7 +96,7 @@ export async function hydrateResumeSummaries(logs: LogOption[]): Promise<LogOpti
   hydrated.splice(0, limit, ...enriched);
   return hydrated;
 }
-function ResumeError(t0) {
+function ResumeError(t0: any) {
   const $ = _c(10);
   const {
     message,
@@ -214,11 +214,11 @@ function ResumeCommand({
       }
 
       // Different project - show command instead of resuming
-      const raw = await setClipboard(crossProjectCheck.command);
+      const raw = await setClipboard((crossProjectCheck as any).command);
       if (raw) process.stdout.write(raw);
 
       // Format the output message
-      const message = ['', 'This conversation is from a different directory.', '', 'To resume, run:', `  ${crossProjectCheck.command}`, '', '(Command copied to clipboard)', ''].join('\n');
+      const message = ['', 'This conversation is from a different directory.', '', 'To resume, run:', `  ${(crossProjectCheck as any).command}`, '', '(Command copied to clipboard)', ''].join('\n');
       onDone(message, {
         display: 'user'
       });

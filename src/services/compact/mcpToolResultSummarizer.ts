@@ -126,6 +126,7 @@ const TOOL_SUMMARY_CONFIGS: Record<string, ToolSummaryConfig> = {
   },
   'github-get_pull_request': {
     maxSummaryTokens: 350,
+    maxInputChars: 4000,
     role: 'PR analyst',
     promptTemplate: `Summarize this pull request. Report: title, author, status, number of files changed, additions/deletions. Note key changes and review status.`,
   },
@@ -264,7 +265,7 @@ ${truncated}`
           enablePromptCaching: false,
           model: 'nvidia/llama-3.1-nemotron-super-49b-v1',
         },
-      })
+      }) as any
     } else {
       response = await queryHaiku({
         systemPrompt: asSystemPrompt([
@@ -280,7 +281,7 @@ ${truncated}`
           mcpTools: [],
           enablePromptCaching: false,
         },
-      })
+      }) as any
     }
 
     // Extract text from response
@@ -307,7 +308,7 @@ ${truncated}`
       originalLength,
       summaryLength,
       compressionRatio: originalLength > 0 ? (1 - summaryLength / originalLength) * 100 : 0,
-    })
+    } as any)
 
     return { summary, originalLength, summaryLength }
   } catch (error) {
@@ -315,7 +316,7 @@ ${truncated}`
     logEvent('redqueen_summarize_failed', {
       tool,
       error: error instanceof Error ? error.message : String(error),
-    })
+    } as any)
 
     // Return a graceful truncation instead of the full content
     const fallback = truncateForPrompt(

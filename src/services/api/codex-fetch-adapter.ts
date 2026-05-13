@@ -374,7 +374,7 @@ async function postCodexResponses(
 
     return new Response(streamBody, {
       status: axiosResponse.status,
-      headers: normalizeAxiosHeaders(axiosResponse.headers),
+      headers: normalizeAxiosHeaders(axiosResponse.headers as any),
     })
   }
 }

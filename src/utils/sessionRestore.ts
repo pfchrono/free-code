@@ -530,7 +530,7 @@ export async function processResumedConversation(
       persistedState?.compactionHistory?.at(-1),
     )
     if (summary) {
-      result.messages.push(createSystemMessage(summary))
+      result.messages.push(createSystemMessage(summary, 'info'))
     }
   }
 

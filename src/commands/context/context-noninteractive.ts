@@ -86,7 +86,7 @@ export async function collectContextData(
         systemPromptOverride,
         slashCommandInfoOverride,
       },
-    } as Pick<ToolUseContext, 'options'>,
+    } as unknown as Pick<ToolUseContext, 'options'>,
     mainThreadAgentDefinition,
     apiView, // original messages for API usage extraction
   )
@@ -219,7 +219,7 @@ function formatContextAsMarkdownTable(data: ContextData): string {
   if (
     systemTools &&
     systemTools.length > 0 &&
-    process.env.USER_TYPE === 'ant'
+    ((process.env.USER_TYPE as string) === 'ant')
   ) {
     output += `### [ANT-ONLY] System Tools\n\n`
     output += `| Tool | Tokens |\n`
@@ -234,7 +234,7 @@ function formatContextAsMarkdownTable(data: ContextData): string {
   if (
     systemPromptSections &&
     systemPromptSections.length > 0 &&
-    process.env.USER_TYPE === 'ant'
+    ((process.env.USER_TYPE as string) === 'ant')
   ) {
     output += `### [ANT-ONLY] System Prompt Sections\n\n`
     output += `| Section | Tokens |\n`
@@ -305,7 +305,7 @@ function formatContextAsMarkdownTable(data: ContextData): string {
   }
 
   // Message breakdown (ant-only)
-  if (messageBreakdown && process.env.USER_TYPE === 'ant') {
+  if (messageBreakdown && ((process.env.USER_TYPE as string) === 'ant')) {
     output += `### [ANT-ONLY] Message Breakdown\n\n`
     output += `| Category | Tokens |\n`
     output += `|----------|--------|\n`

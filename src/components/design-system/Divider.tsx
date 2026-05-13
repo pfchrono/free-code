@@ -65,7 +65,7 @@ type DividerProps = {
  * // With centered title
  * <Divider title="3 new messages" />
  */
-export function Divider(t0) {
+export function Divider(t0: any) {
   const $ = _c(21);
   const {
     width,

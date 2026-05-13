@@ -493,7 +493,7 @@ export async function runHeadless(
   },
 ): Promise<void> {
   if (
-    process.env.USER_TYPE === 'ant' &&
+    ((process.env.USER_TYPE as string) === 'ant') &&
     isEnvTruthy(process.env.CLAUDE_CODE_EXIT_AFTER_FIRST_RENDER)
   ) {
     process.stderr.write(
@@ -1789,7 +1789,7 @@ function runHeadlessStreaming(
         type === 'http' ||
         type === 'sdk'
       ) {
-        supportedConfigs[name] = config
+        supportedConfigs[name] = config as any
       }
     }
     for (const [name, config] of Object.entries(sdkMcpConfigs)) {
@@ -4157,7 +4157,7 @@ function runHeadlessStreaming(
             output.enqueue({
               type: 'user',
               message: message.message,
-              session_id: sessionId,
+              session_id: getSessionId(),
               parent_tool_use_id: null,
               uuid: message.uuid,
               timestamp: message.timestamp,
@@ -4237,7 +4237,7 @@ function runHeadlessStreaming(
           output.enqueue({
             type: 'user',
             message: message.message,
-            session_id: sessionId,
+            session_id: getSessionId(),
             parent_tool_use_id: null,
             uuid: message.uuid,
             timestamp: message.timestamp,
@@ -4259,7 +4259,7 @@ function runHeadlessStreaming(
                 context_management: null,
               },
               parent_tool_use_id: null,
-              session_id: sessionId,
+              session_id: getSessionId(),
               uuid: randomUUID(),
             })
           }
@@ -4272,7 +4272,7 @@ function runHeadlessStreaming(
             is_error: false,
             num_turns: 1,
             result: outputText,
-            session_id: sessionId,
+            session_id: getSessionId(),
             total_cost_usd: 0,
             usage: {
               input_tokens: 0,
@@ -4627,7 +4627,7 @@ async function handleInitializeRequest(
   if (request.hooks) {
     const hooks: Partial<Record<HookEvent, HookCallbackMatcher[]>> = {}
     for (const [event, matchers] of Object.entries(request.hooks)) {
-      hooks[event as HookEvent] = matchers.map(matcher => {
+      hooks[event as HookEvent] = (matchers as any[]).map(matcher => {
         const callbacks = matcher.hookCallbackIds.map(callbackId => {
           return structuredIO.createHookCallback(callbackId, matcher.timeout)
         })

@@ -121,13 +121,13 @@ describe('createCodexFetch', () => {
           '',
         ].join('\n'),
       )
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const stderrWrites: string[] = []
     process.stderr.write = mock(((chunk: string | Uint8Array) => {
       stderrWrites.push(String(chunk))
       return true
-    }) as typeof process.stderr.write)
+    }) as any)
 
     const codexFetch = createCodexFetch(makeCodexToken())
     const response = await codexFetch('https://api.anthropic.com/v1/messages', {
@@ -182,7 +182,7 @@ describe('createCodexFetch', () => {
           '',
         ].join('\n'),
       )
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const codexFetch = createCodexFetch(makeCodexToken())
     const response = await codexFetch('https://api.anthropic.com/v1/messages', {
@@ -225,7 +225,7 @@ describe('createCodexFetch', () => {
           '',
         ].join('\n'),
       )
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const codexFetch = createCodexFetch(makeCodexToken())
     const response = await codexFetch('https://api.anthropic.com/v1/messages', {
@@ -275,7 +275,7 @@ describe('createCodexFetch', () => {
           '',
         ].join('\n'),
       )
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const codexFetch = createCodexFetch(makeCodexToken())
     const response = await codexFetch('https://api.anthropic.com/v1/messages', {
@@ -319,7 +319,7 @@ describe('createCodexFetch', () => {
           '',
         ].join('\n'),
       )
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const codexFetch = createCodexFetch(makeCodexToken())
     const response = await codexFetch('https://api.anthropic.com/v1/messages', {

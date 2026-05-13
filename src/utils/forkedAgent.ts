@@ -195,7 +195,7 @@ export async function prepareForkedCommandContext(
 ): Promise<PreparedForkedContext> {
   // Get skill content with $ARGUMENTS replaced
   const skillPrompt = await command.getPromptForCommand(args, context)
-  const skillContent = skillPrompt
+  const skillContent = (Array.isArray(skillPrompt) ? skillPrompt : [])
     .map(block => (block.type === 'text' ? block.text : ''))
     .join('\n')
 

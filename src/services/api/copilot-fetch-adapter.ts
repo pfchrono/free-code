@@ -170,7 +170,7 @@ async function postCopilotChat(
 
     return new Response(streamBody, {
       status: axiosResponse.status,
-      headers: normalizeAxiosHeaders(axiosResponse.headers),
+      headers: normalizeAxiosHeaders(axiosResponse.headers as any),
     })
   }
 }
@@ -354,7 +354,7 @@ function estimateInputTokens(
   tools: AnthropicTool[],
 ): number {
   const messageTokens = roughTokenCountEstimationForMessages(
-    messages as Parameters<typeof roughTokenCountEstimationForMessages>[0],
+    messages as unknown as Parameters<typeof roughTokenCountEstimationForMessages>[0],
   )
   const systemTokens =
     typeof systemPrompt === 'string'
@@ -1245,7 +1245,7 @@ export function createCopilotFetch(
     }
   }, {
     preconnect: globalThis.fetch.preconnect?.bind(globalThis.fetch),
-  }) as typeof fetch
+  }) as unknown as typeof fetch
 
   return wrappedFetch
 }

@@ -2416,6 +2416,7 @@ export async function getMcpToolsCommandsAndResources(
     string,
     ScopedMcpServerConfig,
   ]): Promise<void> => {
+    let client: Awaited<ReturnType<typeof connectToServer>> | undefined
     try {
       // Check if server is disabled - if so, just add it to state without connecting
       if (isMcpServerDisabled(name)) {
@@ -2455,7 +2456,7 @@ export async function getMcpToolsCommandsAndResources(
         return
       }
 
-      let client = await connectToServer(name, config, serverStats)
+      client = await connectToServer(name, config, serverStats)
 
       if (client.type !== 'connected') {
         onConnectionAttempt({
@@ -2504,11 +2505,13 @@ export async function getMcpToolsCommandsAndResources(
 
       // Preserve auth-required state from the connection attempt instead of
       // collapsing every reconnect error into a generic failed status.
-      onConnectionAttempt({
-        client,
-        tools: client.type === 'needs-auth' ? [createMcpAuthTool(name, config)] : [],
-        commands: [],
-      })
+      if (typeof client !== 'undefined') {
+        onConnectionAttempt({
+          client,
+          tools: client.type === 'needs-auth' ? [createMcpAuthTool(name, config)] : [],
+          commands: [],
+        })
+      }
     }
   }
 
@@ -2890,7 +2893,7 @@ export async function processMCPResult(
   // Save large output to file and return instructions for reading it
   // Content is guaranteed to exist at this point (we checked mcpContentNeedsTruncation)
   if (!content) {
-    return content
+    return { content: content as any, redQueenStats }
   }
 
   // If content contains images, fall back to truncation - persisting images as JSON
@@ -2920,7 +2923,10 @@ export async function processMCPResult(
       reason: 'persist_failed',
       sizeEstimateTokens,
     } as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS)
-    return `Error: result (${contentLength.toLocaleString()} characters) exceeds maximum allowed tokens. Failed to save output to file: ${persistResult.error}. If this MCP server provides pagination or filtering tools, use them to retrieve specific portions of the data.`
+    return {
+      content: `Error: result (${contentLength.toLocaleString()} characters) exceeds maximum allowed tokens. Failed to save output to file: ${persistResult.error}. If this MCP server provides pagination or filtering tools, use them to retrieve specific portions of the data.` as any,
+      redQueenStats,
+    }
   }
 
   logEvent('tengu_mcp_large_result_handled', {
@@ -2954,10 +2960,10 @@ export async function processMCPResult(
         signal,
       },
     )
-    largeOutputInstructions = compressed.content
+    largeOutputInstructions = compressed.content as string
   }
 
-  return largeOutputInstructions
+  return { content: largeOutputInstructions as any, redQueenStats }
 }
 
 /**
@@ -3348,7 +3354,7 @@ async function callMCPTool({
       : undefined
 
     return {
-      content,
+      content: content as MCPToolResult,
       _meta: {
         ...(result._meta as Record<string, unknown>),
         ...(redQueenStats ? { redQueenStats } : {}),

@@ -26,8 +26,8 @@ export function createGuiCommandStream(handlers: GuiCommandStreamHandlers): {
       const decoded = decodeGuiCommand(rawLine)
       if (decoded.ok) {
         handlers.onCommand(decoded.command)
-      } else if (decoded.reason !== 'empty_line') {
-        handlers.onDecodeError?.(rawLine, decoded)
+    } else if ((decoded as any).reason !== 'empty_line') {
+      handlers.onDecodeError?.(rawLine, decoded as any)
       }
 
       newlineIndex = buffer.indexOf('\n')

@@ -252,7 +252,7 @@ describe('built-in preset request shapes', () => {
       capturedUrl = typeof input === 'string' ? input : input.toString()
       capturedHeaders = (init?.headers ?? {}) as Record<string, string>
       return new Response(JSON.stringify({ items: [] }), { status: 200 })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const { customProvider } = require('./custom.js')
     await customProvider.search({ query: 'hello world' })
@@ -292,7 +292,7 @@ describe('built-in preset request shapes', () => {
     globalThis.fetch = (async (_input: any, init: any) => {
       capturedHeaders = (init?.headers ?? {}) as Record<string, string>
       return new Response(JSON.stringify({ web: { results: [] } }), { status: 200 })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const { customProvider } = require('./custom.js')
     await customProvider.search({ query: 'q' })

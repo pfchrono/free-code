@@ -14,6 +14,7 @@ import { openPath } from '../../utils/browser.js';
 /* eslint-disable @typescript-eslint/no-require-imports */
 const teamMemSaved = feature('TEAMMEM') ? require('./teamMemSaved.js') as typeof import('./teamMemSaved.js') : null;
 /* eslint-enable @typescript-eslint/no-require-imports */
+const HOOK_TIMING_DISPLAY_THRESHOLD_MS = 1_000;
 import { TURN_COMPLETION_VERBS } from '../../constants/turnCompletionVerbs.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import type { SystemMessage, SystemStopHookSummaryMessage, SystemBridgeStatusMessage, SystemTurnDurationMessage, SystemThinkingMessage, SystemMemorySavedMessage } from '../../types/message.js';
@@ -33,7 +34,7 @@ type Props = {
   verbose: boolean;
   isTranscriptMode?: boolean;
 };
-export function SystemTextMessage(t0) {
+export function SystemTextMessage(t0: any) {
   const $ = _c(51);
   const {
     message,
@@ -248,7 +249,7 @@ export function SystemTextMessage(t0) {
   }
   return t4;
 }
-function StopHookSummaryMessage(t0) {
+function StopHookSummaryMessage(t0: any) {
   const $ = _c(47);
   const {
     message,
@@ -426,7 +427,7 @@ function _temp2(info, idx) {
 function _temp(sum, h) {
   return sum + (h.durationMs ?? 0);
 }
-function SystemTextMessageInner(t0) {
+function SystemTextMessageInner(t0: any) {
   const $ = _c(18);
   const {
     content,
@@ -582,7 +583,7 @@ function TurnDurationMessage({
 function _temp4() {
   return sample(TURN_COMPLETION_VERBS) ?? "Worked";
 }
-function MemorySavedMessage(t0) {
+function MemorySavedMessage(t0: any) {
   const $ = _c(16);
   const {
     message,
@@ -657,7 +658,7 @@ function MemorySavedMessage(t0) {
 function _temp5(p) {
   return <MemoryFileRow key={p} path={p} />;
 }
-function MemoryFileRow(t0) {
+function MemoryFileRow(t0: any) {
   const $ = _c(16);
   const {
     path
@@ -721,7 +722,7 @@ function MemoryFileRow(t0) {
   }
   return t8;
 }
-function ThinkingMessage(t0) {
+function ThinkingMessage(t0: any) {
   const $ = _c(7);
   const {
     message,
@@ -756,7 +757,7 @@ function ThinkingMessage(t0) {
   }
   return t4;
 }
-function BridgeStatusMessage(t0) {
+function BridgeStatusMessage(t0: any) {
   const $ = _c(13);
   const {
     message,

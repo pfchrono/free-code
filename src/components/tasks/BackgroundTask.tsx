@@ -15,7 +15,7 @@ type Props = {
   task: DeepImmutable<BackgroundTaskState>;
   maxActivityWidth?: number;
 };
-export function BackgroundTask(t0) {
+export function BackgroundTask(t0: any) {
   const $ = _c(99);
   const {
     task,

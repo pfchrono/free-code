@@ -51,7 +51,7 @@ export type ImportTokenError =
 export async function importGithubToken(
   token: RedactedGithubToken,
 ): Promise<
-  | { ok: true; result: ImportTokenResult }
+  | { ok: true; result: ImportTokenResult; error?: undefined }
   | { ok: false; error: ImportTokenError }
 > {
   let accessToken: string, orgUUID: string

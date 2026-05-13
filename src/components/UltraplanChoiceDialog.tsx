@@ -89,6 +89,14 @@ export function UltraplanChoiceDialog({
     }
   }, [plan, selectedArtifact, sessionId])
 
+  const currentArtifact =
+    artifactDescriptors.find(item => item.key === selectedArtifact) ??
+    artifactDescriptors[0]
+  const currentContent =
+    selectedArtifact === 'plan'
+      ? artifactContents.plan ?? plan
+      : artifactContents[selectedArtifact] ?? null
+
   const handleChoice = useCallback(
     async (choice: UltraplanChoice) => {
       if (choice === 'preview-plan') {
@@ -136,7 +144,7 @@ export function UltraplanChoiceDialog({
             'info',
           ),
           createUserMessage({
-            content: prepareUserContent({ inputString: injected }),
+            content: prepareUserContent({ inputString: injected, precedingInputBlocks: [] }),
           }),
         ])
       }
@@ -149,7 +157,7 @@ export function UltraplanChoiceDialog({
             'info',
           ),
           createUserMessage({
-            content: prepareUserContent({ inputString: plan }),
+            content: prepareUserContent({ inputString: plan, precedingInputBlocks: [] }),
           }),
         ])
       }
@@ -191,13 +199,6 @@ export function UltraplanChoiceDialog({
     ],
   )
 
-  const currentArtifact =
-    artifactDescriptors.find(item => item.key === selectedArtifact) ??
-    artifactDescriptors[0]
-  const currentContent =
-    selectedArtifact === 'plan'
-      ? artifactContents.plan ?? plan
-      : artifactContents[selectedArtifact] ?? null
   const displayPreview = formatUltraplanArtifactPreview(
     selectedArtifact,
     currentContent,

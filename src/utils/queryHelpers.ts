@@ -62,7 +62,7 @@ export function isResultSuccessful(
   if (!message) return false
 
   if (message.type === 'assistant') {
-    const lastContent = last(message.message.content)
+    const lastContent = last(message.message.content as any[])
     return (
       lastContent?.type === 'text' ||
       lastContent?.type === 'thinking' ||
@@ -76,7 +76,7 @@ export function isResultSuccessful(
     if (
       Array.isArray(content) &&
       content.length > 0 &&
-      content.every(block => 'type' in block && block.type === 'tool_result')
+      content.every(block => 'type' in (block as any) && (block as any).type === 'tool_result')
     ) {
       return true
     }

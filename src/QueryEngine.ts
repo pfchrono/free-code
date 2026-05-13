@@ -33,6 +33,7 @@ import type { CanUseToolFn } from './hooks/useCanUseTool.js'
 import { loadMemoryPrompt } from './memdir/memdir.js'
 import { hasAutoMemPathOverride } from './memdir/paths.js'
 import { query } from './query.js'
+import { getUserContext } from './context.js'
 import {
   addGoalUsage,
   getGoal,
@@ -210,7 +211,7 @@ export type QueryEngineConfig = {
   tools: Tools
   commands: Command[]
   mcpClients: MCPServerConnection[]
-  agents: AgentDefinition[]
+  agents?: AgentDefinition[]
   canUseTool: CanUseToolFn
   getAppState: () => AppState
   setAppState: (f: (prev: AppState) => AppState) => void
@@ -247,7 +248,10 @@ export type QueryEngineConfig = {
   snipReplay?: (
     yieldedSystemMsg: Message,
     store: Message[],
-  ) => { messages: Message[]; executed: boolean } | undefined
+  ) =>
+    | { messages: Message[]; executed: boolean }
+    | Promise<{ messages: Message[]; executed: boolean }>
+    | undefined
 }
 
 /**
@@ -379,7 +383,7 @@ export class QueryEngine {
       tools,
       mainLoopModel: initialMainLoopModel,
       additionalWorkingDirectories: Array.from(
-        initialAppState.toolPermissionContext.additionalWorkingDirectories.keys(),
+        (initialAppState.toolPermissionContext.additionalWorkingDirectories as Map<string, unknown>).keys(),
       ),
       mcpClients,
       customSystemPrompt: customPrompt,
@@ -1000,7 +1004,7 @@ export class QueryEngine {
           // never shrinks (memory leak in long SDK sessions). The subtype
           // check lives inside the injected callback so feature-gated strings
           // stay out of this file (excluded-strings check).
-          const snipResult = this.config.snipReplay?.(
+          const snipResult = await this.config.snipReplay?.(
             message,
             this.mutableMessages,
           )
@@ -1177,14 +1181,14 @@ export class QueryEngine {
     // valid successful terminal state).
     const result = messages.findLast(
       m => m.type === 'assistant' || m.type === 'user',
-    )
+    ) as Message | undefined
     // Capture for the error_during_execution diagnostic — isResultSuccessful
     // is a type predicate (message is Message), so inside the false branch
     // `result` narrows to never and these accesses don't typecheck.
     const edeResultType = result?.type ?? 'undefined'
     const edeLastContentType =
       result?.type === 'assistant'
-        ? (last(result.message.content)?.type ?? 'none')
+        ? (((last(result.message.content) as any)?.type as string | undefined) ?? 'none')
         : 'n/a'
 
     // Flush buffered transcript writes before yielding result.
@@ -1242,7 +1246,7 @@ export class QueryEngine {
     let isApiError = false
 
     if (result.type === 'assistant') {
-      const lastContent = last(result.message.content)
+      const lastContent = last(result.message.content) as any
       if (
         lastContent?.type === 'text' &&
         !SYNTHETIC_MESSAGES.has(lastContent.text)
@@ -1350,7 +1354,7 @@ export class QueryEngine {
           throw new TypeError("'message.content' must be a string or array")
         }
       }
-      return msg
+      return msg as Message
     }, 'injectMessages')
     this.mutableMessages.push(...validated)
   }
@@ -1369,7 +1373,7 @@ export class QueryEngine {
           }
         }
       }
-      return agent
+      return agent as AgentDefinition
     }, 'injectAgents')
     this.config.agents = validated
   }

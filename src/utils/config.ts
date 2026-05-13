@@ -18,6 +18,7 @@ import { logForDebugging } from './debug.js'
 import { logForDiagnosticsNoPII } from './diagLogs.js'
 import { getGlobalClaudeFile } from './env.js'
 import { getClaudeConfigHomeDir, isEnvTruthy } from './envUtils.js'
+export type ProviderProfile = any
 import { ConfigParseError, getErrnoCode } from './errors.js'
 import { writeFileSyncAndFlush_DEPRECATED } from './file.js'
 import { getFsImplementation } from './fsOperations.js'
@@ -182,6 +183,7 @@ export type DiffTool = 'terminal' | 'auto'
 export type OutputStyle = string
 
 export type GlobalConfig = {
+  [key: string]: any
   /**
    * @deprecated Use settings.apiKeyHelper instead.
    */

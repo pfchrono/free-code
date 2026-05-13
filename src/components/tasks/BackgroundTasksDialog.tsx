@@ -114,7 +114,7 @@ const retryWorkflowAgent = workflowTaskModule?.retryWorkflowAgent ?? null;
 // Relative path, not `src/...` path-mapping — Bun's DCE can statically
 // resolve + eliminate `./` requires, but path-mapped strings stay opaque
 // and survive as dead literals in the bundle. Matches tasks.ts pattern.
-const monitorMcpModule = feature('MONITOR_TOOL') ? require('../../tasks/MonitorMcpTask/MonitorMcpTask.js') as typeof import('../../tasks/MonitorMcpTask/MonitorMcpTask.js') : null;
+const monitorMcpModule = feature('MONITOR_TOOL') ? require('../../tasks/MonitorMcpTask/MonitorMcpTask.js') as any : null;
 const killMonitorMcp = monitorMcpModule?.killMonitorMcp ?? null;
 const MonitorMcpDetailDialog = feature('MONITOR_TOOL') ? (require('./MonitorMcpDetailDialog.js') as typeof import('./MonitorMcpDetailDialog.js')).MonitorMcpDetailDialog : null;
 /* eslint-enable @typescript-eslint/no-require-imports */
@@ -549,7 +549,7 @@ function toListItem(task: BackgroundTaskState): ListItem {
       };
   }
 }
-function Item(t0) {
+function Item(t0: any) {
   const $ = _c(14);
   const {
     item,
@@ -609,7 +609,7 @@ function Item(t0) {
   }
   return t8;
 }
-function TeammateTaskGroups(t0) {
+function TeammateTaskGroups(t0: any) {
   const $ = _c(3);
   const {
     teammateTasks,

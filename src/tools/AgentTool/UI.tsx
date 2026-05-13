@@ -99,7 +99,7 @@ type ProcessedMessage = {
  */
 function processProgressMessages(messages: ProgressMessage<Progress>[], tools: Tools, isAgentRunning: boolean): ProcessedMessage[] {
   // Only process for ants
-  if ("external" !== 'ant') {
+  if (true) {
     return messages.filter((m): m is ProgressMessage<AgentToolProgress> => hasProgressMessage(m.data) && m.data.message.type !== 'user').map(m => ({
       type: 'original',
       message: m
@@ -181,7 +181,7 @@ function processProgressMessages(messages: ProgressMessage<Progress>[], tools: T
 const ESTIMATED_LINES_PER_TOOL = 9;
 const TERMINAL_BUFFER_LINES = 7;
 type Output = z.input<ReturnType<typeof outputSchema>>;
-export function AgentPromptDisplay(t0) {
+export function AgentPromptDisplay(t0: any) {
   const $ = _c(3);
   const {
     prompt,
@@ -205,7 +205,7 @@ export function AgentPromptDisplay(t0) {
   }
   return t3;
 }
-export function AgentResponseDisplay(t0) {
+export function AgentResponseDisplay(t0: any) {
   const $ = _c(5);
   const {
     content
@@ -243,7 +243,7 @@ type VerboseAgentTranscriptProps = {
   tools: Tools;
   verbose: boolean;
 };
-function VerboseAgentTranscript(t0) {
+function VerboseAgentTranscript(t0: any) {
   const $ = _c(15);
   const {
     progressMessages,
@@ -382,10 +382,10 @@ export function renderToolResultMessage(data: Output, progressMessagesForMessage
       inference_geo: null,
       iterations: null,
       speed: null
-    }
+    } as any
   });
   return <Box flexDirection="column">
-      {process.env.USER_TYPE === 'ant' && <MessageResponse>
+      {((process.env.USER_TYPE as string) === 'ant') && <MessageResponse>
           <Text color="warning">
             [ANT-ONLY] API calls: {getDisplayPath(getDumpPromptsPath(agentId))}
           </Text>
@@ -591,7 +591,7 @@ export function renderToolUseRejectedMessage(_input: {
   const firstData = progressMessagesForMessage[0]?.data;
   const agentId = firstData && hasProgressMessage(firstData) ? firstData.agentId : undefined;
   return <>
-      {process.env.USER_TYPE === 'ant' && agentId && <MessageResponse>
+      {((process.env.USER_TYPE as string) === 'ant') && agentId && <MessageResponse>
           <Text color="warning">
             [ANT-ONLY] API calls: {getDisplayPath(getDumpPromptsPath(agentId))}
           </Text>

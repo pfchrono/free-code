@@ -868,6 +868,7 @@ export function reorderMessagesInUI(
   | AttachmentMessage
   | SystemMessage
 )[] {
+  const groupedMessages = messages as any[]
   // Maps tool use ID to its related messages
   const toolUseGroups = new Map<
     string,
@@ -880,7 +881,7 @@ export function reorderMessagesInUI(
   >()
 
   // First pass: group messages by tool use ID
-  for (const message of messages) {
+  for (const message of groupedMessages) {
     // Handle tool use messages
     if (isToolUseRequestMessage(message)) {
       const toolUseID = message.message.content[0]?.id
@@ -901,9 +902,9 @@ export function reorderMessagesInUI(
     // Handle pre-tool-use hooks
     if (
       isHookAttachmentMessage(message) &&
-      message.attachment.hookEvent === 'PreToolUse'
+      (message as any).attachment.hookEvent === 'PreToolUse'
     ) {
-      const toolUseID = message.attachment.toolUseID
+      const toolUseID = (message as any).attachment.toolUseID
       if (!toolUseGroups.has(toolUseID)) {
         toolUseGroups.set(toolUseID, {
           toolUse: null,
@@ -918,10 +919,10 @@ export function reorderMessagesInUI(
 
     // Handle tool results
     if (
-      message.type === 'user' &&
-      message.message.content[0]?.type === 'tool_result'
+      (message as any).type === 'user' &&
+      (message as any).message.content[0]?.type === 'tool_result'
     ) {
-      const toolUseID = message.message.content[0].tool_use_id
+      const toolUseID = (message as any).message.content[0].tool_use_id
       if (!toolUseGroups.has(toolUseID)) {
         toolUseGroups.set(toolUseID, {
           toolUse: null,
@@ -937,9 +938,9 @@ export function reorderMessagesInUI(
     // Handle post-tool-use hooks
     if (
       isHookAttachmentMessage(message) &&
-      message.attachment.hookEvent === 'PostToolUse'
+      (message as any).attachment.hookEvent === 'PostToolUse'
     ) {
-      const toolUseID = message.attachment.toolUseID
+      const toolUseID = (message as any).attachment.toolUseID
       if (!toolUseGroups.has(toolUseID)) {
         toolUseGroups.set(toolUseID, {
           toolUse: null,
@@ -962,7 +963,7 @@ export function reorderMessagesInUI(
   )[] = []
   const processedToolUses = new Set<string>()
 
-  for (const message of messages) {
+  for (const message of groupedMessages) {
     // Check if this is a tool use
     if (isToolUseRequestMessage(message)) {
       const toolUseID = message.message.content[0]?.id
@@ -985,23 +986,23 @@ export function reorderMessagesInUI(
     // Check if this message is part of a tool use group
     if (
       isHookAttachmentMessage(message) &&
-      (message.attachment.hookEvent === 'PreToolUse' ||
-        message.attachment.hookEvent === 'PostToolUse')
+      ((message as any).attachment.hookEvent === 'PreToolUse' ||
+        (message as any).attachment.hookEvent === 'PostToolUse')
     ) {
       // Skip - already handled in tool use groups
       continue
     }
 
     if (
-      message.type === 'user' &&
-      message.message.content[0]?.type === 'tool_result'
+      (message as any).type === 'user' &&
+      (message as any).message.content[0]?.type === 'tool_result'
     ) {
       // Skip - already handled in tool use groups
       continue
     }
 
     // Handle api error messages (only keep the last one)
-    if (message.type === 'system' && message.subtype === 'api_error') {
+    if ((message as any).type === 'system' && (message as any).subtype === 'api_error') {
       const last = result.at(-1)
       if (last?.type === 'system' && last.subtype === 'api_error') {
         result[result.length - 1] = message
@@ -1029,7 +1030,7 @@ export function reorderMessagesInUI(
 
 function isHookAttachmentMessage(
   message: Message,
-): message is AttachmentMessage<HookAttachment> {
+): message is AttachmentMessage<any> {
   return (
     message.type === 'attachment' &&
     (message.attachment.type === 'hook_blocking_error' ||
@@ -1494,7 +1495,7 @@ export function reorderAttachmentsForAPI(messages: Message[]): Message[] {
 
     if (message.type === 'attachment') {
       // Collect attachment to bubble up
-      pendingAttachments.push(message)
+      pendingAttachments.push(message as AttachmentMessage)
     } else {
       // Check if this is a stopping point
       const isStoppingPoint =
@@ -2561,7 +2562,7 @@ function smooshIntoToolResult(
   // results) and matches the legacy smoosh output shape.
   if (allText && (existing === undefined || typeof existing === 'string')) {
     const joined = [
-      (existing ?? '').trim(),
+      String(existing ?? '').trim(),
       ...blocks.map(b => (b as TextBlockParam).text.trim()),
     ]
       .filter(Boolean)
@@ -2686,7 +2687,7 @@ export function normalizeContentFromAPI(
               toolName: sanitizeToolNameForAnalytics(contentBlock.name),
               inputLen: contentBlock.input.length,
             })
-            if (process.env.USER_TYPE === 'ant') {
+            if (((process.env.USER_TYPE as string) === 'ant')) {
               logForDebugging(
                 `tool input JSON parse fail: ${contentBlock.input.slice(0, 200)}`,
                 { level: 'warn' },

@@ -273,7 +273,7 @@ async function executeForkedSlashCommand(command: CommandBase & PromptCommand, a
   logForDebugging(`Forked slash command /${command.name} completed with agent ${agentId}`);
 
   // Prepend debug log for ant users so it appears inside the command output
-  if (process.env.USER_TYPE === 'ant') {
+  if (((process.env.USER_TYPE as string) === 'ant')) {
     resultText = `[ANT-ONLY] API calls: ${getDisplayPath(getDumpPromptsPath(agentId))}\n${resultText}`;
   }
 
@@ -431,7 +431,7 @@ export async function processSlashCommand(inputString: string, precedingInputBlo
     logEvent('tengu_input_command', {
       ...eventData,
       invocation_trigger: 'user-slash' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-      ...(process.env.USER_TYPE === 'ant' && {
+      ...(((process.env.USER_TYPE as string) === 'ant') && {
         skill_name: commandName as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
         ...(returnedCommand.type === 'prompt' && {
           skill_source: returnedCommand.source as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
@@ -499,7 +499,7 @@ export async function processSlashCommand(inputString: string, precedingInputBlo
   logEvent('tengu_input_command', {
     ...eventData,
     invocation_trigger: 'user-slash' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
-    ...(process.env.USER_TYPE === 'ant' && {
+    ...(((process.env.USER_TYPE as string) === 'ant') && {
       skill_name: commandName as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       ...(returnedCommand.type === 'prompt' && {
         skill_source: returnedCommand.source as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
@@ -890,20 +890,21 @@ async function getMessagesForPromptSlashCommand(command: CommandBase & PromptCom
   // Skills are tagged with their agentId so only skills belonging to the current
   // agent are restored during compaction (preventing cross-agent leaks).
   const skillPath = command.source ? `${command.source}:${command.name}` : command.name;
-  const skillContent = result.filter((b): b is TextBlockParam => b.type === 'text').map(b => b.text).join('\n\n');
+  const resultBlocks = Array.isArray(result) ? result : []
+  const skillContent = resultBlocks.filter((b): b is TextBlockParam => b.type === 'text').map(b => b.text).join('\n\n');
   addInvokedSkill(command.name, skillPath, skillContent, getAgentContext()?.agentId ?? null);
   const metadata = formatCommandLoadingMetadata(command, args);
   const additionalAllowedTools = parseToolListFromCLI(command.allowedTools ?? []);
 
   // Create content for the main message, including any pasted images
-  const mainMessageContent: ContentBlockParam[] = imageContentBlocks.length > 0 || precedingInputBlocks.length > 0 ? [...imageContentBlocks, ...precedingInputBlocks, ...result] : result;
+  const mainMessageContent: ContentBlockParam[] = imageContentBlocks.length > 0 || precedingInputBlocks.length > 0 ? [...imageContentBlocks, ...precedingInputBlocks, ...resultBlocks] : resultBlocks;
 
   // Extract attachments from command arguments (@-mentions, MCP resources,
   // agent mentions in SKILL.md). skipSkillDiscovery prevents the SKILL.md
   // content itself from triggering discovery — it's meta-content, not user
   // intent, and a large SKILL.md (e.g. 110KB) would fire chunked AKI queries
   // adding seconds of latency to every skill invocation.
-  const attachmentMessages = await toArray(getAttachmentMessages(result.filter((block): block is TextBlockParam => block.type === 'text').map(block => block.text).join(' '), context, null, [],
+  const attachmentMessages = await toArray(getAttachmentMessages(resultBlocks.filter((block): block is TextBlockParam => block.type === 'text').map(block => block.text).join(' '), context, null, [],
   // queuedCommands - handled by query.ts for mid-turn attachments
   context.messages, 'repl_main_thread', {
     skipSkillDiscovery: true

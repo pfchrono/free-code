@@ -327,7 +327,7 @@ export async function initBridgeCore(
   // Ant-only: interpose so /bridge-kick can inject poll/register/heartbeat
   // failures. Zero cost in external builds (rawApi passes through unchanged).
   const api =
-    process.env.USER_TYPE === 'ant' ? wrapApiForFaultInjection(rawApi) : rawApi
+    ((process.env.USER_TYPE as string) === 'ant') ? wrapApiForFaultInjection(rawApi) : rawApi
 
   const bridgeConfig: BridgeConfig = {
     dir,
@@ -969,7 +969,7 @@ export async function initBridgeCore(
   // ~30s poll wait — fire-and-observe in the debug log immediately.
   // Windows has no USR signals; `process.on` would throw there.
   let sigusr2Handler: (() => void) | undefined
-  if (process.env.USER_TYPE === 'ant' && process.platform !== 'win32') {
+  if (((process.env.USER_TYPE as string) === 'ant') && process.platform !== 'win32') {
     sigusr2Handler = () => {
       logForDebugging(
         '[bridge:repl] SIGUSR2 received — forcing doReconnect() for testing',
@@ -984,7 +984,7 @@ export async function initBridgeCore(
   // invoke it directly — the real setOnClose callback is buried inside
   // wireTransport which is itself inside onWorkReceived.
   let debugFireClose: ((code: number) => void) | null = null
-  if (process.env.USER_TYPE === 'ant') {
+  if (((process.env.USER_TYPE as string) === 'ant')) {
     registerBridgeDebugHandle({
       fireClose: code => {
         if (!debugFireClose) {
@@ -1572,7 +1572,7 @@ export async function initBridgeCore(
     if (sigusr2Handler) {
       process.off('SIGUSR2', sigusr2Handler)
     }
-    if (process.env.USER_TYPE === 'ant') {
+    if (((process.env.USER_TYPE as string) === 'ant')) {
       clearBridgeDebugHandle()
       debugFireClose = null
     }

@@ -37,7 +37,7 @@ const largeMemoryFilesNotice: StatusNoticeDefinition = {
         return <Box key={file.path} flexDirection="row">
               <Text color="warning">{figures.warning}</Text>
               <Text color="warning">
-                Large <Text bold>{file.displayPath}</Text> will impact performance (
+                Large <Text bold>{(file as any).displayPath}</Text> will impact performance (
                 {formatNumber(file.content.length)} chars &gt;{' '}
                 {formatNumber(MAX_MEMORY_CHARACTER_COUNT)})
                 <Text dimColor> · /memory to edit</Text>

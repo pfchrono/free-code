@@ -22,12 +22,12 @@ export type BaseOutputFormat = {
 
 export type JsonSchemaOutputFormat = {
   type: "json_schema"
-  schema: Record<string, unknown>
+  schema: Record<string, any>
 }
 
 export type OutputFormat = {
   type: "json_schema"
-  schema: Record<string, unknown>
+  schema: Record<string, any>
 }
 
 export type ApiKeySource = "user" | "project" | "org" | "temporary" | "oauth" | "none"
@@ -174,7 +174,7 @@ export type McpServerStatus = {
     }
   }[]
   capabilities?: {
-    experimental?: Record<string, unknown>
+    experimental?: Record<string, any>
   }
 }
 
@@ -237,7 +237,7 @@ export type PermissionDecisionClassification = "user_temporary" | "user_permanen
 
 export type PermissionResult = ({
   behavior: "allow"
-  updatedInput?: Record<string, unknown>
+  updatedInput?: Record<string, any>
   updatedPermissions?: ({
     type: "addRules"
     rules: {
@@ -309,7 +309,7 @@ export type PreToolUseHookInput = {
 } & {
   hook_event_name: "PreToolUse"
   tool_name: string
-  tool_input: unknown
+  tool_input: any
   tool_use_id: string
 }
 
@@ -323,8 +323,8 @@ export type PostToolUseHookInput = {
 } & {
   hook_event_name: "PostToolUse"
   tool_name: string
-  tool_input: unknown
-  tool_response: unknown
+  tool_input: any
+  tool_response: any
   tool_use_id: string
 }
 
@@ -338,7 +338,7 @@ export type PostToolUseFailureHookInput = {
 } & {
   hook_event_name: "PostToolUseFailure"
   tool_name: string
-  tool_input: unknown
+  tool_input: any
   tool_use_id: string
   error: string
   is_interrupt?: boolean
@@ -354,7 +354,7 @@ export type PermissionDeniedHookInput = {
 } & {
   hook_event_name: "PermissionDenied"
   tool_name: string
-  tool_input: unknown
+  tool_input: any
   tool_use_id: string
   reason: string
 }
@@ -503,7 +503,7 @@ export type PermissionRequestHookInput = {
 } & {
   hook_event_name: "PermissionRequest"
   tool_name: string
-  tool_input: unknown
+  tool_input: any
   permission_suggestions?: ({
     type: "addRules"
     rules: {
@@ -615,7 +615,7 @@ export type ElicitationHookInput = {
   mode?: "form" | "url"
   url?: string
   elicitation_id?: string
-  requested_schema?: Record<string, unknown>
+  requested_schema?: Record<string, any>
 }
 
 /** Hook input for the ElicitationResult event. Fired after the user responds to an MCP elicitation. Hooks can observe or override the response before it is sent to the server. */
@@ -632,7 +632,7 @@ export type ElicitationResultHookInput = {
   elicitation_id?: string
   mode?: "form" | "url"
   action: "accept" | "decline" | "cancel"
-  content?: Record<string, unknown>
+  content?: Record<string, any>
 }
 
 export type ConfigChangeHookInput = {
@@ -725,7 +725,7 @@ export type HookInput = ({
 } & {
   hook_event_name: "PreToolUse"
   tool_name: string
-  tool_input: unknown
+  tool_input: any
   tool_use_id: string
 }) | ({
   session_id: string
@@ -737,8 +737,8 @@ export type HookInput = ({
 } & {
   hook_event_name: "PostToolUse"
   tool_name: string
-  tool_input: unknown
-  tool_response: unknown
+  tool_input: any
+  tool_response: any
   tool_use_id: string
 }) | ({
   session_id: string
@@ -750,7 +750,7 @@ export type HookInput = ({
 } & {
   hook_event_name: "PostToolUseFailure"
   tool_name: string
-  tool_input: unknown
+  tool_input: any
   tool_use_id: string
   error: string
   is_interrupt?: boolean
@@ -764,7 +764,7 @@ export type HookInput = ({
 } & {
   hook_event_name: "PermissionDenied"
   tool_name: string
-  tool_input: unknown
+  tool_input: any
   tool_use_id: string
   reason: string
 }) | ({
@@ -891,7 +891,7 @@ export type HookInput = ({
 } & {
   hook_event_name: "PermissionRequest"
   tool_name: string
-  tool_input: unknown
+  tool_input: any
   permission_suggestions?: ({
     type: "addRules"
     rules: {
@@ -992,7 +992,7 @@ export type HookInput = ({
   mode?: "form" | "url"
   url?: string
   elicitation_id?: string
-  requested_schema?: Record<string, unknown>
+  requested_schema?: Record<string, any>
 }) | ({
   session_id: string
   transcript_path: string
@@ -1006,7 +1006,7 @@ export type HookInput = ({
   elicitation_id?: string
   mode?: "form" | "url"
   action: "accept" | "decline" | "cancel"
-  content?: Record<string, unknown>
+  content?: Record<string, any>
 }) | ({
   session_id: string
   transcript_path: string
@@ -1086,7 +1086,7 @@ export type PreToolUseHookSpecificOutput = {
   hookEventName: "PreToolUse"
   permissionDecision?: "allow" | "deny" | "ask"
   permissionDecisionReason?: string
-  updatedInput?: Record<string, unknown>
+  updatedInput?: Record<string, any>
   additionalContext?: string
 }
 
@@ -1115,7 +1115,7 @@ export type SubagentStartHookSpecificOutput = {
 export type PostToolUseHookSpecificOutput = {
   hookEventName: "PostToolUse"
   additionalContext?: string
-  updatedMCPToolOutput?: unknown
+  updatedMCPToolOutput?: any
 }
 
 export type PostToolUseFailureHookSpecificOutput = {
@@ -1137,7 +1137,7 @@ export type PermissionRequestHookSpecificOutput = {
   hookEventName: "PermissionRequest"
   decision: ({
     behavior: "allow"
-    updatedInput?: Record<string, unknown>
+    updatedInput?: Record<string, any>
     updatedPermissions?: ({
       type: "addRules"
       rules: {
@@ -1196,14 +1196,14 @@ export type FileChangedHookSpecificOutput = {
 export type ElicitationHookSpecificOutput = {
   hookEventName: "Elicitation"
   action?: "accept" | "decline" | "cancel"
-  content?: Record<string, unknown>
+  content?: Record<string, any>
 }
 
 /** Hook-specific output for the ElicitationResult event. Return this to override the action or content before the response is sent to the MCP server. */
 export type ElicitationResultHookSpecificOutput = {
   hookEventName: "ElicitationResult"
   action?: "accept" | "decline" | "cancel"
-  content?: Record<string, unknown>
+  content?: Record<string, any>
 }
 
 /** Hook-specific output for the WorktreeCreate event. Provides the absolute path to the created worktree directory. Command hooks print the path on stdout instead. */
@@ -1223,7 +1223,7 @@ export type SyncHookJSONOutput = {
     hookEventName: "PreToolUse"
     permissionDecision?: "allow" | "deny" | "ask"
     permissionDecisionReason?: string
-    updatedInput?: Record<string, unknown>
+    updatedInput?: Record<string, any>
     additionalContext?: string
   }) | ({
     hookEventName: "UserPromptSubmit"
@@ -1242,7 +1242,7 @@ export type SyncHookJSONOutput = {
   }) | ({
     hookEventName: "PostToolUse"
     additionalContext?: string
-    updatedMCPToolOutput?: unknown
+    updatedMCPToolOutput?: any
   }) | ({
     hookEventName: "PostToolUseFailure"
     additionalContext?: string
@@ -1256,7 +1256,7 @@ export type SyncHookJSONOutput = {
     hookEventName: "PermissionRequest"
     decision: ({
       behavior: "allow"
-      updatedInput?: Record<string, unknown>
+      updatedInput?: Record<string, any>
       updatedPermissions?: ({
         type: "addRules"
         rules: {
@@ -1302,11 +1302,11 @@ export type SyncHookJSONOutput = {
   }) | ({
     hookEventName: "Elicitation"
     action?: "accept" | "decline" | "cancel"
-    content?: Record<string, unknown>
+    content?: Record<string, any>
   }) | ({
     hookEventName: "ElicitationResult"
     action?: "accept" | "decline" | "cancel"
-    content?: Record<string, unknown>
+    content?: Record<string, any>
   }) | ({
     hookEventName: "CwdChanged"
     watchPaths?: string[]
@@ -1333,7 +1333,7 @@ export type HookJSONOutput = ({
     hookEventName: "PreToolUse"
     permissionDecision?: "allow" | "deny" | "ask"
     permissionDecisionReason?: string
-    updatedInput?: Record<string, unknown>
+    updatedInput?: Record<string, any>
     additionalContext?: string
   }) | ({
     hookEventName: "UserPromptSubmit"
@@ -1352,7 +1352,7 @@ export type HookJSONOutput = ({
   }) | ({
     hookEventName: "PostToolUse"
     additionalContext?: string
-    updatedMCPToolOutput?: unknown
+    updatedMCPToolOutput?: any
   }) | ({
     hookEventName: "PostToolUseFailure"
     additionalContext?: string
@@ -1366,7 +1366,7 @@ export type HookJSONOutput = ({
     hookEventName: "PermissionRequest"
     decision: ({
       behavior: "allow"
-      updatedInput?: Record<string, unknown>
+      updatedInput?: Record<string, any>
       updatedPermissions?: ({
         type: "addRules"
         rules: {
@@ -1412,11 +1412,11 @@ export type HookJSONOutput = ({
   }) | ({
     hookEventName: "Elicitation"
     action?: "accept" | "decline" | "cancel"
-    content?: Record<string, unknown>
+    content?: Record<string, any>
   }) | ({
     hookEventName: "ElicitationResult"
     action?: "accept" | "decline" | "cancel"
-    content?: Record<string, unknown>
+    content?: Record<string, any>
   }) | ({
     hookEventName: "CwdChanged"
     watchPaths?: string[]
@@ -1470,7 +1470,7 @@ export type ModelInfo = {
   displayName: string
   description: string
   supportsEffort?: boolean
-  supportedEffortLevels?: "low" | "medium" | "high" | "max"[]
+  supportedEffortLevels?: ("low" | "medium" | "high" | "max")[]
   supportsAdaptiveThinking?: boolean
   supportsFastMode?: boolean
   supportsAutoMode?: boolean
@@ -1483,7 +1483,7 @@ export type AccountInfo = {
   subscriptionType?: string
   tokenSource?: string
   apiKeySource?: string
-  apiProvider?: "firstParty" | "bedrock" | "vertex" | "foundry"
+  apiProvider?: string
 }
 
 export type AgentMcpServerSpec = string | (Record<string, ({
@@ -1562,10 +1562,10 @@ export type SDKStatus = "compacting" | null
 
 export type SDKUserMessage = {
   type: "user"
-  message: Record<string, unknown> & { role: "user", content: string | Array<unknown> }
+  message: Record<string, any> & { role: "user", content: string | Array<any> }
   parent_tool_use_id: string | null
   isSynthetic?: boolean
-  tool_use_result?: unknown
+  tool_use_result?: any
   priority?: "now" | "next" | "later"
   timestamp?: string
   uuid?: string
@@ -1574,10 +1574,10 @@ export type SDKUserMessage = {
 
 export type SDKUserMessageReplay = {
   type: "user"
-  message: Record<string, unknown> & { role: "user", content: string | Array<unknown> }
+  message: Record<string, any> & { role: "user", content: string | Array<any> }
   parent_tool_use_id: string | null
   isSynthetic?: boolean
-  tool_use_result?: unknown
+  tool_use_result?: any
   priority?: "now" | "next" | "later"
   timestamp?: string
   uuid: string
@@ -1600,7 +1600,7 @@ export type SDKRateLimitInfo = {
 
 export type SDKAssistantMessage = {
   type: "assistant"
-  message: Record<string, unknown> & { role: "assistant", content: Array<unknown> }
+  message: Record<string, any> & { role: "assistant", content: Array<any> }
   parent_tool_use_id: string | null
   error?: "authentication_failed" | "billing_error" | "rate_limit" | "invalid_request" | "server_error" | "unknown" | "max_output_tokens"
   uuid: string
@@ -1644,7 +1644,7 @@ export type SDKStreamlinedToolUseSummaryMessage = {
 export type SDKPermissionDenial = {
   tool_name: string
   tool_use_id: string
-  tool_input: Record<string, unknown>
+  tool_input: Record<string, any>
 }
 
 export type SDKResultSuccess = {
@@ -1671,9 +1671,9 @@ export type SDKResultSuccess = {
   permission_denials: {
     tool_name: string
     tool_use_id: string
-    tool_input: Record<string, unknown>
+    tool_input: Record<string, any>
   }[]
-  structured_output?: unknown
+  structured_output?: any
   fast_mode_state?: "off" | "cooldown" | "on"
   uuid: string
   session_id: string
@@ -1702,7 +1702,7 @@ export type SDKResultError = {
   permission_denials: {
     tool_name: string
     tool_use_id: string
-    tool_input: Record<string, unknown>
+    tool_input: Record<string, any>
   }[]
   errors: string[]
   fast_mode_state?: "off" | "cooldown" | "on"
@@ -1734,9 +1734,9 @@ export type SDKResultMessage = ({
   permission_denials: {
     tool_name: string
     tool_use_id: string
-    tool_input: Record<string, unknown>
+    tool_input: Record<string, any>
   }[]
-  structured_output?: unknown
+  structured_output?: any
   fast_mode_state?: "off" | "cooldown" | "on"
   uuid: string
   session_id: string
@@ -1763,7 +1763,7 @@ export type SDKResultMessage = ({
   permission_denials: {
     tool_name: string
     tool_use_id: string
-    tool_input: Record<string, unknown>
+    tool_input: Record<string, any>
   }[]
   errors: string[]
   fast_mode_state?: "off" | "cooldown" | "on"
@@ -1801,7 +1801,7 @@ export type SDKSystemMessage = {
 
 export type SDKPartialAssistantMessage = {
   type: "stream_event"
-  event: Record<string, unknown>
+  event: Record<string, any>
   parent_tool_use_id: string | null
   uuid: string
   session_id: string
@@ -2041,29 +2041,29 @@ export type SDKSessionInfo = {
   createdAt?: number
 }
 
-export type SDKMessage = ({
+export type SDKMessage = Record<string, any> & (({
   type: "assistant"
-  message: Record<string, unknown> & { role: "assistant", content: Array<unknown> }
+  message: Record<string, any> & { role: "assistant", content: Array<any> }
   parent_tool_use_id: string | null
   error?: "authentication_failed" | "billing_error" | "rate_limit" | "invalid_request" | "server_error" | "unknown" | "max_output_tokens"
   uuid: string
   session_id: string
 }) | ({
   type: "user"
-  message: Record<string, unknown> & { role: "user", content: string | Array<unknown> }
+  message: Record<string, any> & { role: "user", content: string | Array<any> }
   parent_tool_use_id: string | null
   isSynthetic?: boolean
-  tool_use_result?: unknown
+  tool_use_result?: any
   priority?: "now" | "next" | "later"
   timestamp?: string
   uuid?: string
   session_id?: string
 }) | ({
   type: "user"
-  message: Record<string, unknown> & { role: "user", content: string | Array<unknown> }
+  message: Record<string, any> & { role: "user", content: string | Array<any> }
   parent_tool_use_id: string | null
   isSynthetic?: boolean
-  tool_use_result?: unknown
+  tool_use_result?: any
   priority?: "now" | "next" | "later"
   timestamp?: string
   uuid: string
@@ -2093,9 +2093,9 @@ export type SDKMessage = ({
   permission_denials: {
     tool_name: string
     tool_use_id: string
-    tool_input: Record<string, unknown>
+    tool_input: Record<string, any>
   }[]
-  structured_output?: unknown
+  structured_output?: any
   fast_mode_state?: "off" | "cooldown" | "on"
   uuid: string
   session_id: string
@@ -2122,7 +2122,7 @@ export type SDKMessage = ({
   permission_denials: {
     tool_name: string
     tool_use_id: string
-    tool_input: Record<string, unknown>
+    tool_input: Record<string, any>
   }[]
   errors: string[]
   fast_mode_state?: "off" | "cooldown" | "on"
@@ -2156,7 +2156,7 @@ export type SDKMessage = ({
   session_id: string
 }) | ({
   type: "stream_event"
-  event: Record<string, unknown>
+  event: Record<string, any>
   parent_tool_use_id: string | null
   uuid: string
   session_id: string
@@ -2344,10 +2344,10 @@ export type SDKMessage = ({
   request_id: string
   tool_name: string
   tool_use_id: string
-  input: Record<string, unknown>
+  input: Record<string, any>
   uuid: string
   session_id: string
-})
+}) | (Record<string, any> & { type: string }))
 
 /** Fast mode state: off, in cooldown after rate limit, or actively enabled. */
 export type FastModeState = "off" | "cooldown" | "on"

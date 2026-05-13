@@ -40,7 +40,7 @@ describe('exaProvider search request shape', () => {
       capturedHeaders = (init?.headers ?? {}) as Record<string, string>
       capturedBody = init?.body ? JSON.parse(init.body as string) : null
       return new Response(JSON.stringify({ results: [] }), { status: 200 })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     await exaProvider.search({ query: 'gpus' })
 
@@ -58,7 +58,7 @@ describe('exaProvider search request shape', () => {
     globalThis.fetch = (async (_input: any, init: any) => {
       capturedBody = JSON.parse(init.body as string)
       return new Response(JSON.stringify({ results: [] }), { status: 200 })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     await exaProvider.search({
       query: 'q',
@@ -88,7 +88,7 @@ describe('exaProvider response mapping', () => {
         ],
         highlightScores: [0.91, 0.84, 0.71],
       }],
-    }), { status: 200 })) as typeof fetch
+    }), { status: 200 })) as unknown as typeof fetch
 
     const out = await exaProvider.search({ query: 'q' })
 
@@ -107,7 +107,7 @@ describe('exaProvider response mapping', () => {
         title: 't', url: 'https://e.com/x',
         highlights: ['a', 'b', 'c', 'd', 'e'],
       }],
-    }), { status: 200 })) as typeof fetch
+    }), { status: 200 })) as unknown as typeof fetch
 
     const out = await exaProvider.search({ query: 'q' })
     expect(out.hits[0].description).toBe('a … b … c')
@@ -119,7 +119,7 @@ describe('exaProvider response mapping', () => {
         title: 't', url: 'https://e.com/x',
         text: 'Full page body content.',
       }],
-    }), { status: 200 })) as typeof fetch
+    }), { status: 200 })) as unknown as typeof fetch
 
     const out = await exaProvider.search({ query: 'q' })
     expect(out.hits[0].description).toBe('Full page body content.')
@@ -128,7 +128,7 @@ describe('exaProvider response mapping', () => {
   test('description is undefined when neither highlights nor text is present', async () => {
     globalThis.fetch = (async (_input: any, _init: any) => new Response(JSON.stringify({
       results: [{ title: 't', url: 'https://e.com/x' }],
-    }), { status: 200 })) as typeof fetch
+    }), { status: 200 })) as unknown as typeof fetch
 
     const out = await exaProvider.search({ query: 'q' })
     expect(out.hits[0].description).toBeUndefined()
@@ -136,7 +136,7 @@ describe('exaProvider response mapping', () => {
 
   test('throws on non-2xx response with status code', async () => {
     globalThis.fetch = (async (_input: any, _init: any) =>
-      new Response('quota exceeded', { status: 402 })) as typeof fetch
+      new Response('quota exceeded', { status: 402 })) as unknown as typeof fetch
     await expect(exaProvider.search({ query: 'q' })).rejects.toThrow(/402/)
   })
 })

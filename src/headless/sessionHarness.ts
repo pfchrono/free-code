@@ -333,7 +333,7 @@ function createFallbackAppState(): AppState {
       },
       needsRefresh: false,
     },
-  } as AppState
+  } as unknown as AppState
 }
 
 function createInitialAppState(): AppState {
@@ -553,6 +553,7 @@ export class HeadlessSessionHarness {
       this.emitCompletion(
         turn,
         {
+          type: 'completion',
           status: turn.interrupted ? 'interrupted' : 'error',
           output: '',
           inputTokens: 0,
@@ -814,7 +815,7 @@ export class HeadlessSessionHarness {
         })
         return
       case 'result':
-        this.emitResult(turn, message, emit)
+        this.emitResult(turn, message as any, emit)
         return
       default:
         return
@@ -882,7 +883,7 @@ export class HeadlessSessionHarness {
     permissionMode,
     emit,
   }: PermissionHandlerOptions): NonNullable<QueryEngineConfig['canUseTool']> {
-    return async (tool, toolInput, _context, _assistantMessage, toolUseID) => {
+    return (async (tool, toolInput, _context, _assistantMessage, toolUseID) => {
       if (toolUseID) {
         turn.toolNameByUseId.set(toolUseID, tool.name)
         if (!turn.toolUseIdsEmitted.has(toolUseID)) {
@@ -934,7 +935,7 @@ export class HeadlessSessionHarness {
             behavior: 'deny' as const,
             reason: decision.reason ?? 'Denied by headless harness permission response',
           }
-    }
+    }) as any
   }
 }
 

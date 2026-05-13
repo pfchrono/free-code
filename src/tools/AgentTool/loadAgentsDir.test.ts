@@ -114,6 +114,6 @@ describe('agent definition loading', () => {
     const { activeAgents } = await getAgentDefinitionsWithOverrides(projectDir)
     const agent = activeAgents.find(agent => agent.agentType === 'shared-agent')
 
-    expect(agent?.getSystemPrompt()).toBe('free-code prompt')
+    expect((agent?.getSystemPrompt as any)()).toBe('free-code prompt')
   })
 })

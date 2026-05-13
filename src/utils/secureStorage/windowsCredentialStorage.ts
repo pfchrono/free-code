@@ -7,7 +7,7 @@ import {
   getSecureStorageServiceName,
   getUsername,
 } from './macOsKeychainHelpers.js'
-import type { SecureStorage, SecureStorageData } from './index.js'
+import type { SecureStorage, SecureStorageData } from './types.js'
 
 /**
  * Windows-specific secure storage implementation using DPAPI for new writes,
@@ -57,7 +57,7 @@ function getFailureWarning(
   result: ReturnType<typeof execaSync> | null,
   fallback: string,
 ): string {
-  const stderr = result?.stderr?.trim()
+  const stderr = String(result?.stderr ?? '').trim()
   if (stderr) {
     return stderr
   }
@@ -91,7 +91,7 @@ function readLegacyPasswordVault(): SecureStorageData | null {
   const result = runPowerShell(script)
   if (result?.exitCode === 0 && result.stdout) {
     try {
-      return jsonParse(result.stdout)
+      return jsonParse(String(result.stdout))
     } catch {
       return null
     }
@@ -141,7 +141,7 @@ export const windowsCredentialStorage: SecureStorage = {
     const result = runPowerShell(script)
     if (result?.exitCode === 0 && result.stdout) {
       try {
-        return jsonParse(result.stdout)
+        return jsonParse(String(result.stdout))
       } catch {
         return readLegacyPasswordVault()
       }

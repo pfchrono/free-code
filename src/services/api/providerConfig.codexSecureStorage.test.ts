@@ -26,9 +26,8 @@ describe('resolveCodexApiCredentials with secure storage', () => {
       }),
     }))
 
-    // @ts-expect-error cache-busting query string for Bun module mocks
     const { resolveCodexApiCredentials } = await import(
-      './providerConfig.js?codex-secure-storage'
+      './providerConfig.js?codex-secure-storage' as './providerConfig.js'
     )
 
     const credentials = resolveCodexApiCredentials({} as NodeJS.ProcessEnv)
@@ -46,9 +45,8 @@ describe('resolveCodexApiCredentials with secure storage', () => {
       }),
     }))
 
-    // @ts-expect-error cache-busting query string for Bun module mocks
     const { resolveCodexApiCredentials } = await import(
-      './providerConfig.js?codex-env-precedence'
+      './providerConfig.js?codex-env-precedence' as './providerConfig.js'
     )
 
     const credentials = resolveCodexApiCredentials({
@@ -67,9 +65,8 @@ describe('resolveCodexApiCredentials with secure storage', () => {
       readCodexCredentials: () => undefined,
     }))
 
-    // @ts-expect-error cache-busting query string for Bun module mocks
     const { resolveCodexApiCredentials } = await import(
-      './providerConfig.js?codex-env-nested-account'
+      './providerConfig.js?codex-env-nested-account' as './providerConfig.js'
     )
 
     const credentials = resolveCodexApiCredentials({
@@ -106,9 +103,8 @@ describe('resolveCodexApiCredentials with secure storage', () => {
     )
 
     try {
-      // @ts-expect-error cache-busting query string for Bun module mocks
       const { resolveCodexApiCredentials } = await import(
-        './providerConfig.js?codex-auth-json-nested-account'
+        './providerConfig.js?codex-auth-json-nested-account' as './providerConfig.js'
       )
 
       const credentials = resolveCodexApiCredentials({
@@ -132,9 +128,8 @@ describe('resolveCodexApiCredentials with secure storage', () => {
       }),
     }))
 
-    // @ts-expect-error cache-busting query string for Bun module mocks
     const { resolveCodexApiCredentials } = await import(
-      './providerConfig.js?codex-secure-storage-no-auth-io'
+      './providerConfig.js?codex-secure-storage-no-auth-io' as './providerConfig.js'
     )
 
     const credentials = resolveCodexApiCredentials({} as NodeJS.ProcessEnv)
@@ -170,9 +165,8 @@ describe('resolveCodexApiCredentials with secure storage', () => {
       }),
     }))
 
-    // @ts-expect-error cache-busting query string for Bun module mocks
     const { resolveCodexApiCredentials } = await import(
-      './providerConfig.js?codex-refresh-cooldown-fallback'
+      './providerConfig.js?codex-refresh-cooldown-fallback' as './providerConfig.js'
     )
 
     try {
@@ -208,9 +202,8 @@ describe('resolveCodexApiCredentials with secure storage', () => {
       }),
     }))
 
-    // @ts-expect-error cache-busting query string for Bun module mocks
     const { resolveCodexApiCredentials } = await import(
-      './providerConfig.js?codex-refresh-cooldown-account-id-fallback'
+      './providerConfig.js?codex-refresh-cooldown-account-id-fallback' as './providerConfig.js'
     )
 
     try {

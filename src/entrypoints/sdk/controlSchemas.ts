@@ -36,6 +36,15 @@ import {
 // JSONRPCMessage from @modelcontextprotocol/sdk - treat as unknown
 export const JSONRPCMessagePlaceholder = lazySchema(() => z.unknown())
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export type SDKControlCancelRequest = any
+export type SDKControlPermissionRequest = any
+export type SDKControlRequest = any
+export type SDKControlRequestInner = any
+export type SDKControlResponse = any
+export type StdinMessage = any
+export type StdoutMessage = any
+
 // ============================================================================
 // Hook Callback Types
 // ============================================================================

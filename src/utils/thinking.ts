@@ -4,6 +4,7 @@ import { feature } from 'bun:bundle'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
 import { getCanonicalName } from './model/model.js'
 import { get3PModelCapabilityOverride } from './model/modelSupportOverrides.js'
+import { resolveAntModel } from './model/antModels.js'
 import { getAPIProvider } from './model/providers.js'
 import { getSettingsWithErrors } from './settings/settings.js'
 
@@ -92,7 +93,7 @@ export function modelSupportsThinking(model: string): boolean {
   if (supported3P !== undefined) {
     return supported3P
   }
-  if (process.env.USER_TYPE === 'ant') {
+  if (((process.env.USER_TYPE as string) === 'ant')) {
     if (resolveAntModel(model.toLowerCase())) {
       return true
     }

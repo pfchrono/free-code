@@ -118,7 +118,7 @@ export function MessageSelector({
       ...summarizeInputProps,
       onChange: setSummarizeFromFeedback
     });
-    if (process.env.USER_TYPE === 'ant') {
+    if (((process.env.USER_TYPE as string) === 'ant')) {
       baseOptions.push({
         value: 'summarize_up_to',
         label: 'Summarize up to here',
@@ -413,7 +413,7 @@ function getRestoreOptionConversationText(option: RestoreOption): string {
       return 'The conversation will be unchanged.';
   }
 }
-function RestoreOptionDescription(t0) {
+function RestoreOptionDescription(t0: any) {
   const $ = _c(11);
   const {
     selectedRestoreOption,
@@ -458,7 +458,7 @@ function RestoreOptionDescription(t0) {
   }
   return t4;
 }
-function RestoreCodeConfirmation(t0) {
+function RestoreCodeConfirmation(t0: any) {
   const $ = _c(14);
   const {
     diffStatsForRestore
@@ -541,7 +541,7 @@ function RestoreCodeConfirmation(t0) {
   }
   return t2;
 }
-function DiffStatsText(t0) {
+function DiffStatsText(t0: any) {
   const $ = _c(7);
   const {
     diffStats
@@ -576,7 +576,7 @@ function DiffStatsText(t0) {
   }
   return t3;
 }
-function UserMessageOption(t0) {
+function UserMessageOption(t0: any) {
   const $ = _c(31);
   const {
     userMessage,
@@ -798,29 +798,30 @@ export function selectableUserMessagesFilter(message: Message): message is UserM
  */
 export function messagesAfterAreOnlySynthetic(messages: Message[], fromIndex: number): boolean {
   for (let i = fromIndex + 1; i < messages.length; i++) {
-    const msg = messages[i];
+    const msg = messages[i] as any;
     if (!msg) continue;
 
     // Skip known non-meaningful message types
     if (isSyntheticMessage(msg)) continue;
     if (isToolUseResultMessage(msg)) continue;
-    if (msg.type === 'progress') continue;
-    if (msg.type === 'system') continue;
-    if (msg.type === 'attachment') continue;
-    if (msg.type === 'user' && msg.isMeta) continue;
+    const msgType = (msg as any).type;
+    if (msgType === 'progress') continue;
+    if (msgType === 'system') continue;
+    if (msgType === 'attachment') continue;
+    if (msgType === 'user' && (msg as any).isMeta) continue;
 
     // Assistant with actual content = meaningful
-    if (msg.type === 'assistant') {
-      const content = msg.message.content;
+    if (msgType === 'assistant') {
+      const content = (msg as any).message.content;
       if (Array.isArray(content)) {
-        const hasMeaningfulContent = content.some(block => block.type === 'text' && block.text.trim() || block.type === 'tool_use');
+        const hasMeaningfulContent = content.some((block: any) => block.type === 'text' && block.text.trim() || block.type === 'tool_use');
         if (hasMeaningfulContent) return false;
       }
       continue;
     }
 
     // User messages that aren't synthetic or meta = meaningful
-    if (msg.type === 'user') {
+    if (msgType === 'user') {
       return false;
     }
 

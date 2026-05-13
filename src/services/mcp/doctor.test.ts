@@ -28,13 +28,13 @@ function makeDependencies(overrides: Partial<McpDoctorDependencies> = {}): McpDo
     isMcpServerDisabled: () => false,
     describeMcpConfigFilePath: scope => `scope://${scope}`,
     clearServerCache: async () => {},
-    connectToServer: async (name, config) => ({
+    connectToServer: (async (name, config) => ({
       name,
       type: 'connected',
       capabilities: {},
       config,
       cleanup: async () => {},
-    }),
+    })) as any,
     ...overrides,
   }
 }
@@ -241,7 +241,7 @@ test('doctorServer does not treat disabled servers as runtime-active or live-che
         ? { servers: { github: localConfig }, errors: [] }
         : { servers: {}, errors: [] },
     isMcpServerDisabled: name => name === 'github',
-    connectToServer: async (name, config) => {
+    connectToServer: (async (name, config) => {
       connectCalls += 1
       return {
         name,
@@ -249,7 +249,7 @@ test('doctorServer does not treat disabled servers as runtime-active or live-che
         config,
         error: 'should not connect',
       }
-    },
+    }) as any,
   })
 
   const report = await doctorServer('github', { configOnly: false }, deps)
@@ -279,7 +279,7 @@ test('doctorAllServers skips live checks in config-only mode', async () => {
       scope === 'local'
         ? { servers: { linear: localConfig }, errors: [] }
         : { servers: {}, errors: [] },
-    connectToServer: async (name, config) => {
+    connectToServer: (async (name, config) => {
       connectCalls += 1
       return {
         name,
@@ -288,7 +288,7 @@ test('doctorAllServers skips live checks in config-only mode', async () => {
         config,
         cleanup: async () => {},
       }
-    },
+    }) as any,
   })
 
   const report = await doctorAllServers({ configOnly: true }, deps)
@@ -425,12 +425,12 @@ test('doctorServer converts failed live checks into blocking findings', async ()
       scope === 'local'
         ? { servers: { github: localConfig }, errors: [] }
         : { servers: {}, errors: [] },
-    connectToServer: async (name, config) => ({
+    connectToServer: (async (name, config) => ({
       name,
       type: 'failed',
       config,
       error: 'command not found: node-local',
-    }),
+    })) as any,
   })
 
   const report = await doctorServer('github', { configOnly: false }, deps)
@@ -456,11 +456,11 @@ test('doctorServer converts needs-auth live checks into warning findings', async
       scope === 'local'
         ? { servers: { sentry: localConfig }, errors: [] }
         : { servers: {}, errors: [] },
-    connectToServer: async (name, config) => ({
+    connectToServer: (async (name, config) => ({
       name,
       type: 'needs-auth',
       config,
-    }),
+    })) as any,
   })
 
   const report = await doctorServer('sentry', { configOnly: false }, deps)
@@ -507,7 +507,7 @@ test('doctorServer with scopeFilter does not leak runtime definition from anothe
       scope === 'local'
         ? { servers: { github: localConfig }, errors: [] }
         : { servers: {}, errors: [] },
-    connectToServer: async (name, config) => {
+    connectToServer: (async (name, config) => {
       connectCalls += 1
       return {
         name,
@@ -516,7 +516,7 @@ test('doctorServer with scopeFilter does not leak runtime definition from anothe
         config,
         cleanup: async () => {},
       }
-    },
+    }) as any,
   })
 
   const report = await doctorServer('github', { configOnly: false, scopeFilter: 'user' }, deps)

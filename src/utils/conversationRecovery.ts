@@ -98,7 +98,7 @@ function migrateLegacyAttachmentTypes(message: Message): Message {
         type: 'file',
         displayPath: relative(getCwd(), attachment.filename as string),
       },
-    } as SerializedMessage // Cast entire message since we know the structure is correct
+    } as unknown as SerializedMessage // Cast entire message since we know the structure is correct
   }
 
   if (attachment.type === 'new_directory') {
@@ -109,7 +109,7 @@ function migrateLegacyAttachmentTypes(message: Message): Message {
         type: 'directory',
         displayPath: relative(getCwd(), attachment.path as string),
       },
-    } as SerializedMessage // Cast entire message since we know the structure is correct
+    } as unknown as SerializedMessage // Cast entire message since we know the structure is correct
   }
 
   // Backfill displayPath for attachments from old sessions

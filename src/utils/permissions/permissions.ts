@@ -704,7 +704,7 @@ export const hasPermissionsToUseTool: CanUseToolFn = async (
 
       // Notify ants when classifier error dumped prompts (will be in /share)
       if (
-        process.env.USER_TYPE === 'ant' &&
+        ((process.env.USER_TYPE as string) === 'ant') &&
         classifierResult.errorDumpPath &&
         context.addNotification
       ) {

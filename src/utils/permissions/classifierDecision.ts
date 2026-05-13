@@ -32,10 +32,10 @@ const TERMINAL_CAPTURE_TOOL_NAME = feature('TERMINAL_PANEL')
 const OVERFLOW_TEST_TOOL_NAME = feature('OVERFLOW_TEST_TOOL')
   ? (
       require('../../tools/OverflowTestTool/OverflowTestTool.js') as typeof import('../../tools/OverflowTestTool/OverflowTestTool.js')
-    ).OVERFLOW_TEST_TOOL_NAME
+    ).OverflowTestTool.name
   : null
 const VERIFY_PLAN_EXECUTION_TOOL_NAME =
-  process.env.USER_TYPE === 'ant'
+  ((process.env.USER_TYPE as string) === 'ant')
     ? (
         require('../../tools/VerifyPlanExecutionTool/constants.js') as typeof import('../../tools/VerifyPlanExecutionTool/constants.js')
       ).VERIFY_PLAN_EXECUTION_TOOL_NAME

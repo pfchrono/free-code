@@ -101,7 +101,7 @@ function normalizeDiscoveryCacheHeaders(
   headers: Record<string, string> | undefined,
 ): Array<[string, string]> {
   return Object.entries(headers ?? {})
-    .map(([name, value]) => [name.trim().toLowerCase(), value.trim()] as const)
+    .map(([name, value]) => [name.trim().toLowerCase(), value.trim()] as [string, string])
     .filter(([name, value]) => name && value)
     .sort(([leftName], [rightName]) => leftName.localeCompare(rightName))
 }

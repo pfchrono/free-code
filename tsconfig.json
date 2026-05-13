@@ -8,7 +8,7 @@
     "allowJs": true,
     "types": ["bun"],
     "baseUrl": ".",
-        "paths": {
+    "paths": {
       "src/*": ["src/*"]
     },
     "moduleResolution": "bundler",

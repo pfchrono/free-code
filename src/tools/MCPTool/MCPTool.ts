@@ -147,7 +147,7 @@ export const MCPTool = buildTool({
     return {
       tool_use_id: toolUseID,
       type: 'tool_result',
-      content,
+      content: content as any,
     }
   },
 } satisfies ToolDef<InputSchema, Output>)

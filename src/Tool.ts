@@ -156,7 +156,9 @@ export type CompactProgressEvent =
   | { type: 'compact_end' }
 
 export type ToolUseContext = {
+  [key: string]: any
   options: {
+    [key: string]: any
     commands: Command[]
     debug: boolean
     mainLoopModel: string

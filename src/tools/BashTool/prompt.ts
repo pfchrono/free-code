@@ -46,14 +46,14 @@ function getCommitAndPRInstructions(): string {
   // your cover" instructions are the last line of defense against the model
   // volunteering an internal codename in a commit message.
   const undercoverSection =
-    process.env.USER_TYPE === 'ant' && isUndercover()
+    ((process.env.USER_TYPE as string) === 'ant') && isUndercover()
       ? getUndercoverInstructions() + '\n'
       : ''
 
   if (!shouldIncludeGitInstructions()) return undercoverSection
 
   // For ant users, use the short version pointing to skills
-  if (process.env.USER_TYPE === 'ant') {
+  if (((process.env.USER_TYPE as string) === 'ant')) {
     const skillsSection = !isEnvTruthy(process.env.CLAUDE_CODE_SIMPLE)
       ? `For git commits and pull requests, use the \`/commit\` and \`/commit-push-pr\` skills:
 - \`/commit\` - Create a git commit with staged changes

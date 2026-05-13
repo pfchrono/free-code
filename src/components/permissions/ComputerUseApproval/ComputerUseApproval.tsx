@@ -27,7 +27,7 @@ const DENY_ALL_RESPONSE: CuPermissionResponse = {
  * irrelevant — show a TCC panel that opens System Settings. Otherwise show the
  * app allowlist + grant-flags panel.
  */
-export function ComputerUseApproval(t0) {
+export function ComputerUseApproval(t0: any) {
   const $ = _c(3);
   const {
     request,
@@ -48,7 +48,7 @@ export function ComputerUseApproval(t0) {
 // ── TCC panel ─────────────────────────────────────────────────────────────
 
 type TccOption = 'open_accessibility' | 'open_screen_recording' | 'retry';
-function ComputerUseTccPanel(t0) {
+function ComputerUseTccPanel(t0: any) {
   const $ = _c(26);
   const {
     tccState,
@@ -205,7 +205,7 @@ const SENTINEL_WARNING: Record<NonNullable<ReturnType<typeof getSentinelCategory
   filesystem: 'can read/write any file',
   system_settings: 'can change system settings'
 };
-function ComputerUseAppListPanel(t0) {
+function ComputerUseAppListPanel(t0: any) {
   const $ = _c(48);
   const {
     request,

@@ -14,6 +14,12 @@ import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEve
 import { clearMcpClientConfig, clearServerTokensFromLocalStorage, getMcpClientConfig, readClientSecret, saveMcpClientSecret } from '../../services/mcp/auth.js';
 import { connectToServer, getMcpServerConnectionBatchSize } from '../../services/mcp/client.js';
 import { addMcpConfig, getAllMcpConfigs, getMcpConfigByName, getMcpConfigsByScope, removeMcpConfig } from '../../services/mcp/config.js';
+import {
+  doctorAllServers,
+  doctorServer,
+  type McpDoctorReport,
+  type McpDoctorScopeFilter,
+} from '../../services/mcp/doctor.js';
 import type { ConfigScope, ScopedMcpServerConfig } from '../../services/mcp/types.js';
 import { describeMcpConfigFilePath, ensureConfigScope, getScopeLabel } from '../../services/mcp/utils.js';
 import { AppStateProvider } from '../../state/AppState.js';
@@ -23,6 +29,99 @@ import { gracefulShutdown } from '../../utils/gracefulShutdown.js';
 import { safeParseJSON } from '../../utils/json.js';
 import { getPlatform } from '../../utils/platform.js';
 import { cliError, cliOk } from '../exit.js';
+
+type McpDoctorOptions = {
+  configOnly?: boolean
+  json?: boolean
+  scope?: string
+}
+
+function isScopeFilter(value: string | undefined): value is McpDoctorScopeFilter {
+  return value === 'local' || value === 'project' || value === 'user' || value === 'enterprise'
+}
+
+function formatFinding(prefix: string, finding: McpDoctorReport['findings'][number]): string {
+  const parts = [
+    `${prefix}${finding.severity.toUpperCase()}: ${finding.message}`,
+    finding.remediation ? `  Fix: ${finding.remediation}` : undefined,
+    finding.sourcePath ? `  Source: ${finding.sourcePath}` : undefined,
+  ]
+  return parts.filter(Boolean).join('\n')
+}
+
+function formatDoctorReport(report: McpDoctorReport): string {
+  const lines = [
+    `MCP doctor: ${report.summary.healthy}/${report.summary.totalReports} healthy, ` +
+      `${report.summary.blocking} error(s), ${report.summary.warnings} warning(s)`,
+  ]
+
+  if (report.scopeFilter) {
+    lines.push(`Scope: ${report.scopeFilter}`)
+  }
+  if (report.configOnly) {
+    lines.push('Mode: config-only')
+  }
+
+  for (const finding of report.findings) {
+    lines.push(formatFinding('', finding))
+  }
+
+  for (const server of report.servers) {
+    lines.push('')
+    lines.push(`Server: ${server.serverName}`)
+    const definitions = server.definitions.map(definition => {
+      const flags = [
+        definition.runtimeActive ? 'active' : undefined,
+        definition.runtimeVisible ? 'visible' : undefined,
+        definition.pendingApproval ? 'pending' : undefined,
+        definition.disabled ? 'disabled' : undefined,
+      ].filter(Boolean)
+      return `${definition.sourceType}${definition.transport ? `/${definition.transport}` : ''}` +
+        `${flags.length ? ` (${flags.join(', ')})` : ''}`
+    })
+    lines.push(`  Definitions: ${definitions.length ? definitions.join(', ') : 'none'}`)
+    if (server.liveCheck.attempted || server.liveCheck.result) {
+      lines.push(
+        `  Live check: ${server.liveCheck.result ?? 'unknown'}` +
+          (server.liveCheck.error ? ` (${server.liveCheck.error})` : ''),
+      )
+    }
+    for (const finding of server.findings) {
+      lines.push(formatFinding('  ', finding))
+    }
+  }
+
+  return lines.join('\n')
+}
+
+export async function mcpDoctorHandler(
+  name: string | undefined,
+  options: McpDoctorOptions,
+): Promise<void> {
+  if (options.scope && !isScopeFilter(options.scope)) {
+    throw new Error(`Invalid MCP scope: ${options.scope}`)
+  }
+  const scopeFilter = options.scope && isScopeFilter(options.scope) ? options.scope : undefined
+
+  const report = name
+    ? await doctorServer(name, {
+        configOnly: options.configOnly ?? false,
+        scopeFilter,
+      })
+    : await doctorAllServers({
+        configOnly: options.configOnly ?? false,
+        scopeFilter,
+      })
+
+  process.stdout.write(
+    options.json ? `${JSON.stringify(report, null, 2)}\n` : `${formatDoctorReport(report)}\n`,
+  )
+
+  if (report.summary.blocking > 0) {
+    process.exitCode = 1
+  }
+}
+
 async function checkMcpServerHealth(name: string, server: ScopedMcpServerConfig): Promise<string> {
   try {
     const result = await connectToServer(name, server);

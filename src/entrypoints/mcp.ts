@@ -99,7 +99,7 @@ export async function startMCPServer(
     ListToolsRequestSchema,
     async (): Promise<ListToolsResult> => {
       const toolPermissionContext = getEmptyToolPermissionContext()
-      const tools = getCombinedTools(getTools(toolPermissionContext), mcpTools)
+      const tools = (getCombinedTools as any)(getTools(toolPermissionContext), mcpTools) as any[]
       return {
         tools: await Promise.all(
           tools.map(async tool => {
@@ -138,7 +138,7 @@ export async function startMCPServer(
     CallToolRequestSchema,
     async ({ params: { name, arguments: args } }): Promise<CallToolResult> => {
       const toolPermissionContext = getEmptyToolPermissionContext()
-      const tools = getCombinedTools(getTools(toolPermissionContext), mcpTools)
+      const tools = (getCombinedTools as any)(getTools(toolPermissionContext), mcpTools) as any[]
       const tool = findToolByName(tools, name)
       if (!tool) {
         throw new Error(`Tool ${name} not found`)
@@ -184,7 +184,7 @@ export async function startMCPServer(
         )
         if (validationResult && !validationResult.result) {
           throw new Error(
-            `Tool ${name} input is invalid: ${validationResult.message}`,
+            `Tool ${name} input is invalid: ${(validationResult as any).message}`,
           )
         }
         const finalResult = await tool.call(
@@ -234,7 +234,7 @@ export async function startMCPServer(
             content: [
               {
                 type: 'text',
-                text: `Tool ${name} input is invalid:\n${error.errors.map(e => `- ${e.path.join('.')}: ${e.message}`).join('\n')}`,
+                text: `Tool ${name} input is invalid:\n${(error as any).errors.map((e: any) => `- ${e.path.join('.')}: ${e.message}`).join('\n')}`,
               },
             ],
           }

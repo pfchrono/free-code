@@ -78,7 +78,7 @@ function extractTextContent(
   if (!Array.isArray(content)) return null
   if (content.some(block => block.type !== 'text')) return null
   return {
-    text: content.map(block => block.text).join('\n'),
+    text: content.map(block => (block as any).text).join('\n'),
     kind: 'array',
   }
 }
@@ -199,7 +199,7 @@ export async function compactToolResultWithTokenjuice(
       raw_chars: result.stats.rawChars,
       reduced_chars: result.stats.reducedChars,
       ratio: result.stats.ratio,
-      family: result.classification.family,
+      family: result.classification.family as any,
     })
 
     const footer =

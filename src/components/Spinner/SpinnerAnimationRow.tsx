@@ -266,7 +266,7 @@ export function SpinnerAnimationRow({
       </FullWidthRow>
     </Box>;
 }
-function SpinnerModeGlyph(t0) {
+function SpinnerModeGlyph(t0: any) {
   const $ = _c(2);
   const {
     mode

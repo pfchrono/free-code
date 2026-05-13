@@ -79,7 +79,7 @@ function createAllTimeStatsPromise(): Promise<StatsResult> {
     };
   });
 }
-export function Stats(t0) {
+export function Stats(t0: any) {
   const $ = _c(4);
   const {
     onClose
@@ -118,14 +118,14 @@ type StatsContentProps = {
  * Inner component that uses React 19's use() to read the stats promise.
  * Suspends while loading all-time stats, then handles date range changes without suspending.
  */
-function StatsContent(t0) {
+function StatsContent(t0: StatsContentProps) {
   const $ = _c(34);
   const {
     allTimePromise,
     onClose
   } = t0;
-  const allTimeResult = use(allTimePromise);
-  const [dateRange, setDateRange] = useState("all");
+  const allTimeResult = use(allTimePromise) as StatsResult;
+  const [dateRange, setDateRange] = useState<StatsDateRange>("all");
   let t1;
   if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
     t1 = {};
@@ -133,10 +133,10 @@ function StatsContent(t0) {
   } else {
     t1 = $[0];
   }
-  const [statsCache, setStatsCache] = useState(t1);
+  const [statsCache, setStatsCache] = useState<Partial<Record<StatsDateRange, ClaudeCodeStats>>>(t1);
   const [isLoadingFiltered, setIsLoadingFiltered] = useState(false);
   const [activeTab, setActiveTab] = useState("Overview");
-  const [copyStatus, setCopyStatus] = useState(null);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
   let t2;
   let t3;
   if ($[1] !== dateRange || $[2] !== statsCache) {
@@ -216,7 +216,7 @@ function StatsContent(t0) {
         setDateRange(getNextDateRange(dateRange));
       }
       if (key.ctrl && input === "s" && displayStats) {
-        handleScreenshot(displayStats, activeTab, setCopyStatus);
+        handleScreenshot(displayStats, activeTab as any, setCopyStatus);
       }
     };
     $[8] = activeTab;
@@ -312,7 +312,7 @@ function StatsContent(t0) {
 function _temp(prev_0) {
   return prev_0 === "Overview" ? "Models" : "Overview";
 }
-function DateRangeSelector(t0) {
+function DateRangeSelector(t0: any) {
   const $ = _c(9);
   const {
     dateRange,
@@ -512,7 +512,7 @@ function OverviewTab({
       </Box>
 
       {/* Speculation time saved (ant-only) */}
-      {process.env.USER_TYPE === 'ant' && stats.totalSpeculationTimeSavedMs > 0 && <Box flexDirection="row" gap={4}>
+      {((process.env.USER_TYPE as string) === 'ant') && stats.totalSpeculationTimeSavedMs > 0 && <Box flexDirection="row" gap={4}>
             <Box flexDirection="column" width={28}>
               <Text wrap="truncate">
                 Speculation saved:{' '}
@@ -713,7 +713,7 @@ function generateFunFactoid(stats: ClaudeCodeStats, totalTokens: number): string
   const randomIndex = Math.floor(Math.random() * factoids.length);
   return factoids[randomIndex]!;
 }
-function ModelsTab(t0) {
+function ModelsTab(t0: any) {
   const $ = _c(15);
   const {
     stats,
@@ -816,7 +816,7 @@ function ModelsTab(t0) {
 function _temp1(item, i) {
   return <Text key={item.model}>{i > 0 ? " \xB7 " : ""}<Ansi>{item.coloredBullet}</Ansi> {item.model}</Text>;
 }
-function _temp0(t0) {
+function _temp0(t0: any) {
   const [model] = t0;
   return model;
 }
@@ -841,7 +841,7 @@ type ModelEntryProps = {
   };
   totalTokens: number;
 };
-function ModelEntry(t0) {
+function ModelEntry(t0: any) {
   const $ = _c(21);
   const {
     model,
@@ -1151,7 +1151,7 @@ function renderOverviewToAnsi(stats: ClaudeCodeStats): string[] {
   lines.push(row('Active days', activeDaysVal, 'Peak hour', peakHourVal));
 
   // Speculation time saved (ant-only)
-  if (process.env.USER_TYPE === 'ant' && stats.totalSpeculationTimeSavedMs > 0) {
+  if (((process.env.USER_TYPE as string) === 'ant') && stats.totalSpeculationTimeSavedMs > 0) {
     const label = 'Speculation saved:'.padEnd(COL1_LABEL_WIDTH);
     lines.push(label + h(formatDuration(stats.totalSpeculationTimeSavedMs)));
   }

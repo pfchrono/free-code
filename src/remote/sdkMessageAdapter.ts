@@ -171,7 +171,7 @@ export function convertSDKMessage(
 ): ConvertedMessage {
   switch (msg.type) {
     case 'assistant':
-      return { type: 'message', message: convertAssistantMessage(msg) }
+      return { type: 'message', message: convertAssistantMessage(msg as any) }
 
     case 'user': {
       const content = msg.message?.content
@@ -215,22 +215,22 @@ export function convertSDKMessage(
     }
 
     case 'stream_event':
-      return { type: 'stream_event', event: convertStreamEvent(msg) }
+      return { type: 'stream_event', event: convertStreamEvent(msg as any) }
 
     case 'result':
       // Only show result messages for errors. Success results are noise
       // in multi-turn sessions (isLoading=false is sufficient signal).
       if (msg.subtype !== 'success') {
-        return { type: 'message', message: convertResultMessage(msg) }
+        return { type: 'message', message: convertResultMessage(msg as any) }
       }
       return { type: 'ignored' }
 
     case 'system':
       if (msg.subtype === 'init') {
-        return { type: 'message', message: convertInitMessage(msg) }
+        return { type: 'message', message: convertInitMessage(msg as any) }
       }
       if (msg.subtype === 'status') {
-        const statusMsg = convertStatusMessage(msg)
+        const statusMsg = convertStatusMessage(msg as any)
         return statusMsg
           ? { type: 'message', message: statusMsg }
           : { type: 'ignored' }
@@ -238,7 +238,7 @@ export function convertSDKMessage(
       if (msg.subtype === 'compact_boundary') {
         return {
           type: 'message',
-          message: convertCompactBoundaryMessage(msg),
+          message: convertCompactBoundaryMessage(msg as any),
         }
       }
       // hook_response and other subtypes
@@ -248,7 +248,7 @@ export function convertSDKMessage(
       return { type: 'ignored' }
 
     case 'tool_progress':
-      return { type: 'message', message: convertToolProgressMessage(msg) }
+      return { type: 'message', message: convertToolProgressMessage(msg as any) }
 
     case 'auth_status':
       // Auth status is handled separately, not converted to a display message

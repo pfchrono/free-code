@@ -56,7 +56,7 @@ type ProviderProps = {
   handlerRegistryRef: RefObject<Map<string, Set<HandlerRegistration>>>;
   children: React.ReactNode;
 };
-export function KeybindingProvider(t0) {
+export function KeybindingProvider(t0: any) {
   const $ = _c(24);
   const {
     bindings,

@@ -40,6 +40,8 @@ export function getMacOsKeychainStorageServiceName(
   return `Claude Code${getOauthConfig().OAUTH_FILE_SUFFIX}${serviceSuffix}${dirHash}`
 }
 
+export const getSecureStorageServiceName = getMacOsKeychainStorageServiceName
+
 export function getUsername(): string {
   try {
     return process.env.USER || userInfo().username

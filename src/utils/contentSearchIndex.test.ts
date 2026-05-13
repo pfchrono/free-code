@@ -114,7 +114,7 @@ test('searchContentIndex files_with_matches mode returns all files when limit is
     })
 
     expect(result.mode).toBe('files_with_matches')
-    expect(result.paths.toSorted()).toEqual([aPath, bPath])
+    expect((result as any).paths.toSorted()).toEqual([aPath, bPath])
     expect(result.appliedLimit).toBeUndefined()
   } finally {
     await rm(root, { recursive: true, force: true })

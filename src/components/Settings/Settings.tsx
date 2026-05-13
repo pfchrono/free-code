@@ -12,6 +12,9 @@ import { Status, buildDiagnostics } from './Status.js';
 import { Config } from './Config.js';
 import { Usage } from './Usage.js';
 import type { LocalJSXCommandContext, CommandResultDisplay } from '../../commands.js';
+function Gates(_props: { contentHeight: number; onOwnsEscChange?: (ownsEsc: boolean) => void }): React.ReactNode {
+  return null;
+}
 type Props = {
   onClose: (result?: string, options?: {
     display?: CommandResultDisplay;
@@ -19,7 +22,7 @@ type Props = {
   context: LocalJSXCommandContext;
   defaultTab: 'Status' | 'Config' | 'Usage' | 'Gates';
 };
-export function Settings(t0) {
+export function Settings(t0: any) {
   const $ = _c(25);
   const {
     onClose,

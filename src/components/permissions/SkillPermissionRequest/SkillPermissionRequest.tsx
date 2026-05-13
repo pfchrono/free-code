@@ -15,7 +15,7 @@ import { PermissionPrompt, type PermissionPromptOption, type ToolAnalyticsContex
 import type { PermissionRequestProps } from '../PermissionRequest.js';
 import { PermissionRuleExplanation } from '../PermissionRuleExplanation.js';
 type SkillOptionValue = 'yes' | 'yes-exact' | 'yes-prefix' | 'no';
-export function SkillPermissionRequest(props) {
+export function SkillPermissionRequest(props: any) {
   const $ = _c(51);
   const {
     toolUseConfirm,

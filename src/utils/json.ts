@@ -46,7 +46,7 @@ export const safeParseJSON = Object.assign(
   function safeParseJSON(
     json: string | null | undefined,
     shouldLogError: boolean = true,
-  ): unknown {
+  ): any {
     if (!json) return null
     const result =
       json.length > PARSE_CACHE_MAX_KEY_BYTES
@@ -62,7 +62,7 @@ export const safeParseJSON = Object.assign(
  * This is useful for VS Code configuration files like keybindings.json
  * which support comments and other jsonc features.
  */
-export function safeParseJSONC(json: string | null | undefined): unknown {
+export function safeParseJSONC(json: string | null | undefined): any {
   if (!json) {
     return null
   }

@@ -18,7 +18,7 @@ type Props = {
  * (hooks-in-conditionals would violate React rules). The parent only
  * renders this when feature('CONTEXT_COLLAPSE') + isContextCollapseEnabled().
  */
-function CollapseLabel(t0) {
+function CollapseLabel(t0: any) {
   const $ = _c(8);
   const {
     upgradeMessage
@@ -48,7 +48,7 @@ function CollapseLabel(t0) {
   const snapshot = useSyncExternalStore(subscribe, t2);
   let t3;
   if ($[2] !== snapshot) {
-    t3 = snapshot.split("|").map(Number);
+    t3 = String(snapshot).split("|").map(Number);
     $[2] = snapshot;
     $[3] = t3;
   } else {
@@ -84,7 +84,7 @@ function CollapseLabel(t0) {
   }
   return t5;
 }
-export function TokenWarning(t0) {
+export function TokenWarning(t0: any) {
   const $ = _c(13);
   const {
     tokenUsage,

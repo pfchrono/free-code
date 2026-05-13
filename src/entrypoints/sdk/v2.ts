@@ -490,9 +490,10 @@ function createEngineFromOptions(
   // thinkingEnabled defaults to true via getDefaultAppState() -> shouldEnableThinkingByDefault()
   // Explicit false disables thinking, undefined defaults to enabled (adaptive mode)
   const thinkingEnabled = stateWithPermissions.thinkingEnabled ?? true
+  const thinkingBudgetTokens = (stateWithPermissions as any).thinkingBudgetTokens
   const thinkingConfig = thinkingEnabled
-    ? (stateWithPermissions.thinkingBudgetTokens
-      ? { type: 'enabled' as const, budgetTokens: stateWithPermissions.thinkingBudgetTokens }
+    ? (thinkingBudgetTokens
+      ? { type: 'enabled' as const, budgetTokens: thinkingBudgetTokens }
       : { type: 'adaptive' as const })
     : { type: 'disabled' as const }
 

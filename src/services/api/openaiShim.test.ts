@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { registerGateway } from '../../integrations/index.ts'
 import { createOpenAIShimClient } from './openaiShim.ts'
 
-type FetchType = typeof globalThis.fetch
+type FetchType = any
 
 const originalEnv = {
   OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,

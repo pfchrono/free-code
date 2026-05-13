@@ -36,7 +36,7 @@ describe('Archivist providers', () => {
       }
       return { ok: true }
     })
-    setArchivistClient({ callTool })
+    setArchivistClient({ callTool: callTool as any })
 
     const fallback = createFallbackMemoryProvider([
       { id: 'local-1', content: 'local fallback result' },
@@ -105,7 +105,7 @@ describe('Archivist providers', () => {
           return null
       }
     })
-    setArchivistClient({ callTool })
+    setArchivistClient({ callTool: callTool as any })
 
     const codeIntel = new ArchivistCodeIntelProvider()
     const checkpoints = new ArchivistCheckpointProvider()

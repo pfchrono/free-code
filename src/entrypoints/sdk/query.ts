@@ -875,7 +875,7 @@ class QueryImpl implements Query {
     // Commands come from MCP servers and plugins
     const mcpCommands = state.mcp.commands?.map(c => c.name ?? c) ?? []
     const pluginCommands = state.plugins.commands?.map(c => c.name ?? c) ?? []
-    return [...mcpCommands, ...pluginCommands]
+    return [...mcpCommands, ...pluginCommands] as string[]
   }
 
   supportedModels(): string[] {

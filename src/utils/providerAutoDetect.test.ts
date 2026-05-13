@@ -148,7 +148,7 @@ describe('detectLocalService', () => {
         return new Response('{"models":[]}', { status: 200 })
       }
       return new Response('', { status: 404 })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const result = await detectLocalService({
       env: {},
@@ -160,7 +160,7 @@ describe('detectLocalService', () => {
   })
 
   test('Ollama wins over LM Studio even when both are reachable', async () => {
-    const fetchImpl = (async () => new Response('{}', { status: 200 })) as typeof fetch
+    const fetchImpl = (async () => new Response('{}', { status: 200 })) as unknown as typeof fetch
     const result = await detectLocalService({
       env: {},
       fetchImpl,
@@ -176,7 +176,7 @@ describe('detectLocalService', () => {
         return new Response('{"data":[]}', { status: 200 })
       }
       return new Response('', { status: 404 })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const result = await detectLocalService({
       env: {},
@@ -189,7 +189,7 @@ describe('detectLocalService', () => {
 
   test('returns null when no local services respond', async () => {
     const fetchImpl = (async () =>
-      new Response('', { status: 500 })) as typeof fetch
+      new Response('', { status: 500 })) as unknown as typeof fetch
     const result = await detectLocalService({
       env: {},
       fetchImpl,
@@ -204,7 +204,7 @@ describe('detectLocalService', () => {
       const url = typeof input === 'string' ? input : (input as URL).toString()
       probedUrls.push(url)
       return new Response('{"models":[]}', { status: 200 })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const result = await detectLocalService({
       env: { OLLAMA_BASE_URL: 'http://10.0.0.5:11434' },
@@ -225,7 +225,7 @@ describe('detectLocalService', () => {
           _resolve(new Response('ok'))
         }, 500)
       })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const result = await detectLocalService({
       env: {},
@@ -238,7 +238,7 @@ describe('detectLocalService', () => {
   test('network errors do not throw', async () => {
     const fetchImpl = (async () => {
       throw new Error('ECONNREFUSED')
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const result = await detectLocalService({
       env: {},
@@ -255,7 +255,7 @@ describe('detectBestProvider — orchestrator', () => {
     const fetchImpl = (async () => {
       probeCalled = true
       return new Response('{}', { status: 200 })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const result = await detectBestProvider({
       env: { ANTHROPIC_API_KEY: 'sk-ant' },
@@ -268,7 +268,7 @@ describe('detectBestProvider — orchestrator', () => {
   })
 
   test('env miss falls through to local-service probe', async () => {
-    const fetchImpl = (async () => new Response('{}', { status: 200 })) as typeof fetch
+    const fetchImpl = (async () => new Response('{}', { status: 200 })) as unknown as typeof fetch
     const result = await detectBestProvider({
       env: {},
       fetchImpl,
@@ -283,7 +283,7 @@ describe('detectBestProvider — orchestrator', () => {
     const fetchImpl = (async () => {
       probeCalled = true
       return new Response('{}', { status: 200 })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const result = await detectBestProvider({
       env: {},
@@ -298,7 +298,7 @@ describe('detectBestProvider — orchestrator', () => {
   test('completely empty environment returns null', async () => {
     const fetchImpl = (async () => {
       throw new Error('nothing reachable')
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const result = await detectBestProvider({
       env: {},

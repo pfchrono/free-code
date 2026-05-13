@@ -15,11 +15,11 @@ import { BriefTool } from './tools/BriefTool/BriefTool.js'
 // Dead code elimination: conditional import for ant-only tools
 /* eslint-disable custom-rules/no-process-env-top-level, @typescript-eslint/no-require-imports */
 const REPLTool =
-  process.env.USER_TYPE === 'ant'
+  ((process.env.USER_TYPE as string) === 'ant')
     ? require('./tools/REPLTool/REPLTool.js').REPLTool
     : null
 const SuggestBackgroundPRTool =
-  process.env.USER_TYPE === 'ant'
+  ((process.env.USER_TYPE as string) === 'ant')
     ? require('./tools/SuggestBackgroundPRTool/SuggestBackgroundPRTool.js')
         .SuggestBackgroundPRTool
     : null
@@ -215,8 +215,8 @@ export function getAllBaseTools(): Tools {
     AskUserQuestionTool,
     SkillTool,
     EnterPlanModeTool,
-    ...(process.env.USER_TYPE === 'ant' ? [ConfigTool] : []),
-    ...(process.env.USER_TYPE === 'ant' ? [TungstenTool] : []),
+    ...(((process.env.USER_TYPE as string) === 'ant') ? [ConfigTool] : []),
+    ...(((process.env.USER_TYPE as string) === 'ant') ? [TungstenTool] : []),
     ...(SuggestBackgroundPRTool ? [SuggestBackgroundPRTool] : []),
     ...(WebBrowserTool ? [WebBrowserTool] : []),
     TaskCreateTool,
@@ -237,7 +237,7 @@ export function getAllBaseTools(): Tools {
       ? [getTeamCreateTool(), getTeamDeleteTool()]
       : []),
     ...(VerifyPlanExecutionTool ? [VerifyPlanExecutionTool] : []),
-    ...(process.env.USER_TYPE === 'ant' && REPLTool ? [REPLTool] : []),
+    ...(((process.env.USER_TYPE as string) === 'ant') && REPLTool ? [REPLTool] : []),
     ...(WorkflowTool ? [WorkflowTool] : []),
     ...(SleepTool ? [SleepTool] : []),
     ...cronTools,

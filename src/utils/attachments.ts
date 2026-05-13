@@ -587,6 +587,12 @@ export type Attachment =
       type: 'auto_mode_exit'
     }
   | {
+      type: 'pen_mode_enter'
+    }
+  | {
+      type: 'pen_mode_exit'
+    }
+  | {
       type: 'critical_system_reminder'
       content: string
     }
@@ -1001,7 +1007,7 @@ export async function getAttachments(
     ...userAttachmentResults.flat(),
     ...threadAttachmentResults.flat(),
     ...mainThreadAttachmentResults.flat(),
-  ].filter(a => a !== undefined && a !== null)
+  ].filter(a => a !== undefined && a !== null) as any
 }
 
 async function maybe<A>(label: string, f: () => Promise<A[]>): Promise<A[]> {
@@ -2779,7 +2785,7 @@ export function extractAtMentionedFiles(content: string): string[] {
 
   // Extract regular mentions
   const regularMatchArray = content.match(regularAtMentionRegex) || []
-  regularMatchArray.forEach(match => {
+  ;(regularMatchArray as any[]).forEach(match => {
     const filename = match.slice(match.indexOf('@') + 1)
     // Don't include if it starts with a quote (already handled as quoted)
     if (!filename.startsWith('"')) {
@@ -3390,7 +3396,7 @@ async function getTaskReminderAttachments(
   toolUseContext: ToolUseContext,
 ): Promise<Attachment[]> {
   // Skip for ant users
-  if (process.env.USER_TYPE === 'ant') {
+  if (((process.env.USER_TYPE as string) === 'ant')) {
     return []
   }
 
@@ -3546,7 +3552,7 @@ async function getTeammateMailboxAttachments(
   if (!isAgentSwarmsEnabled()) {
     return []
   }
-  if (process.env.USER_TYPE !== 'ant') {
+  if (((process.env.USER_TYPE as string) !== 'ant')) {
     return []
   }
 
@@ -3907,7 +3913,7 @@ async function getVerifyPlanReminderAttachment(
   toolUseContext: ToolUseContext,
 ): Promise<Attachment[]> {
   if (
-    process.env.USER_TYPE !== 'ant' ||
+    ((process.env.USER_TYPE as string) !== 'ant') ||
     !isEnvTruthy(process.env.CLAUDE_CODE_VERIFY_PLAN)
   ) {
     return []

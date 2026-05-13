@@ -243,7 +243,7 @@ export function resolveCacheProvider(
   provider: APIProvider,
   hints?: { githubNativeAnthropic?: boolean; openAiBaseUrl?: string },
 ): CacheAwareProvider {
-  if (provider === 'github') {
+  if ((provider as string) === 'github') {
     return hints?.githubNativeAnthropic ? 'copilot-claude' : 'copilot'
   }
   if (provider === 'firstParty' || provider === 'bedrock' || provider === 'vertex' || provider === 'foundry') {

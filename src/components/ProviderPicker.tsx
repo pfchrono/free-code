@@ -128,7 +128,7 @@ export function ProviderPicker({
   }, [selectedProvider, showOllama, ollamaModels])
 
   const modelSelectOptions = useMemo(() => {
-    return currentProviderModels.map(opt => ({
+    return currentProviderModels.map((opt: any) => ({
       ...opt,
       description: isFavorite(selectedProvider, opt.value)
         ? '★ favorite'

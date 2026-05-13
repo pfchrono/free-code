@@ -24,13 +24,16 @@ export type LocalCommandResult =
       type: 'compact'
       compactionResult: CompactionResult
       displayText?: string
+      value?: string
     }
-  | { type: 'skip' } // Skip messages
+  | { type: 'skip'; value?: string } // Skip messages
+
+export type LocalCommandResultValue = LocalCommandResult & { value?: string }
 
 export type PromptCommand = {
   type: 'prompt'
-  progressMessage: string
-  contentLength: number // Length of command content in characters (used for token estimation)
+  progressMessage?: string
+  contentLength?: number // Length of command content in characters (used for token estimation)
   argNames?: string[]
   allowedTools?: string[]
   model?: string
@@ -58,7 +61,7 @@ export type PromptCommand = {
   getPromptForCommand(
     args: string,
     context: ToolUseContext,
-  ): Promise<ContentBlockParam[]>
+  ): Promise<ContentBlockParam[] | string>
 }
 
 /**
@@ -78,11 +81,13 @@ export type LocalCommandModule = {
 
 type LocalCommand = {
   type: 'local'
-  supportsNonInteractive: boolean
-  load: () => Promise<LocalCommandModule>
+  supportsNonInteractive?: boolean
+  load?: () => Promise<LocalCommandModule>
+  call?: LocalCommandCall
 }
 
 export type LocalJSXCommandContext = ToolUseContext & {
+  [key: string]: any
   canUseTool?: CanUseToolFn
   setMessages: (updater: (prev: Message[]) => Message[]) => void
   options: {
@@ -153,7 +158,8 @@ type LocalJSXCommand = {
    * Returns a module with a call() function.
    * This defers loading heavy dependencies until the command is invoked.
    */
-  load: () => Promise<LocalJSXCommandModule>
+  load?: () => Promise<LocalJSXCommandModule>
+  call?: LocalJSXCommandCall
 }
 
 /**
@@ -178,6 +184,7 @@ export type CommandAvailability =
   | 'console'
 
 export type CommandBase = {
+  [key: string]: any
   availability?: CommandAvailability[]
   description: string
   hasUserSpecifiedDescription?: boolean

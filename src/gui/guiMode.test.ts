@@ -35,12 +35,12 @@ describe('guiMode teardownRuntime', () => {
       engine: {
         interrupt,
       },
-    } as Parameters<typeof testExports.teardownRuntime>[0];
+    } as unknown as Parameters<typeof testExports.teardownRuntime>[0];
 
     const originalStdoutWrite = process.stdout.write;
     process.stdout.write = ((chunk: string | Uint8Array) => {
       if (typeof chunk === 'string') {
-        write(chunk);
+        (write as any)(chunk);
       }
       return true;
     }) as typeof process.stdout.write;
@@ -55,7 +55,7 @@ describe('guiMode teardownRuntime', () => {
     expect(interrupt).toHaveBeenCalledTimes(1);
     expect(write).toHaveBeenCalled();
     expect(
-      write.mock.calls.some(([chunk]) =>
+      (write.mock.calls as any[]).some(([chunk]) =>
         String(chunk).includes('GUI shutdown forced after interrupt timeout'),
       ),
     ).toBe(true);

@@ -15,7 +15,7 @@ const noopTool = {
   async call() {
     return { content: [] }
   },
-}
+} as any
 
 afterEach(() => {
   mock.restore()
@@ -104,7 +104,7 @@ describe('MCP client helpers', () => {
   })
 
   it('builds stable cache keys from server name and config', () => {
-    const serverRef = { type: 'http', url: 'https://example.com/mcp', headers: { authorization: 'Bearer token' } }
+    const serverRef = { type: 'http', url: 'https://example.com/mcp', headers: { authorization: 'Bearer token' } } as any
 
     expect(getServerCacheKey('demo', serverRef)).toBe(
       'demo-{"type":"http","url":"https://example.com/mcp","headers":{"authorization":"Bearer token"}}',

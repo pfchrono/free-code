@@ -1255,6 +1255,7 @@ function resolveCodexCredentials(processEnv: NodeJS.ProcessEnv):
       ok: true
       sourceDescription: string
       credentialSource: 'oauth' | 'existing'
+      message?: undefined
     }
   | { ok: false; message: string } {
   const credentials = resolveCodexApiCredentials(processEnv)

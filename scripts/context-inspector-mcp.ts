@@ -140,7 +140,7 @@ function classify(entry: Record<string, unknown>, text: string): { category: str
 
 function walk(dir: string, out: TranscriptCandidate[], source: TranscriptCandidate['source'], depth = 0): void {
   if (depth > 6 || !existsSync(dir)) return
-  let entries: ReturnType<typeof readdirSync>
+  let entries: any[]
   try {
     entries = readdirSync(dir, { withFileTypes: true })
   } catch {

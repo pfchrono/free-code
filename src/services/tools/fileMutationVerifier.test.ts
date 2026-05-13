@@ -16,6 +16,7 @@ function toolUse(
     id,
     name,
     input,
+    caller: { type: 'direct' },
   }
 }
 

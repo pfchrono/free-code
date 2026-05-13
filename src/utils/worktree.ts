@@ -617,7 +617,7 @@ async function performPostCreationSetup(
     void import('./postCommitAttribution.js')
       .then(m =>
         m
-          .installPrepareCommitMsgHook(worktreePath, worktreeHooksDir)
+          .appendPostCommitAttribution(worktreePath, worktreeHooksDir)
           .catch(error => {
             logForDebugging(
               `Failed to install attribution hook in worktree: ${error}`,
@@ -1304,7 +1304,7 @@ export async function execIntoTmuxWorktree(args: string[]): Promise<{
       if (!result.existed) {
         // biome-ignore lint/suspicious/noConsole: intentional console output
         console.log(
-          `Created worktree: ${worktreeDir} (based on ${result.baseBranch})`,
+          `Created worktree: ${worktreeDir} (based on ${(result as any).baseBranch})`,
         )
         await performPostCreationSetup(repoRoot, worktreeDir)
       }
@@ -1404,7 +1404,7 @@ export async function execIntoTmuxWorktree(args: string[]): Promise<{
   }
 
   // For ants in claude-cli-internal, set up dev panes (watch + start)
-  const isAnt = process.env.USER_TYPE === 'ant'
+  const isAnt = ((process.env.USER_TYPE as string) === 'ant')
   const isClaudeCliInternal = repoName === 'claude-cli-internal'
   const shouldSetupDevPanes = isAnt && isClaudeCliInternal && !sessionExists
 

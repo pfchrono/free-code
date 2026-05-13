@@ -543,7 +543,7 @@ export function setCodexUsage(update: CodexUsageUpdate): void {
     session_name:
       update.session_name ??
       streamSnapshot.session_name ??
-      getCurrentSessionTitle(nextSessionId) ??
+      getCurrentSessionTitle(nextSessionId as any) ??
       undefined,
     rate_limits: mergeStreamRateLimits(update.rate_limits),
     updated_at: update.updated_at ?? new Date().toISOString(),

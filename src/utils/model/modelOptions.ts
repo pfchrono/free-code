@@ -142,7 +142,7 @@ export function getModelPickerAvailabilitySummary(): string | null {
 }
 
 export function getDefaultOptionForUser(fastMode = false): ModelOption {
-  if (process.env.USER_TYPE === 'ant') {
+  if (((process.env.USER_TYPE as string) === 'ant')) {
     const currentModel = renderDefaultModelSetting(
       getDefaultMainLoopModelSetting(),
     )
@@ -541,7 +541,7 @@ function getModelOptionsBase(
   fastMode = false,
   provider: ReturnType<typeof getAPIProvider> = getAPIProvider(),
 ): ModelOption[] {
-  if (process.env.USER_TYPE === 'ant') {
+  if (((process.env.USER_TYPE as string) === 'ant')) {
     // Build options from antModels config
     const antModelOptions: ModelOption[] = getAntModels().map(m => ({
       value: m.alias,

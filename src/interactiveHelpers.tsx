@@ -1,4 +1,5 @@
 import { feature } from 'bun:bundle';
+import { appendFileSync } from 'node:fs';
 import React from 'react';
 import { logEvent } from 'src/services/analytics/index.js';
 import { gracefulShutdown, gracefulShutdownSync } from 'src/utils/gracefulShutdown.js';

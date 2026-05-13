@@ -307,7 +307,7 @@ type BriefSpinnerProps = {
   mode: SpinnerMode;
   overrideMessage?: string | null;
 };
-function BriefSpinner(t0) {
+function BriefSpinner(t0: any) {
   const $ = _c(31);
   const {
     mode,

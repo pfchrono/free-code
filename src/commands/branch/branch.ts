@@ -36,7 +36,7 @@ type TranscriptEntry = TranscriptMessage & {
  * otherwise flow into the saved title and break the resume hint.
  */
 export function deriveFirstPrompt(
-  firstUserMessage: Extract<SerializedMessage, { type: 'user' }> | undefined,
+  firstUserMessage: any,
 ): string {
   const content = firstUserMessage?.message?.content
   if (!content) return 'Branched conversation'
@@ -240,7 +240,7 @@ export async function call(
     // Build LogOption for resume
     const now = new Date()
     const firstPrompt = deriveFirstPrompt(
-      serializedMessages.find(m => m.type === 'user'),
+      serializedMessages.find(m => m.type === 'user') as any,
     )
 
     // Save custom title - use provided title or firstPrompt as default

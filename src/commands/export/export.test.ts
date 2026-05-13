@@ -16,7 +16,7 @@ function makeContext(messages: ToolUseContext['messages']): ToolUseContext {
     options: {
       tools: [],
     },
-  } as ToolUseContext
+  } as unknown as ToolUseContext
 }
 
 describe('/export command', () => {

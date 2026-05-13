@@ -494,7 +494,7 @@ export function updateSettingsForSource(
   }
 
   try {
-    getFsImplementation().mkdirSync(dirname(filePath), { recursive: true })
+    getFsImplementation().mkdirSync(dirname(filePath), { recursive: true } as any)
 
     // Try to get existing settings with validation. Bypass the per-source
     // cache — mergeWith below mutates its target (including nested refs),
@@ -1025,7 +1025,7 @@ export function getAutoModeConfig():
       if (result.success) {
         if (result.data.allow) allow.push(...result.data.allow)
         if (result.data.soft_deny) soft_deny.push(...result.data.soft_deny)
-        if (process.env.USER_TYPE === 'ant') {
+        if (((process.env.USER_TYPE as string) === 'ant')) {
           if (result.data.deny) soft_deny.push(...result.data.deny)
         }
         if (result.data.environment)

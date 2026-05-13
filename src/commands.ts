@@ -58,7 +58,7 @@ import teleport from './commands/teleport/index.js'
 import wiki from './commands/wiki/index.js'
 /* eslint-disable @typescript-eslint/no-require-imports */
 const agentsPlatform =
-  process.env.USER_TYPE === 'ant'
+  ((process.env.USER_TYPE as string) === 'ant')
     ? require('./commands/agents-platform/index.js').default
     : null
 /* eslint-enable @typescript-eslint/no-require-imports */
@@ -392,7 +392,7 @@ const COMMANDS = memoize((): Command[] => [
   ...(workflowsCmd ? [workflowsCmd] : []),
   ...(torch ? [torch] : []),
   ...(ultraplan ? [ultraplan] : []),
-  ...(process.env.USER_TYPE === 'ant' && !process.env.IS_DEMO
+  ...(((process.env.USER_TYPE as string) === 'ant') && !process.env.IS_DEMO
     ? INTERNAL_ONLY_COMMANDS
     : []),
 ])

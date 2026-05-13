@@ -32,7 +32,7 @@ describe('createCopilotFetch', () => {
         status: 401,
         headers: { 'Content-Type': 'text/plain' },
       })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch({ copilotToken: 'test-copilot-token' })
     const response = await copilotFetch('https://api.anthropic.com/v1/messages?beta=true', {
@@ -52,7 +52,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return new Response(null, { status: 204 })
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch({ copilotToken: 'test-copilot-token' })
     const response = await copilotFetch('https://api.anthropic.com/v1/models', {
@@ -70,7 +70,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch({ copilotToken: 'test-copilot-token' })
     const response = await copilotFetch('https://api.anthropic.com/v1/messages', {
@@ -120,7 +120,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch({ copilotToken: 'test-copilot-token' })
     await copilotFetch('https://api.anthropic.com/v1/messages', {
@@ -163,7 +163,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch({ copilotToken: 'test-copilot-token' })
     await copilotFetch('https://api.anthropic.com/v1/messages', {
@@ -244,7 +244,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch(
       { copilotToken: 'test-copilot-token' },
@@ -301,7 +301,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch(
       { copilotToken: 'test-copilot-token' },
@@ -361,7 +361,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch(
       { copilotToken: 'test-copilot-token' },
@@ -414,7 +414,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch(
       { copilotToken: 'test-copilot-token' },
@@ -504,7 +504,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch(
       { copilotToken: 'test-copilot-token' },
@@ -544,7 +544,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const longText = 'x'.repeat(25000)
     const messages = Array.from({ length: 40 }, (_, i) => ({
@@ -579,7 +579,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const longText = 'x'.repeat(25000)
     const messages = Array.from({ length: 6 }, (_, i) => ({
@@ -610,7 +610,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch({ copilotToken: 'test-copilot-token' })
     const requestInit: RequestInit = {
@@ -637,7 +637,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch({ copilotToken: 'test-copilot-token' })
     const requestInit: RequestInit = {
@@ -668,7 +668,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const longTool = 't'.repeat(60000)
     const messages = Array.from({ length: 30 }, (_, i) => {
@@ -727,7 +727,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch({ copilotToken: 'test-copilot-token' })
     await copilotFetch('https://api.anthropic.com/v1/messages', {
@@ -769,7 +769,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch({ copilotToken: 'test-copilot-token' })
     await copilotFetch('https://api.anthropic.com/v1/messages', {
@@ -833,7 +833,7 @@ describe('createCopilotFetch', () => {
     globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
       fetchCalls.push({ input, init })
       return createStreamResponse()
-    }) as typeof fetch
+    }) as unknown as typeof fetch
 
     const copilotFetch = createCopilotFetch({ copilotToken: 'test-copilot-token' })
     await copilotFetch('https://api.anthropic.com/v1/messages', {

@@ -406,7 +406,7 @@ function validateHookJson(
   const validation = hookJSONOutputSchema().safeParse(parsed)
   if (validation.success) {
     logForDebugging('Successfully parsed and validated hook JSON output')
-    return { json: validation.data }
+    return { json: validation.data as HookJSONOutput }
   }
   const errors = validation.error.issues
     .map(err => `  - ${err.path.join('.')}: ${err.message}`)
@@ -482,7 +482,7 @@ function parseHttpHookOutput(body: string): {
       logForDebugging(
         'HTTP hook returned empty body, treating as empty JSON object',
       )
-      return { json: validation.data }
+      return { json: validation.data as HookJSONOutput }
     }
   }
 
@@ -677,7 +677,7 @@ function processHookJSONOutput({
       case 'PermissionRequest':
         // Extract the permission request decision
         if (json.hookSpecificOutput.decision) {
-          result.permissionRequestResult = json.hookSpecificOutput.decision
+          result.permissionRequestResult = json.hookSpecificOutput.decision as any
           // Also update permissionBehavior for consistency
           result.permissionBehavior =
             json.hookSpecificOutput.decision.behavior === 'allow'
@@ -2231,7 +2231,7 @@ async function* executeHooks({
             hookName,
             toolUseID,
             hookEvent,
-            content: `Failed to prepare hook input: ${errorMessage(jsonInputRes.error)}`,
+            content: `Failed to prepare hook input: ${errorMessage((jsonInputRes as any).error)}`,
             command: hookCommand,
             durationMs: Date.now() - hookStartMs,
           }),
@@ -2434,7 +2434,7 @@ async function* executeHooks({
 
         if (httpJson) {
           const processed = processHookJSONOutput({
-            json: httpJson,
+            json: httpJson as any,
             command: hook.url,
             hookName,
             toolUseID,
@@ -4203,7 +4203,7 @@ export async function* executePermissionRequestHooks<ToolInput>(
     hook_event_name: 'PermissionRequest',
     tool_name: toolName,
     tool_input: toolInput,
-    permission_suggestions: permissionSuggestions,
+    permission_suggestions: permissionSuggestions as any,
   }
 
   yield* executeHooks({
@@ -4440,7 +4440,7 @@ function parseElicitationHookOutput(
   }
 
   try {
-    const parsed = hookJSONOutputSchema().parse(JSON.parse(trimmed))
+    const parsed = hookJSONOutputSchema().parse(JSON.parse(trimmed)) as HookJSONOutput
     if (isAsyncHookJSONOutput(parsed)) {
       return {}
     }

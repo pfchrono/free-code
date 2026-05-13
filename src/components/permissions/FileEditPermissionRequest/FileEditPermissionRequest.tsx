@@ -25,7 +25,7 @@ const ideDiffSupport: IDEDiffSupport<FileEditInput> = {
     return input;
   }
 };
-export function FileEditPermissionRequest(props) {
+export function FileEditPermissionRequest(props: any) {
   const $ = _c(51);
   const parseInput = _temp;
   let T0;

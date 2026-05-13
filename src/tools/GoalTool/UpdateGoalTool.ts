@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { buildTool, type ToolDef } from '../../Tool.js'
+import { buildTool } from '../../Tool.js'
 import { updateGoalStatus } from '../../services/goals/goalStore.js'
 import { lazySchema } from '../../utils/lazySchema.js'
 import { UPDATE_GOAL_TOOL_NAME } from './constants.js'
@@ -74,5 +74,5 @@ export const UpdateGoalTool = buildTool({
       content: `Goal marked ${goal.status}: ${goal.objective}\nTokens used: ${goal.tokens_used}\nTime used: ${goal.time_used_seconds}s`,
     }
   },
-} satisfies ToolDef<InputSchema, Output>)
+} as any)
 

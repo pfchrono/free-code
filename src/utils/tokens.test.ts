@@ -11,7 +11,7 @@ describe('getTokenCountFromUsage', () => {
         output_tokens: 50,
         cache_read_input_tokens: 25,
         cache_creation_input_tokens: 10,
-      }),
+      } as any),
     ).toBe(185)
   })
 })

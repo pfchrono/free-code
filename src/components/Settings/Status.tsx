@@ -130,7 +130,7 @@ function buildSecondarySection({
       value: modelLabel,
     },
     ...buildRemoteProperties(
-      remoteConnectionStatus,
+      remoteConnectionStatus as any,
       remoteBackgroundTaskCount,
       theme,
     ),

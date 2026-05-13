@@ -330,10 +330,10 @@ export function createExternalCanUseTool(
         clearTimeout(timeoutId)
       }
 
-      if (!raceResult.timedOut && raceResult.result) {
+      if (!raceResult.timedOut && (raceResult as any).result) {
         permissionTarget.deletePendingPermission(toolUseID)
         // Convert PermissionResolveDecision to PermissionDecision
-        const res = raceResult.result
+        const res = (raceResult as any).result
         if (res.behavior === 'allow') {
           return { behavior: 'allow' as const, updatedInput: res.updatedInput ?? typedInput }
         }

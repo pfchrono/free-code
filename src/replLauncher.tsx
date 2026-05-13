@@ -8,6 +8,7 @@ type AppWrapperProps = {
   getFpsMetrics: () => FpsMetrics | undefined;
   stats?: StatsStore;
   initialState: AppState;
+  appendSystemPrompt?: string;
 };
 export async function launchRepl(root: Root, appProps: AppWrapperProps, replProps: REPLProps, renderAndRun: (root: Root, element: React.ReactNode) => Promise<void>): Promise<void> {
   const {

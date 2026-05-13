@@ -52,7 +52,7 @@ type Props = {
   isInputWrapped?: boolean;
   isNarrow?: boolean;
 };
-export function Notifications(t0) {
+export function Notifications(t0: any) {
   const $ = _c(34);
   const {
     apiKeyStatus,
@@ -72,8 +72,8 @@ export function Notifications(t0) {
   const isNarrow = t2 === undefined ? false : t2;
   let t3;
   if ($[0] !== messages) {
-    const messagesForTokenCount = getMessagesAfterCompactBoundary(messages);
-    t3 = tokenCountFromLastAPIResponse(messagesForTokenCount);
+    const messagesForTokenCount = getMessagesAfterCompactBoundary(messages as any);
+    t3 = tokenCountFromLastAPIResponse(messagesForTokenCount as any);
     $[0] = messages;
     $[1] = t3;
   } else {

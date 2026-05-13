@@ -48,7 +48,7 @@ function ThinkingProcessLabel({
       <Text dimColor> · {detail}</Text>
     </MessageResponse>;
 }
-export function AssistantToolUseMessage(t0) {
+export function AssistantToolUseMessage(t0: any) {
   const $ = _c(81);
   const {
     param,

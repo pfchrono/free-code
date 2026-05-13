@@ -120,7 +120,7 @@ function logClassifierResultForAnts(
   descriptions: string[],
   result: ClassifierResult,
 ): void {
-  if (process.env.USER_TYPE !== 'ant') {
+  if (((process.env.USER_TYPE as string) !== 'ant')) {
     return
   }
 
@@ -171,7 +171,7 @@ export function getSimpleCommandPrefix(command: string): string | null {
   while (i < tokens.length && ENV_VAR_ASSIGN_RE.test(tokens[i]!)) {
     const varName = tokens[i]!.split('=')[0]!
     const isAntOnlySafe =
-      process.env.USER_TYPE === 'ant' && ANT_ONLY_SAFE_ENV_VARS.has(varName)
+      ((process.env.USER_TYPE as string) === 'ant') && ANT_ONLY_SAFE_ENV_VARS.has(varName)
     if (!SAFE_ENV_VARS.has(varName) && !isAntOnlySafe) {
       return null
     }
@@ -247,7 +247,7 @@ export function getFirstWordPrefix(command: string): string | null {
   while (i < tokens.length && ENV_VAR_ASSIGN_RE.test(tokens[i]!)) {
     const varName = tokens[i]!.split('=')[0]!
     const isAntOnlySafe =
-      process.env.USER_TYPE === 'ant' && ANT_ONLY_SAFE_ENV_VARS.has(varName)
+      ((process.env.USER_TYPE as string) === 'ant') && ANT_ONLY_SAFE_ENV_VARS.has(varName)
     if (!SAFE_ENV_VARS.has(varName) && !isAntOnlySafe) {
       return null
     }
@@ -326,7 +326,7 @@ function extractPrefixBeforeHeredoc(command: string): string | null {
   while (i < tokens.length && ENV_VAR_ASSIGN_RE.test(tokens[i]!)) {
     const varName = tokens[i]!.split('=')[0]!
     const isAntOnlySafe =
-      process.env.USER_TYPE === 'ant' && ANT_ONLY_SAFE_ENV_VARS.has(varName)
+      ((process.env.USER_TYPE as string) === 'ant') && ANT_ONLY_SAFE_ENV_VARS.has(varName)
     if (!SAFE_ENV_VARS.has(varName) && !isAntOnlySafe) {
       return null
     }
@@ -588,7 +588,7 @@ export function stripSafeWrappers(command: string): string {
     if (envVarMatch) {
       const varName = envVarMatch[1]!
       const isAntOnlySafe =
-        process.env.USER_TYPE === 'ant' && ANT_ONLY_SAFE_ENV_VARS.has(varName)
+        ((process.env.USER_TYPE as string) === 'ant') && ANT_ONLY_SAFE_ENV_VARS.has(varName)
       if (SAFE_ENV_VARS.has(varName) || isAntOnlySafe) {
         stripped = stripped.replace(ENV_VAR_PATTERN, '')
       }
@@ -1783,7 +1783,7 @@ export async function bashToolHasPermission(
       if (earlyExit !== null) return earlyExit
       const decisionReason: PermissionDecisionReason = {
         type: 'other' as const,
-        reason: sem.reason,
+        reason: (sem as any).reason,
       }
       return {
         behavior: 'ask',
@@ -1816,7 +1816,7 @@ export async function bashToolHasPermission(
     if (!parseResult.success) {
       const decisionReason = {
         type: 'other' as const,
-        reason: `Command contains malformed syntax that cannot be parsed: ${parseResult.error}`,
+        reason: `Command contains malformed syntax that cannot be parsed: ${(parseResult as any).error}`,
       }
       return {
         behavior: 'ask',

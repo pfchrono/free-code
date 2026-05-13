@@ -38,7 +38,7 @@ export function MonitorPermissionRequest({
   ) => {
     switch (value) {
       case 'yes': {
-        logUnaryPermissionEvent({
+        (logUnaryPermissionEvent as any)({
           completion_type: 'tool_use_single',
           event: 'accept',
           metadata: {
@@ -52,7 +52,7 @@ export function MonitorPermissionRequest({
         break
       }
       case 'yes-dont-ask-again': {
-        logUnaryPermissionEvent({
+        (logUnaryPermissionEvent as any)({
           completion_type: 'tool_use_single',
           event: 'accept',
           metadata: {
@@ -79,7 +79,7 @@ export function MonitorPermissionRequest({
         break
       }
       case 'no': {
-        logUnaryPermissionEvent({
+        (logUnaryPermissionEvent as any)({
           completion_type: 'tool_use_single',
           event: 'reject',
           metadata: {
@@ -97,7 +97,7 @@ export function MonitorPermissionRequest({
   }
 
   const handleCancel = () => {
-    logUnaryPermissionEvent({
+    (logUnaryPermissionEvent as any)({
       completion_type: 'tool_use_single',
       event: 'reject',
       metadata: {

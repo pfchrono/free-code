@@ -15,6 +15,7 @@ import {
   getSettingsForSource,
   updateSettingsForSource,
 } from '../../utils/settings/settings.js'
+import { listZenModels } from '../../utils/providerDiscovery.js'
 
 type StoredApiProvider = 'firstParty' | 'zen'
 
@@ -69,7 +70,7 @@ export async function call(
     }
 
     try {
-      const models = await listZenModels({ apiKey })
+      const models = await listZenModels({ apiKey: apiKey as string })
 
       if (!models || models.length === 0) {
         onDone('No models found from OpenCode Zen API', { display: 'system' })

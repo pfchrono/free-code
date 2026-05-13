@@ -161,7 +161,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
     return this.isReadOnly?.(_input) ?? false;
   },
   isEnabled() {
-    return "external" !== 'ant';
+    return true;
   },
   isReadOnly(_input) {
     return true;
@@ -221,7 +221,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
       if (task.status !== 'running' && task.status !== 'pending') {
         // Mark as notified
         updateTaskState(task_id, toolUseContext.setAppState, t => ({
-          ...t,
+          ...(t as any),
           notified: true
         }));
         return {
@@ -270,7 +270,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
 
     // Mark as notified
     updateTaskState(task_id, toolUseContext.setAppState, t => ({
-      ...t,
+      ...(t as any),
       notified: true
     }));
     return {
@@ -350,7 +350,7 @@ export const TaskOutputTool: Tool<InputSchema, TaskOutputToolOutput> = buildTool
     return <FallbackToolUseErrorMessage result={result} verbose={verbose} />;
   }
 } satisfies ToolDef<InputSchema, TaskOutputToolOutput>);
-function TaskOutputResultDisplay(t0) {
+function TaskOutputResultDisplay(t0: any) {
   const $ = _c(54);
   const {
     content,

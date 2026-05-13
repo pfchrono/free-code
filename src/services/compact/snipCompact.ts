@@ -65,6 +65,14 @@ export function isSnipRuntimeEnabled(): boolean {
   return true
 }
 
+export function isSnipMarkerMessage(_message: unknown): boolean {
+  return false
+}
+
+export function shouldNudgeForSnips(_messages?: readonly Message[]): boolean {
+  return false
+}
+
 /**
  * Update global snip configuration
  */
@@ -234,7 +242,7 @@ ${conversationText}
           enablePromptCaching: false,
           model: 'nvidia/llama-3.1-nemotron-super-49b-v1',
         },
-      })
+      }) as any
     } else {
       // Use the session's small fast model (Haiku on firstParty)
       response = await queryHaiku({
@@ -251,7 +259,7 @@ ${conversationText}
           mcpTools: [],
           enablePromptCaching: false,
         },
-      })
+      }) as any
     }
 
     // Extract text from response

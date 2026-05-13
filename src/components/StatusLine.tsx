@@ -242,8 +242,8 @@ function StatusLineInner({
         previousStateRef.current.messageId = currentMessageId;
         previousStateRef.current.exceeds200kTokens = exceeds200kTokens;
       }
-      const statusInput = buildStatusLineCommandInput(permissionModeRef.current, exceeds200kTokens, settingsRef.current, msgs, Array.from(addedDirsRef.current.keys()), mainLoopModelRef.current, vimModeRef.current);
-      const text = await executeStatusLineCommand(statusInput, controller.signal, undefined, logResult);
+      const statusInput = buildStatusLineCommandInput(permissionModeRef.current, exceeds200kTokens, settingsRef.current, msgs, Array.from((addedDirsRef.current as any).keys()), mainLoopModelRef.current, vimModeRef.current);
+      const text = await (executeStatusLineCommand as any)(statusInput, controller.signal, undefined, logResult);
       if (!controller.signal.aborted) {
         setAppState(prev => {
           if (prev.statusLineText === text) return prev;

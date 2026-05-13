@@ -359,7 +359,7 @@ export async function* runAgent({
   }
 
   // Log API calls path for subagents (ant-only)
-  if (process.env.USER_TYPE === 'ant') {
+  if (((process.env.USER_TYPE as string) === 'ant')) {
     logForDebugging(
       `[Subagent ${agentDefinition.agentType}] API calls: ${getDisplayPath(getDumpPromptsPath(agentId))}`,
     )
@@ -502,8 +502,8 @@ export async function* runAgent({
     : resolveAgentTools(agentDefinition, availableTools, isAsync).resolvedTools
 
   const additionalWorkingDirectories = Array.from(
-    appState.toolPermissionContext.additionalWorkingDirectories.keys(),
-  )
+    (appState.toolPermissionContext.additionalWorkingDirectories as any).keys(),
+  ) as string[]
 
   const agentSystemPrompt = override?.systemPrompt
     ? override.systemPrompt
@@ -638,7 +638,7 @@ export async function* runAgent({
 
       initialMessages.push(
         createUserMessage({
-          content: [{ type: 'text', text: metadata }, ...content],
+          content: [{ type: 'text', text: metadata }, ...(content as any[])],
           isMeta: true,
         }),
       )

@@ -17,8 +17,9 @@ function isSkillResource(resource: ServerResource): boolean {
 }
 
 function getResourceText(resource: ServerResource): string | null {
-  if (typeof resource.text === 'string') return resource.text
-  if (typeof resource.blob === 'string') return resource.blob
+  const maybeResource = resource as any
+  if (typeof maybeResource.text === 'string') return maybeResource.text
+  if (typeof maybeResource.blob === 'string') return maybeResource.blob
   return null
 }
 
@@ -81,7 +82,7 @@ async function fetchMcpSkillsForClientImpl(
   client: MCPServerConnection,
 ): Promise<Command[]> {
   try {
-    const resources = client.resources ?? []
+    const resources = (client as any).resources ?? []
     const skillResources = resources.filter(isSkillResource)
     if (skillResources.length === 0) return []
 

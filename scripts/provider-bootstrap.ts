@@ -7,16 +7,7 @@ import {
   type RecommendationGoal,
 } from '../src/utils/providerAuto.js'
 
-type BootstrapProvider =
-  | 'auto'
-  | 'firstParty'
-  | 'codex'
-  | 'openai'
-  | 'openrouter'
-  | 'copilot'
-  | 'lmstudio'
-  | 'zen'
-  | 'minimax'
+type BootstrapProvider = 'auto' | APIProvider
 
 type ParsedArgs = {
   provider: BootstrapProvider
@@ -34,6 +25,9 @@ const VALID_PROVIDERS = new Set<BootstrapProvider>([
   'lmstudio',
   'zen',
   'minimax',
+  'gemini',
+  'mistral',
+  'nvidia',
 ])
 
 function usage(): string {
@@ -91,7 +85,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 }
 
 function setProjectProvider(provider: APIProvider): void {
-  const result = updateSettingsForSource('projectSettings', { apiProvider: provider })
+  const result = updateSettingsForSource('projectSettings', { apiProvider: provider as any })
   if (result.error) {
     throw result.error
   }

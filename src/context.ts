@@ -18,6 +18,8 @@ import { shouldIncludeGitInstructions } from './utils/gitSettings.js'
 import { logError } from './utils/log.js'
 import { formatToolMemoryPromptSummary } from './services/memory/toolMemory.js'
 
+export type { MCPServerConnection } from './services/mcp/types.js'
+
 const MAX_STATUS_CHARS = 2000
 
 export type UserContextOptions = {

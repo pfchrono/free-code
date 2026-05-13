@@ -174,6 +174,7 @@ export type McpProviderManagedProxyServerConfig = z.infer<
 export type McpServerConfig = z.infer<ReturnType<typeof McpServerConfigSchema>>
 
 export type ScopedMcpServerConfig = McpServerConfig & {
+  [key: string]: any
   scope: ConfigScope
   // For plugin-provided servers: the providing plugin's LoadedPlugin.source
   // (e.g. 'slack@anthropic'). Stashed at config-build time so the channel

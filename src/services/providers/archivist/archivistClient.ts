@@ -51,7 +51,7 @@ export function createArchivistClient(connection: MCPServerConnection): Archivis
         { timeout: 15000 },
       )
 
-      return normalizeMcpResult(result.content, result.structuredContent) as T
+      return normalizeMcpResult(result.content as any, result.structuredContent) as T
     },
   }
 }

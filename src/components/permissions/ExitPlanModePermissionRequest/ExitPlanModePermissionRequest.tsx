@@ -288,7 +288,7 @@ export function ExitPlanModePermissionRequest({
       onDone();
       onReject();
       toolUseConfirm.onReject('Plan being refined via Ultraplan — please wait for the result.');
-      void launchUltraplan({
+      void (launchUltraplan as any)({
         blurb: '',
         seedPlan: currentPlan,
         getAppState: store.getState,

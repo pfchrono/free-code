@@ -27,7 +27,7 @@ const MIN_CONTENT_HEIGHT = 12;
 const MIN_CONTENT_WIDTH = 40;
 // Lines used by chrome around the content area (nav bar, title, footer, help text, etc.)
 const CONTENT_CHROME_OVERHEAD = 15;
-export function AskUserQuestionPermissionRequest(props) {
+export function AskUserQuestionPermissionRequest(props: any) {
   const $ = _c(4);
   const settings = useSettings();
   if (settings.syntaxHighlightingDisabled) {
@@ -51,7 +51,7 @@ export function AskUserQuestionPermissionRequest(props) {
   }
   return t0;
 }
-function AskUserQuestionWithHighlight(props) {
+function AskUserQuestionWithHighlight(props: any) {
   const $ = _c(4);
   let t0;
   if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
@@ -72,7 +72,7 @@ function AskUserQuestionWithHighlight(props) {
   }
   return t1;
 }
-function AskUserQuestionPermissionRequestBody(t0) {
+function AskUserQuestionPermissionRequestBody(t0: any) {
   const $ = _c(115);
   const {
     toolUseConfirm,
@@ -183,8 +183,8 @@ function AskUserQuestionPermissionRequestBody(t0) {
         filename: filename || "Pasted image",
         dimensions
       };
-      cacheImagePath(newContent);
-      storeImage(newContent);
+      cacheImagePath(newContent as any);
+      storeImage(newContent as any);
       setPastedContentsByQuestion(prev => ({
         ...prev,
         [questionText]: {

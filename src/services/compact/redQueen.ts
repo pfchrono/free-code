@@ -466,7 +466,7 @@ function logCompressionEvent(
     tokensSaved: stats.tokensSaved,
     dedupHits: stats.dedupHits,
     filteredItems: stats.filteredItems,
-  })
+  } as any)
 }
 
 /**

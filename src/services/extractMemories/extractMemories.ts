@@ -492,7 +492,7 @@ export function initExtractMemories(): void {
         if (feature('TEAMMEM')) {
           msg.teamCount = teamCount
         }
-        appendSystemMessage?.(msg)
+        ;(appendSystemMessage as any)?.(msg)
       }
     } catch (error) {
       // Extraction is best-effort — log but don't notify on error
@@ -534,7 +534,7 @@ export function initExtractMemories(): void {
     }
 
     if (!getFeatureValue_CACHED_MAY_BE_STALE('tengu_passport_quail', false)) {
-      if (process.env.USER_TYPE === 'ant' && !hasLoggedGateFailure) {
+      if (((process.env.USER_TYPE as string) === 'ant') && !hasLoggedGateFailure) {
         hasLoggedGateFailure = true
         logEvent('tengu_extract_memories_gate_disabled', {})
       }

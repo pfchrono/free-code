@@ -47,16 +47,16 @@ export const WebBrowserTool = buildTool({
   async prompt() {
     return 'Use this tool to open a URL in the embedded browser when the user needs an in-app page view.'
   },
-  renderToolUseMessage(input) {
+  renderToolUseMessage(input: any) {
     const url = typeof input.url === 'string' ? input.url : 'URL'
     return `Opening browser: ${url}`
   },
-  renderToolResultMessage(output) {
+  renderToolResultMessage(output: any) {
     return output.ok
       ? `Browser opened ${output.url}`
       : `Browser failed to open ${output.url}`
   },
-  async call({ url }) {
+  async call({ url }: any, _context: any, _canUseTool: any, _parentMessage: any) {
     if (!hasWebView()) {
       setWebBrowserState({
         status: 'error',
@@ -92,4 +92,4 @@ export const WebBrowserTool = buildTool({
       title: view.title ?? 'free-code browser',
     }
   },
-})
+} as any)

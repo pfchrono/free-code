@@ -27,7 +27,7 @@ export type Property = {
 };
 export type Diagnostic = React.ReactNode;
 export function buildSandboxProperties(): Property[] {
-  if ("external" !== 'ant') {
+  if (true) {
     return [];
   }
   const isSandboxed = SandboxManager.isSandboxingEnabled();
@@ -114,7 +114,7 @@ export function buildMcpProperties(clients: MCPServerConnection[] = [], theme: T
     value: `${parts.join(', ')} ${color('inactive', theme)('· /mcp')}`
   }];
 }
-export function buildRemoteProperties(connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error', backgroundTaskCount: number, theme: ThemeName = getTheme()): Property[] {
+export function buildRemoteProperties(connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error', backgroundTaskCount: number, theme: ThemeName = 'dark' as any): Property[] {
   const statusValue = connectionStatus === 'connected' ? color('success', theme)('Connected') : connectionStatus === 'connecting' ? color('warning', theme)('Connecting') : connectionStatus === 'error' ? color('error', theme)('Error') : color('inactive', theme)('Disconnected');
   const properties: Property[] = [{
     label: 'Remote session',

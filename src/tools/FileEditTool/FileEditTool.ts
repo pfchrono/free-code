@@ -70,6 +70,7 @@ import {
   userFacingName,
 } from './UI.js'
 import {
+  areFileEditsInputsEquivalent,
   findActualString,
   getPatchForEdit,
   preserveQuoteStyle,

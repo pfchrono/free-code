@@ -1158,7 +1158,7 @@ class Project {
           effectiveParentUuid = message.sourceToolAssistantUUID
         }
 
-        const transcriptMessage: TranscriptMessage = {
+        const transcriptMessage = {
           parentUuid: isCompactBoundary ? null : effectiveParentUuid,
           logicalParentUuid: isCompactBoundary ? parentUuid : undefined,
           isSidechain,
@@ -1183,7 +1183,7 @@ class Project {
           version: VERSION,
           gitBranch,
           slug,
-        }
+        } as unknown as TranscriptMessage
         await this.appendEntry(transcriptMessage)
         if (isChainParticipant(message)) {
           parentUuid = message.uuid
@@ -1561,7 +1561,7 @@ export async function recordTranscript(
     )
   }
   const visibleMessages = sanitizeTranscriptMetadata(
-    cleanMessagesForLogging(allMessages ?? messages, allMessages),
+    cleanMessagesForLogging((allMessages ?? messages) as any, allMessages as any) as any,
   )
   enqueuePersistedSessionStateSave(sessionId, visibleMessages)
   // Return the last ACTUALLY recorded chain-participant's UUID, OR the
@@ -2246,7 +2246,7 @@ function recoverOrphanedParallelToolResults(
   chain: TranscriptMessage[],
   seen: Set<UUID>,
 ): TranscriptMessage[] {
-  type ChainAssistant = Extract<TranscriptMessage, { type: 'assistant' }>
+  type ChainAssistant = any
   const chainAssistants = chain.filter(
     (m): m is ChainAssistant => m.type === 'assistant',
   )

@@ -38,7 +38,7 @@ function createContext(): LocalJSXCommandContext {
       customSystemPrompt: undefined,
       appendSystemPrompt: undefined,
     },
-  } as LocalJSXCommandContext
+  } as unknown as LocalJSXCommandContext
 }
 
 describe('buildStatusSnapshot', () => {

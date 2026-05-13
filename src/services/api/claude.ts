@@ -412,7 +412,7 @@ function should1hCacheTTL(querySource?: QuerySource): boolean {
   let userEligible = getPromptCache1hEligible()
   if (userEligible === null) {
     userEligible =
-      process.env.USER_TYPE === 'ant' ||
+      ((process.env.USER_TYPE as string) === 'ant') ||
       (isClaudeAISubscriber() && !currentLimits.isUsingOverage)
     setPromptCache1hEligible(userEligible)
   }
@@ -460,7 +460,7 @@ function configureEffortParams(
     // Send string effort level as is
     outputConfig.effort = effortValue
     betas.push(EFFORT_BETA_HEADER)
-  } else if (process.env.USER_TYPE === 'ant') {
+  } else if (((process.env.USER_TYPE as string) === 'ant')) {
     // Numeric effort override - ant-only (uses anthropic_internal)
     const existingInternal =
       (extraBodyParams.anthropic_internal as Record<string, unknown>) || {}
@@ -972,7 +972,7 @@ export function stripExcessMediaItems(
       if (isMedia(block)) toRemove++
       if (isToolResult(block) && Array.isArray(block.content)) {
         for (const nested of block.content) {
-          if (isMedia(nested)) toRemove++
+          if (isMedia(nested as any)) toRemove++
         }
       }
     }
@@ -995,7 +995,7 @@ export function stripExcessMediaItems(
         )
           return block
         const filtered = block.content.filter(n => {
-          if (toRemove > 0 && isMedia(n)) {
+          if (toRemove > 0 && isMedia(n as any)) {
             toRemove--
             return false
           }
@@ -1202,7 +1202,7 @@ async function* queryModel(
       getCachedMCConfig,
     } = await import('../compact/cachedMicrocompact.js')
     const betas = await import('src/constants/betas.js')
-    cacheEditingBetaHeader = betas.CACHE_EDITING_BETA_HEADER
+    cacheEditingBetaHeader = (betas as any).CACHE_EDITING_BETA_HEADER
     const featureEnabled = isCachedMicrocompactEnabled()
     const modelSupported = isModelSupportedForCacheEditing(options.model)
     cachedMCEnabled = featureEnabled && modelSupported
@@ -1266,9 +1266,9 @@ async function* queryModel(
 
   // Aggressive message pruning: strip old messages and stale tool results
   // to combat token bloat (e.g., 87k+ tokens from 103+ message history)
-  const tokenCountBefore = tokenCountWithEstimation(messages)
-  let prunedMessages = pruneMessagesForTokens(messages)
-  const tokenCountAfter = tokenCountWithEstimation(prunedMessages)
+  const tokenCountBefore = tokenCountWithEstimation(messages as any)
+  let prunedMessages = pruneMessagesForTokens(messages as any) as any
+  const tokenCountAfter = tokenCountWithEstimation(prunedMessages as any)
   const tokensSaved = tokenCountBefore - tokenCountAfter
   if (tokensSaved > 0) {
     logForDebugging(
@@ -1283,7 +1283,7 @@ async function* queryModel(
   })
 
   queryCheckpoint('query_message_normalization_start')
-  let messagesForAPI = normalizeMessagesForAPI(prunedMessages, filteredTools)
+  let messagesForAPI = normalizeMessagesForAPI(prunedMessages as any, filteredTools)
   queryCheckpoint('query_message_normalization_end')
 
   // Model-specific post-processing: strip tool-search-specific fields if the
@@ -2016,7 +2016,7 @@ async function* queryModel(
             // Capture research from message_start if available (internal only).
             // Always overwrite with the latest value.
             if (
-              process.env.USER_TYPE === 'ant' &&
+              ((process.env.USER_TYPE as string) === 'ant') &&
               'research' in (part.message as unknown as Record<string, unknown>)
             ) {
               research = (part.message as unknown as Record<string, unknown>)
@@ -2161,7 +2161,7 @@ async function* queryModel(
                     feature('CONNECTOR_TEXT') &&
                     contentBlock.type === 'connector_text'
                   ) {
-                    contentBlock.signature = delta.signature
+                    ;(contentBlock as any).signature = delta.signature
                     break
                   }
                   if (contentBlock.type !== 'thinking') {
@@ -2195,7 +2195,7 @@ async function* queryModel(
             }
             // Capture research from content_block_delta if available (internal only).
             // Always overwrite with the latest value.
-            if (process.env.USER_TYPE === 'ant' && 'research' in part) {
+            if (((process.env.USER_TYPE as string) === 'ant') && 'research' in part) {
               research = (part as { research: unknown }).research
             }
             break
@@ -2234,7 +2234,7 @@ async function* queryModel(
               type: 'assistant',
               uuid: randomUUID(),
               timestamp: new Date().toISOString(),
-              ...(process.env.USER_TYPE === 'ant' &&
+              ...(((process.env.USER_TYPE as string) === 'ant') &&
                 research !== undefined && { research }),
               ...(advisorModel && { advisorModel }),
             }
@@ -2249,7 +2249,7 @@ async function* queryModel(
             // already-yielded messages since message_delta arrives after
             // content_block_stop.
             if (
-              process.env.USER_TYPE === 'ant' &&
+              ((process.env.USER_TYPE as string) === 'ant') &&
               'research' in (part as unknown as Record<string, unknown>)
             ) {
               research = (part as unknown as Record<string, unknown>).research
@@ -2617,7 +2617,7 @@ async function* queryModel(
         type: 'assistant',
         uuid: randomUUID(),
         timestamp: new Date().toISOString(),
-        ...(process.env.USER_TYPE === 'ant' &&
+        ...(((process.env.USER_TYPE as string) === 'ant') &&
           research !== undefined && {
             research,
           }),
@@ -2720,7 +2720,7 @@ async function* queryModel(
           type: 'assistant',
           uuid: randomUUID(),
           timestamp: new Date().toISOString(),
-          ...(process.env.USER_TYPE === 'ant' &&
+          ...(((process.env.USER_TYPE as string) === 'ant') &&
             research !== undefined && { research }),
           ...(advisorModel && { advisorModel }),
         }

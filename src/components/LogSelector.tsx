@@ -174,7 +174,7 @@ function buildLogDescription(log: LogOption, maxWidth: number, metadata: string,
   if (!preview) return metadata;
   return `${metadata}\n${isChild ? '      ' : '  '}${chalk.dim(preview)}`;
 }
-export function LogSelector(t0) {
+export function LogSelector(t0: any) {
   const $ = _c(247);
   const {
     logs,

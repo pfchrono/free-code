@@ -36,7 +36,7 @@ function cachedHighlight(hl: NonNullable<Awaited<ReturnType<typeof getCliHighlig
   hlCache.set(key, out);
   return out;
 }
-export function HighlightedCodeFallback(t0) {
+export function HighlightedCodeFallback(t0: any) {
   const $ = _c(20);
   const {
     code,
@@ -121,7 +121,7 @@ export function HighlightedCodeFallback(t0) {
   }
   return t8;
 }
-function Highlighted(t0) {
+function Highlighted(t0: any) {
   const $ = _c(10);
   const {
     codeWithSpaces,
@@ -138,13 +138,14 @@ function Highlighted(t0) {
   let t2;
   if ($[1] !== codeWithSpaces || $[2] !== hl || $[3] !== language) {
     bb0: {
-      if (!hl) {
+      const highlighter = hl as any;
+      if (!highlighter) {
         t2 = codeWithSpaces;
         break bb0;
       }
       let highlightLang = "markdown";
       if (language) {
-        if (hl.supportsLanguage(language)) {
+        if (highlighter.supportsLanguage(language)) {
           highlightLang = language;
         } else {
           logForDebugging(`Language not supported while highlighting code, falling back to markdown: ${language}`);
@@ -152,14 +153,14 @@ function Highlighted(t0) {
       }
       ;
       try {
-        t2 = cachedHighlight(hl, codeWithSpaces, highlightLang);
+        t2 = cachedHighlight(highlighter, codeWithSpaces, highlightLang);
       } catch (t3) {
         const e = t3;
         if (e instanceof Error && e.message.includes("Unknown language")) {
           logForDebugging(`Language not supported while highlighting code, falling back to markdown: ${e}`);
           let t4;
           if ($[5] !== codeWithSpaces || $[6] !== hl) {
-            t4 = cachedHighlight(hl, codeWithSpaces, "markdown");
+            t4 = cachedHighlight(highlighter, codeWithSpaces, "markdown");
             $[5] = codeWithSpaces;
             $[6] = hl;
             $[7] = t4;

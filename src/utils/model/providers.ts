@@ -16,10 +16,15 @@ export type APIProvider =
   | 'copilot'
   | 'lmstudio'
   | 'minimax'
+  | 'gemini'
+  | 'mistral'
+  | 'nvidia'
+  | 'nvidia-nim'
+  | 'github'
 
 function isSupportedProvider(
   provider: unknown,
-): provider is 'firstParty' | 'zen' | 'codex' | 'openai' | 'openrouter' | 'copilot' | 'lmstudio' | 'minimax' {
+): provider is APIProvider {
   return (
     provider === 'firstParty' ||
     provider === 'zen' ||
@@ -28,7 +33,12 @@ function isSupportedProvider(
     provider === 'openrouter' ||
     provider === 'copilot' ||
     provider === 'lmstudio' ||
-    provider === 'minimax'
+    provider === 'minimax' ||
+    provider === 'gemini' ||
+    provider === 'mistral' ||
+    provider === 'nvidia' ||
+    provider === 'nvidia-nim' ||
+    provider === 'github'
   )
 }
 
@@ -86,7 +96,7 @@ export function getAPIProvider(): APIProvider {
     process.env.GEMINI_ACCESS_TOKEN?.trim() ||
     process.env.NVIDIA_NIM?.trim()
   ) {
-    return 'openai'
+    return 'gemini'
   }
 
   // Fallback: persisted settings-based provider selection for headless and
@@ -125,7 +135,7 @@ export function isFirstPartyAnthropicBaseUrl(): boolean {
   try {
     const host = new URL(baseUrl).host
     const allowedHosts = ['api.anthropic.com']
-    if (process.env.USER_TYPE === 'ant') {
+    if (((process.env.USER_TYPE as string) === 'ant')) {
       allowedHosts.push('api-staging.anthropic.com')
     }
     return allowedHosts.includes(host)

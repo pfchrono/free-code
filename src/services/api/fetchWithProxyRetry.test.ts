@@ -6,7 +6,7 @@ import {
   isRetryableFetchError,
 } from './fetchWithProxyRetry.js'
 
-type FetchType = typeof globalThis.fetch
+type FetchType = any
 
 const originalFetch = globalThis.fetch
 const originalEnv = {

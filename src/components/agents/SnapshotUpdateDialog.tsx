@@ -15,3 +15,7 @@ export function SnapshotUpdateDialog({ onCancel }: Props) {
 
   return null
 }
+
+export function buildMergePrompt(agentType: string, scope: unknown): string {
+  return `Merge pending memory snapshot updates for ${agentType} (${String(scope)}).`
+}

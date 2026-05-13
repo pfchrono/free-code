@@ -85,7 +85,7 @@ export async function call(
 
           const caps = getCapabilityFlags(capability)
           const cost = capability.cost_per_1k_tokens
-          const costStr = cost ? formatModelPricing(cost) : 'cost unknown'
+          const costStr = cost ? formatModelPricing(cost as any) : 'cost unknown'
           const features = [
             caps.reasoning && 'reasoning',
             caps.vision && 'vision',
@@ -167,7 +167,7 @@ export async function call(
     ]
 
     if (cost) {
-      lines.push('', `Pricing: ${formatModelPricing(cost)}`)
+      lines.push('', `Pricing: ${formatModelPricing(cost as any)}`)
     }
 
     onDone(lines.join('\n'), { display: 'system' })

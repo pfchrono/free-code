@@ -171,7 +171,7 @@ let envOverridesParsed = false
 function getEnvOverrides(): Record<string, unknown> | null {
   if (!envOverridesParsed) {
     envOverridesParsed = true
-    if (process.env.USER_TYPE === 'ant') {
+    if (((process.env.USER_TYPE as string) === 'ant')) {
       const raw = process.env.CLAUDE_INTERNAL_FC_OVERRIDES
       if (raw) {
         try {
@@ -210,7 +210,7 @@ export function hasGrowthBookEnvOverride(feature: string): boolean {
  * until the next saveGlobalConfig() invalidates it.
  */
 function getConfigOverrides(): Record<string, unknown> | undefined {
-  if (process.env.USER_TYPE !== 'ant') return undefined
+  if (((process.env.USER_TYPE as string) !== 'ant')) return undefined
   try {
     return getGlobalConfig().growthBookOverrides
   } catch {
@@ -247,7 +247,7 @@ export function setGrowthBookConfigOverride(
   feature: string,
   value: unknown,
 ): void {
-  if (process.env.USER_TYPE !== 'ant') return
+  if (((process.env.USER_TYPE as string) !== 'ant')) return
   try {
     saveGlobalConfig(c => {
       const current = c.growthBookOverrides ?? {}
@@ -272,7 +272,7 @@ export function setGrowthBookConfigOverride(
 }
 
 export function clearGrowthBookConfigOverrides(): void {
-  if (process.env.USER_TYPE !== 'ant') return
+  if (((process.env.USER_TYPE as string) !== 'ant')) return
   try {
     saveGlobalConfig(c => {
       if (
@@ -458,7 +458,7 @@ function getUserAttributes(): GrowthBookUserAttributes {
   // For ants, always try to include email from OAuth config even if ANTHROPIC_API_KEY is set.
   // This ensures GrowthBook targeting by email works regardless of auth method.
   let email = user.email
-  if (!email && process.env.USER_TYPE === 'ant') {
+  if (!email && ((process.env.USER_TYPE as string) === 'ant')) {
     email = getGlobalConfig().oauthAccount?.emailAddress
   }
 
@@ -507,13 +507,13 @@ const getGrowthBookClient = memoize(
 
     const attributes = getUserAttributes()
     const clientKey = getGrowthBookClientKey()
-    if (process.env.USER_TYPE === 'ant') {
+    if (((process.env.USER_TYPE as string) === 'ant')) {
       logForDebugging(
         `GrowthBook: Creating client with clientKey=${clientKey}, attributes: ${jsonStringify(attributes)}`,
       )
     }
     const baseUrl =
-      process.env.USER_TYPE === 'ant'
+      ((process.env.USER_TYPE as string) === 'ant')
         ? process.env.CLAUDE_CODE_GB_BASE_URL || 'https://api.anthropic.com/'
         : 'https://api.anthropic.com/'
 
@@ -547,7 +547,7 @@ const getGrowthBookClient = memoize(
         ? {}
         : { apiHostRequestHeaders: authHeaders.headers }),
       // Debug logging for Ants
-      ...(process.env.USER_TYPE === 'ant'
+      ...(((process.env.USER_TYPE as string) === 'ant')
         ? {
             log: (msg: string, ctx: Record<string, unknown>) => {
               logForDebugging(`GrowthBook: ${msg} ${jsonStringify(ctx)}`)
@@ -568,7 +568,7 @@ const getGrowthBookClient = memoize(
       .then(async result => {
         // Guard: if this client was replaced by a newer one, skip processing
         if (client !== thisClient) {
-          if (process.env.USER_TYPE === 'ant') {
+          if (((process.env.USER_TYPE as string) === 'ant')) {
             logForDebugging(
               'GrowthBook: Skipping init callback for replaced client',
             )
@@ -576,7 +576,7 @@ const getGrowthBookClient = memoize(
           return
         }
 
-        if (process.env.USER_TYPE === 'ant') {
+        if (((process.env.USER_TYPE as string) === 'ant')) {
           logForDebugging(
             `GrowthBook initialized successfully, source: ${result.source}, success: ${result.success}`,
           )
@@ -602,7 +602,7 @@ const getGrowthBookClient = memoize(
         }
 
         // Log what features were loaded
-        if (process.env.USER_TYPE === 'ant') {
+        if (((process.env.USER_TYPE as string) === 'ant')) {
           const features = thisClient.getFeatures()
           if (features) {
             const featureKeys = Object.keys(features)
@@ -613,7 +613,7 @@ const getGrowthBookClient = memoize(
         }
       })
       .catch(error => {
-        if (process.env.USER_TYPE === 'ant') {
+        if (((process.env.USER_TYPE as string) === 'ant')) {
           logError(toError(error))
         }
       })
@@ -649,7 +649,7 @@ export const initializeGrowthBook = memoize(
       if (hasTrust) {
         const currentAuth = getAuthHeaders()
         if (!currentAuth.error) {
-          if (process.env.USER_TYPE === 'ant') {
+          if (((process.env.USER_TYPE as string) === 'ant')) {
             logForDebugging(
               'GrowthBook: Auth became available after client creation, reinitializing',
             )
@@ -716,7 +716,7 @@ async function getFeatureValueInternal<T>(
     logExposureForFeature(feature)
   }
 
-  if (process.env.USER_TYPE === 'ant') {
+  if (((process.env.USER_TYPE as string) === 'ant')) {
     logForDebugging(
       `GrowthBook: getFeatureValue("${feature}") = ${jsonStringify(result)}`,
     )
@@ -1023,7 +1023,7 @@ export function resetGrowthBook(): void {
 
 // Periodic refresh interval (matches Statsig's 6-hour interval)
 const GROWTHBOOK_REFRESH_INTERVAL_MS =
-  process.env.USER_TYPE !== 'ant'
+  ((process.env.USER_TYPE as string) !== 'ant')
     ? 6 * 60 * 60 * 1000 // 6 hours
     : 20 * 60 * 1000 // 20 min (for ants)
 let refreshInterval: ReturnType<typeof setInterval> | null = null
@@ -1053,7 +1053,7 @@ export async function refreshGrowthBookFeatures(): Promise<void> {
     // (e.g. refreshGrowthBookAfterAuthChange ran), skip processing the
     // stale payload. Mirrors the init-callback guard above.
     if (growthBookClient !== client) {
-      if (process.env.USER_TYPE === 'ant') {
+      if (((process.env.USER_TYPE as string) === 'ant')) {
         logForDebugging(
           'GrowthBook: Skipping refresh processing for replaced client',
         )
@@ -1069,7 +1069,7 @@ export async function refreshGrowthBookFeatures(): Promise<void> {
     // processRemoteEvalPayload (the guard above only covers refreshFeatures).
     if (growthBookClient !== client) return
 
-    if (process.env.USER_TYPE === 'ant') {
+    if (((process.env.USER_TYPE as string) === 'ant')) {
       logForDebugging('GrowthBook: Light refresh completed')
     }
 

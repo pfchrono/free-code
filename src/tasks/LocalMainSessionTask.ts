@@ -210,7 +210,7 @@ export function completeMainSessionTask(
     // Set notified so evictTerminalTask/generateTaskAttachments eviction
     // guards pass; the backgrounded path sets this inside
     // enqueueMainSessionNotification's check-and-set.
-    updateTaskState(taskId, setAppState, task => ({ ...task, notified: true }))
+    updateTaskState(taskId, setAppState, task => ({ ...(task as any), notified: true }))
     emitTaskTerminatedSdk(taskId, success ? 'completed' : 'failed', {
       toolUseId,
       summary: 'Background session',
@@ -231,11 +231,11 @@ function enqueueMainSessionNotification(
   // Atomically check and set notified flag to prevent duplicate notifications.
   let shouldEnqueue = false
   updateTaskState(taskId, setAppState, task => {
-    if (task.notified) {
+    if ((task as any).notified) {
       return task
     }
     shouldEnqueue = true
-    return { ...task, notified: true }
+    return { ...(task as any), notified: true }
   })
 
   if (!shouldEnqueue) {
@@ -389,8 +389,8 @@ export function startBackgroundSession({
           // chat:killAgents path already marked notified + emitted; stopTask path did not.
           let alreadyNotified = false
           updateTaskState(taskId, setAppState, task => {
-            alreadyNotified = task.notified === true
-            return alreadyNotified ? task : { ...task, notified: true }
+            alreadyNotified = (task as any).notified === true
+            return alreadyNotified ? task : { ...(task as any), notified: true }
           })
           if (!alreadyNotified) {
             emitTaskTerminatedSdk(taskId, 'stopped', {
