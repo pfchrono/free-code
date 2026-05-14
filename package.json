@@ -1,6 +1,6 @@
 {
   "name": "free-code-source",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "private": true,
   "description": "Freecode CLI workspace for agentic coding.",
   "type": "module",
@@ -22,8 +22,10 @@
   },
   "scripts": {
     "preinstall": "bun run ./scripts/preinstall.ts",
+    "postinstall": "bun run ./scripts/setup-git-hooks.ts",
     "release:metadata:pre-commit": "bun run ./scripts/update-release-metadata.ts pre-commit",
     "release:metadata:prepare-commit-msg": "bun run ./scripts/update-release-metadata.ts prepare-commit-msg",
+    "release:metadata:post-commit": "bun run ./scripts/update-release-metadata.ts post-commit",
     "build": "bun run ./scripts/build.ts",
     "integrations:generate": "bun run ./scripts/generate-integrations-artifacts.ts",
     "integrations:check": "bun run ./scripts/generate-integrations-artifacts.ts --check",

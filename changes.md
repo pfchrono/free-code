@@ -4,34 +4,56 @@ All notable changes to free-code are documented here.
 
 ## [Unreleased]
 
-### Added
-- **Workflow architecture explorer** -- Added a JSON-driven single-page architecture map for prompt, slash-command, `$skills`, headless, GUI, tool, memory, provider, compaction, and exit flows with an ordered left-to-right route lane.
+## [0.6.7] - 2026-05-14
 
-### Fixed
-- **Typecheck recovery** -- Restored `bun run typecheck` to a clean pass by fixing the underlying type errors across SDK message shapes, tool/result adapters, provider/runtime edges, generated compatibility types, and tests without enabling `noCheck` or equivalent suppression.
-- **Resume memory continuity** -- Preserved compacted `coreMessages` when visible transcript history is refreshed so resumed sessions keep durable task context after tool calls instead of falling back to Swiss-cheesed visible scrollback.
-
-## [0.6.6] - 2026-05-13
-
+<!-- GENERATED_RECENT_COMMITS_START -->
 ### Recent commits
+- 2026-05-14 fix(session): preserve resume core memory
+- 2026-05-13 test(provider): add profile env coverage
+- 2026-05-13 docs(architecture): add workflow explorer
+- 2026-05-13 fix(typecheck): restore clean typecheck
 - 2026-05-13 feat(runtime): expand provider and token handling coverage
-- 2026-05-13 chore(release): bump version to 0.6.5
-
-### Changed
-- **Provider/runtime coverage** -- Expanded tests for GitHub provider config, provider flags/runtime, bootstrap overrides, release notes, MCP registry behavior, domain checks, content search, custom headers, streaming token counting, and thinking token extraction.
-- **Release metadata** -- Bumped package metadata for the 0.6.6 release.
+- 2026-05-12 feat(sessions): improve resume export workflows
+- 2026-05-12 feat(runtime): ship cross-repo enhancement pass
+- 2026-05-12 feat(paste): support SSH image paste bridge setup
+- 2026-05-11 feat(search): add indexed content and structural search
+- 2026-05-10 feat(parity): expand harness and onboarding workflows
+- 2026-05-10 feat(memory): strengthen goal continuity state
+- 2026-05-10 feat(parity): merge upstream provider enhancements
+- 2026-05-09 feat(ux): deepen command and GUI workflows
+- 2026-04-30 chore(deps): add gsd and refresh install behavior
+- 2026-04-30 fix(prompt): support $skill suggestions in overlay
+- 2026-04-24 feat(shell): add RTK command rewrites
+- 2026-04-24 chore(prompts): align simple system prompt copy
+- 2026-04-24 feat(codex): refresh GPT-5 model metadata
+- 2026-04-24 fix(gui): poll CLI events during active turns
+- 2026-04-24 docs: refresh GUI runtime status notes
+<!-- GENERATED_RECENT_COMMITS_END -->
 
 ## [0.6.5] - 2026-05-13
 
 <!-- GENERATED_RECENT_COMMITS_START -->
 ### Recent commits
-- 2026-05-10 feat: improve Free-Code memory continuity with tool memory and session timeline
-- 2026-05-10 feat: port upstream parity, provider routing, SDK, MCP, and hardening updates
-- 2026-05-10 feat: add native goal continuity loop with compact progress state
-- 2026-05-10 feat: add native Tokenjuice tool-result compaction for Free-Code
-- 2026-04-21 docs: update changelog, readme, and agent instructions for Archivist and new local modes
-- 2026-04-21 fix: restore codex provider switching, pruning semantics, and codex stream finalization
-- 2026-04-21 feat: add Archivist-backed code intel, Ralph mode, Deadpool mode, and session continuity updates
+- 2026-05-14 fix(session): preserve resume core memory
+- 2026-05-13 test(provider): add profile env coverage
+- 2026-05-13 docs(architecture): add workflow explorer
+- 2026-05-13 fix(typecheck): restore clean typecheck
+- 2026-05-13 chore(release): bump version to 0.6.6
+- 2026-05-13 feat(runtime): expand provider and token handling coverage
+- 2026-05-13 chore(release): bump version to 0.6.5
+- 2026-05-12 feat(sessions): improve resume export workflows
+- 2026-05-12 feat(runtime): ship cross-repo enhancement pass
+- 2026-05-12 feat(paste): support SSH image paste bridge setup
+- 2026-05-11 feat(search): add indexed content and structural search
+- 2026-05-10 feat(parity): expand harness and onboarding workflows
+- 2026-05-10 feat(memory): strengthen goal continuity state
+- 2026-05-10 feat(parity): merge upstream provider enhancements
+- 2026-05-09 feat(ux): deepen command and GUI workflows
+- 2026-04-30 chore(deps): add gsd and refresh install behavior
+- 2026-04-30 fix(prompt): support $skill suggestions in overlay
+- 2026-04-24 feat(shell): add RTK command rewrites
+- 2026-04-24 chore(prompts): align simple system prompt copy
+- 2026-04-24 feat(codex): refresh GPT-5 model metadata
 <!-- GENERATED_RECENT_COMMITS_END -->
 
 ### Added
