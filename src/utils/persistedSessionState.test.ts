@@ -95,6 +95,15 @@ describe('mergeVisiblePersistedSessionState', () => {
       {
         version: 1,
         coreMessages,
+        checkpointMetadata: {
+          persistedAt: '2026-05-14T00:00:00.000Z',
+          policy: 'rolling_summary',
+        },
+        resumeMetadata: {
+          source: 'core_persisted_memory',
+          persistedAt: '2026-05-14T00:00:00.000Z',
+          detail: 'Loaded compacted core memory',
+        },
         compactionHistory: [
           {
             trigger: 'manual',
@@ -108,11 +117,58 @@ describe('mergeVisiblePersistedSessionState', () => {
 
     expect(merged.visibleMessages).toEqual(visibleMessages)
     expect(merged.coreMessages).toEqual(coreMessages)
+    expect(merged.checkpointMetadata?.policy).toBe('rolling_summary')
+    expect(merged.resumeMetadata?.source).toBe('core_persisted_memory')
     expect(merged.compactionHistory).toHaveLength(1)
   })
 })
 
 describe('resolveResumeMessages', () => {
+  it('uses persisted core memory before newer visible transcript history', () => {
+    const transcriptMessages = [
+      { type: 'user', uuid: 'transcript-1', message: { content: 'new visible tail' } },
+    ] as never
+    const coreMessages = [
+      { type: 'system', uuid: 'core-1', message: { content: 'compacted task summary' } },
+    ] as never
+
+    const resolved = resolveResumeMessages(transcriptMessages, {
+      version: 1,
+      coreMessages,
+      visibleMessages: transcriptMessages,
+    })
+
+    expect(resolved?.resumeSource).toBe('core_persisted_memory')
+    expect(resolved?.messages).toEqual(coreMessages)
+  })
+
+  it('does not resurrect pre-compact transcript history when core memory exists', () => {
+    const preCompactTranscript = [
+      { type: 'user', uuid: 'old-1', message: { content: 'obsolete pre-compact context' } },
+      { type: 'assistant', uuid: 'old-2', message: { content: 'obsolete answer' } },
+    ] as never
+    const compactedCore = [
+      { type: 'system', uuid: 'compact-1', message: { content: 'retained compact summary' } },
+    ] as never
+
+    const resolved = resolveResumeMessages(preCompactTranscript, {
+      version: 1,
+      coreMessages: compactedCore,
+      visibleMessages: preCompactTranscript,
+      compactionHistory: [
+        {
+          trigger: 'auto',
+          policy: 'rolling_summary',
+          occurredAt: '2026-05-14T00:00:00.000Z',
+          retainedSummary: 'retained compact summary',
+        },
+      ],
+    })
+
+    expect(resolved?.resumeSource).toBe('core_persisted_memory')
+    expect(resolved?.messages).toEqual(compactedCore)
+  })
+
   it('falls back to visible history when persisted core memory is missing', () => {
     const transcriptMessages = [
       { type: 'user', uuid: 'u1', message: { content: 'hello' } },

@@ -662,7 +662,7 @@ The `bun run build:dev:full` build enables all 54 working feature flags. Highlig
 | `BASH_CLASSIFIER` | Classifier-assisted bash permission decisions |
 | `PROMPT_CACHE_BREAK_DETECTION` | Cache-break detection in compaction/query flow |
 
-See [FEATURES.md](FEATURES.md) for the complete audit of all 88 flags, including 34 broken flags with reconstruction notes.
+See [FEATURES.md](FEATURES.md) for the complete audit of all 88 flags, including 30 broken flags with reconstruction notes.
 
 ---
 
@@ -728,7 +728,7 @@ If this repo gets taken down, the code lives on.
 
 ## Contributing
 
-Contributions are welcome. If you're working on restoring one of the 34 broken feature flags, check the reconstruction notes in [FEATURES.md](FEATURES.md) first -- many are close to compiling and just need a small wrapper or missing asset.
+Contributions are welcome. If you're working on restoring one of the 30 broken feature flags, check the reconstruction notes in [FEATURES.md](FEATURES.md) first -- many are close to compiling and just need a small wrapper or missing asset.
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feat/my-feature`)

@@ -1,29 +1,36 @@
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from 'fs'
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const rootDir = join(__dirname, '..')
-const hooksDir = join(rootDir, '.git', 'hooks')
 
-const hooks: Record<string, string> = {
+export function resolveHooksDir(cwd = rootDir) {
+  const result = Bun.spawnSync(['git', 'rev-parse', '--path-format=absolute', '--git-path', 'hooks'], {
+    cwd,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+
+  if (result.exitCode !== 0) {
+    throw new Error(new TextDecoder().decode(result.stderr).trim() || 'Failed to resolve git hooks directory')
+  }
+
+  return new TextDecoder().decode(result.stdout).trim()
+}
+
+export const hooks: Record<string, string> = {
   'pre-commit': `#!/bin/sh
 set -eu
-
-bun run release:metadata:pre-commit
 
 if command -v code-review-graph >/dev/null 2>&1; then
   code-review-graph detect-changes --brief || true
 fi
 `,
-  'prepare-commit-msg': `#!/bin/sh
+  'commit-msg': `#!/bin/sh
 set -eu
 
-if [ -n "\${2:-}" ] && [ "\$2" = "merge" ]; then
-  exit 0
-fi
-
-bun run release:metadata:prepare-commit-msg "\$1"
+bun run release:metadata:commit-msg "\$1"
 `,
   'post-commit': `#!/bin/sh
 set -eu
@@ -32,12 +39,22 @@ bun run release:metadata:post-commit
 `,
 }
 
-if (!existsSync(hooksDir)) {
-  mkdirSync(hooksDir, { recursive: true })
+export function installHooks(cwd = rootDir) {
+  const hooksDir = resolveHooksDir(cwd)
+
+  if (!existsSync(hooksDir)) {
+    mkdirSync(hooksDir, { recursive: true })
+  }
+
+  rmSync(join(hooksDir, 'prepare-commit-msg'), { force: true })
+
+  for (const [name, content] of Object.entries(hooks)) {
+    const hookPath = join(hooksDir, name)
+    writeFileSync(hookPath, content)
+    chmodSync(hookPath, 0o755)
+  }
 }
 
-for (const [name, content] of Object.entries(hooks)) {
-  const hookPath = join(hooksDir, name)
-  writeFileSync(hookPath, content)
-  chmodSync(hookPath, 0o755)
+if (import.meta.main) {
+  installHooks()
 }

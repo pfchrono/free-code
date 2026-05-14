@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   getUsageDescriptor,
+  isUsageCommandEnabled,
   resolveActiveUsageId,
 } from './index.js'
 import type {
@@ -74,6 +75,54 @@ describe('getUsageDescriptor', () => {
     expect(descriptor.activeLabel).toBe('OpenRouter')
     expect(descriptor.resolvedId).toBe('openrouter')
     expect(descriptor.resolvedLabel).toBe('OpenRouter')
+  })
+
+  test('enables /usage for codex route compatibility id', () => {
+    expect(
+      isUsageCommandEnabled({} as NodeJS.ProcessEnv, {
+        providerCategory: 'codex',
+      }),
+    ).toBe(true)
+  })
+
+  test('enables /usage for first-party and disables it for unsupported routes', () => {
+    expect(
+      isUsageCommandEnabled({} as NodeJS.ProcessEnv, {
+        providerCategory: 'firstParty',
+      }),
+    ).toBe(true)
+    expect(
+      isUsageCommandEnabled(
+        {
+          CLAUDE_CODE_USE_OPENAI: '1',
+          OPENAI_BASE_URL: 'https://openrouter.ai/api/v1',
+        } as NodeJS.ProcessEnv,
+        {
+          providerCategory: 'openrouter',
+        },
+      ),
+    ).toBe(false)
+  })
+
+  test('keeps unsupported OpenAI-compatible routes disabled', () => {
+    expect(
+      resolveActiveUsageId(
+        {
+          CLAUDE_CODE_USE_OPENAI: '1',
+          OPENAI_BASE_URL: 'https://unsupported.example.com/v1',
+        } as NodeJS.ProcessEnv,
+        { providerCategory: 'openai' },
+      ),
+    ).toBe('custom')
+    expect(
+      isUsageCommandEnabled(
+        {
+          CLAUDE_CODE_USE_OPENAI: '1',
+          OPENAI_BASE_URL: 'https://unsupported.example.com/v1',
+        } as NodeJS.ProcessEnv,
+        { providerCategory: 'openai' },
+      ),
+    ).toBe(false)
   })
 
   test('follows gateway usage delegation to the delegated vendor', () => {

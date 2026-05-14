@@ -6,8 +6,8 @@ This repository currently references 88 `feature('FLAG')` compile-time flags.
 I re-checked them by bundling the CLI once per flag on top of the current
 external-build defines and externals. Result:
 
-- 54 flags bundle cleanly in this snapshot
-- 34 flags still fail to bundle
+- 58 flags bundle cleanly in this snapshot
+- 30 flags still fail to bundle
 
 Important: "bundle cleanly" does not always mean "runtime-safe". Some flags
 still depend on optional native modules, claude.ai OAuth, GrowthBook gates, or
@@ -198,37 +198,25 @@ These are the failed flags where the current blocker looks small enough that a
 focused reconstruction pass could probably restore them without rebuilding an
 entire subsystem.
 
-- `AUTO_THEME`
-  Fails on missing `src/utils/systemThemeWatcher.js`. `systemTheme.ts` and the
-  theme provider already contain the cache/parsing logic, so the missing piece
-  looks like the OSC 11 watcher only.
 - `BG_SESSIONS`
   Fails on missing `src/cli/bg.js`. The CLI fast-path dispatch in
   `src/entrypoints/cli.tsx` is already wired.
-- `BUDDY`
-  Fails on missing `src/commands/buddy/index.js`. The buddy UI components and
-  prompt-input hooks already exist.
 - `BUILDING_CLAUDE_APPS`
   Fails on missing `src/claude-api/csharp/claude-api.md`. This looks like an
   asset/document gap, not a missing runtime subsystem.
 - `COMMIT_ATTRIBUTION`
   Fails on missing `src/utils/attributionHooks.js`. Setup and cache-clear code
   already call into that hook module.
-- `FORK_SUBAGENT`
-  Fails on missing `src/commands/fork/index.js`. Command slot and message
-  rendering support are already present.
 - `HISTORY_SNIP`
-  Fails on missing `src/commands/force-snip.js`. The surrounding SnipTool and
-  query/message comments are already there.
+  `/force-snip` is restored, but the flag still fails on missing
+  `src/tools/SnipTool/SnipTool.js`. The query snip pass and prompt stub are
+  already wired.
 - `KAIROS_GITHUB_WEBHOOKS`
   Fails on missing `src/tools/SubscribePRTool/SubscribePRTool.js`. The command
   slot and some message handling already exist.
 - `KAIROS_PUSH_NOTIFICATION`
   Fails on missing `src/tools/PushNotificationTool/PushNotificationTool.js`.
   The tool slot already exists in `src/tools.ts`.
-- `MCP_SKILLS`
-  Fails on missing `src/skills/mcpSkills.js`. `mcpSkillBuilders.ts` already
-  exists specifically to support that missing registry layer.
 - `MEMORY_SHAPE_TELEMETRY`
   Fails on missing `src/memdir/memoryShapeTelemetry.js`. The hook call sites
   are already in place in `sessionFileAccessHooks.ts`.

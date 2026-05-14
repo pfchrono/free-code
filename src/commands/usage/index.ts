@@ -12,8 +12,7 @@ import type {
   VendorDescriptor,
 } from '../../integrations/descriptors.js'
 import { isCodexSubscriber } from '../../utils/auth.js'
-import type { APIProvider } from '../../utils/model/providers.js'
-import { shouldAllowAnthropicHostedServices } from '../../utils/model/providers.js'
+import { getAPIProvider, type APIProvider } from '../../utils/model/providers.js'
 
 type UsageDescriptorTarget =
   | { kind: 'vendor'; descriptor: VendorDescriptor }
@@ -171,10 +170,25 @@ export function getUsageDescriptor(
   }
 }
 
+export function isUsageCommandEnabled(
+  processEnv: NodeJS.ProcessEnv = process.env,
+  options?: {
+    activeProfileProvider?: string
+    providerCategory?: APIProvider | string
+  },
+): boolean {
+  const activeId = resolveActiveUsageId(processEnv, {
+    activeProfileProvider: options?.activeProfileProvider,
+    providerCategory: options?.providerCategory ?? getAPIProvider(),
+  })
+
+  return activeId === 'codex' || getUsageDescriptor(activeId).supported
+}
+
 export default {
   type: 'local-jsx',
   name: 'usage',
   description: 'Show plan usage limits',
-  isEnabled: () => shouldAllowAnthropicHostedServices() || isCodexSubscriber(),
+  isEnabled: () => isUsageCommandEnabled() || isCodexSubscriber(),
   load: () => import('./usage.js'),
 } satisfies Command

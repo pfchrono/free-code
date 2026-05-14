@@ -37,17 +37,17 @@ describe('getExplicitVersion', () => {
 })
 
 describe('buildReleasePlan', () => {
-  test('bumps patch for fixes', () => {
+  test('keeps current version for fixes', () => {
     expect(buildReleasePlan('0.6.6', 'fix(session): preserve resume core memory')).toEqual({
-      version: '0.6.7',
+      version: '0.6.6',
       releaseType: 'patch',
       createTag: false,
     })
   })
 
-  test('bumps minor for features', () => {
+  test('keeps current version for features', () => {
     expect(buildReleasePlan('0.6.6', 'feat(search): add indexed content search')).toEqual({
-      version: '0.7.0',
+      version: '0.6.6',
       releaseType: 'minor',
       createTag: false,
     })
@@ -78,6 +78,19 @@ describe('buildRecentCommitsBlock', () => {
         { date: '2026-05-13', subject: 'chore(release): bump version to 0.6.6' },
         { date: '2026-05-13', subject: 'feat(search): add indexed content search' },
       ])
+    ).toBe(`<!-- GENERATED_RECENT_COMMITS_START -->
+### Recent commits
+- 2026-05-14 fix(session): preserve resume core memory
+- 2026-05-13 feat(search): add indexed content search
+<!-- GENERATED_RECENT_COMMITS_END -->`)
+  })
+
+  test('prepends pending commit subject', () => {
+    expect(
+      buildRecentCommitsBlock(
+        [{ date: '2026-05-13', subject: 'feat(search): add indexed content search' }],
+        { date: '2026-05-14', subject: 'fix(session): preserve resume core memory' }
+      )
     ).toBe(`<!-- GENERATED_RECENT_COMMITS_START -->
 ### Recent commits
 - 2026-05-14 fix(session): preserve resume core memory

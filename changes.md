@@ -4,6 +4,40 @@ All notable changes to free-code are documented here.
 
 ## [Unreleased]
 
+- Restored the feature-gated `/force-snip` command wrapper so `HISTORY_SNIP`
+  no longer fails on the missing command module, while documenting the remaining
+  `SnipTool` blocker in `FEATURES.md`.
+- Hardened release metadata hooks so aborted commits do not leave staged
+  version/changelog edits behind.
+- Added regression coverage for compacted resume memory, unsupported usage
+  routes, and release hook installation.
+
+## [0.7.2] - 2026-05-14
+
+<!-- GENERATED_RECENT_COMMITS_START -->
+### Recent commits
+- 2026-05-14 fix(usage): clarify codex limit labels
+- 2026-05-14 feat(release): automate release metadata hooks
+- 2026-05-14 fix(session): preserve resume core memory
+- 2026-05-13 test(provider): add profile env coverage
+- 2026-05-13 docs(architecture): add workflow explorer
+- 2026-05-13 fix(typecheck): restore clean typecheck
+- 2026-05-13 feat(runtime): expand provider and token handling coverage
+- 2026-05-12 feat(sessions): improve resume export workflows
+- 2026-05-12 feat(runtime): ship cross-repo enhancement pass
+- 2026-05-12 feat(paste): support SSH image paste bridge setup
+- 2026-05-11 feat(search): add indexed content and structural search
+- 2026-05-10 feat(parity): expand harness and onboarding workflows
+- 2026-05-10 feat(memory): strengthen goal continuity state
+- 2026-05-10 feat(parity): merge upstream provider enhancements
+- 2026-05-09 feat(ux): deepen command and GUI workflows
+- 2026-04-30 chore(deps): add gsd and refresh install behavior
+- 2026-04-30 fix(prompt): support $skill suggestions in overlay
+- 2026-04-24 feat(shell): add RTK command rewrites
+- 2026-04-24 chore(prompts): align simple system prompt copy
+- 2026-04-24 feat(codex): refresh GPT-5 model metadata
+<!-- GENERATED_RECENT_COMMITS_END -->
+
 ## [0.7.1] - 2026-05-14
 
 <!-- GENERATED_RECENT_COMMITS_START -->

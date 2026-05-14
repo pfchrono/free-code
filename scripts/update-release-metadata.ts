@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
-import { dirname, join } from 'path'
+import { basename, dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import semver from 'semver'
 
@@ -27,10 +27,8 @@ const generatedBlockEnd = '<!-- GENERATED_RECENT_COMMITS_END -->'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const rootDir = join(__dirname, '..')
-const gitDir = join(rootDir, '.git')
 const packageJsonPath = join(rootDir, 'package.json')
 const changesPath = join(rootDir, 'changes.md')
-const releasePlanPath = join(gitDir, '.release-plan.json')
 
 function runGit(args: string[]): string {
   const proc = Bun.spawnSync({
@@ -46,6 +44,27 @@ function runGit(args: string[]): string {
   }
 
   return new TextDecoder().decode(proc.stdout).trim()
+}
+
+function getGitDir() {
+  return runGit(['rev-parse', '--absolute-git-dir'])
+}
+
+function resolveCommitMessagePath(path: string) {
+  if (existsSync(path)) return path
+
+  const relativeToRoot = join(rootDir, path)
+  if (existsSync(relativeToRoot)) return relativeToRoot
+
+  return join(getGitDir(), basename(path))
+}
+
+function getReleasePlanPath() {
+  return join(getGitDir(), '.release-plan.json')
+}
+
+function isMergeMessagePath(path: string) {
+  return basename(path) === 'MERGE_MSG'
 }
 
 function readJson<T>(path: string): T {
@@ -122,11 +141,10 @@ function buildReleasePlan(currentVersion: string, commitMessage: string): Releas
     }
   }
 
-  const releaseType = detectReleaseType(commitMessage)
   return {
-    version: bumpVersion(currentVersion, releaseType),
-    releaseType,
-    createTag: releaseType === 'major',
+    version: currentVersion,
+    releaseType: detectReleaseType(commitMessage),
+    createTag: false,
   }
 }
 
@@ -155,11 +173,16 @@ function getRecentCommits(limit: number): CommitEntry[] {
     .slice(0, limit)
 }
 
-function buildRecentCommitsBlock(commits = getRecentCommits(20)) {
-  const lines = commits
+function buildRecentCommitsBlock(commits = getRecentCommits(20), pendingCommit?: CommitEntry) {
+  const nextCommits = pendingCommit && !isReleaseBumpCommit(pendingCommit.subject)
+    ? [pendingCommit, ...commits.filter(entry => entry.subject !== pendingCommit.subject)]
+    : commits
+
+  const lines = nextCommits
     .filter(entry => !isReleaseBumpCommit(entry.subject))
     .map(entry => `- ${entry.date} ${entry.subject}`)
     .join('\n')
+
   return [
     generatedBlockStart,
     '### Recent commits',
@@ -218,10 +241,11 @@ function updateChangesContent(content: string, version: string, today: string, g
   return renderChangesContent(preface, [releaseSection, ...nextSections])
 }
 
-function updateChanges(version: string) {
+function updateChanges(version: string, pendingSubject?: string) {
   const content = readFileSync(changesPath, 'utf-8')
   const today = new Date().toISOString().slice(0, 10)
-  const generatedBlock = buildRecentCommitsBlock()
+  const pendingCommit = pendingSubject ? { date: today, subject: pendingSubject } : undefined
+  const generatedBlock = buildRecentCommitsBlock(getRecentCommits(20), pendingCommit)
   const next = updateChangesContent(content, version, today, generatedBlock)
   writeFileSync(changesPath, next)
 }
@@ -236,18 +260,22 @@ function stageReleaseFiles() {
   runGit(['add', 'package.json', 'changes.md'])
 }
 
+function restoreReleaseFiles() {
+  runGit(['restore', '--source=HEAD', '--staged', '--worktree', '--', 'package.json', 'changes.md'])
+}
+
 function getCurrentVersion() {
   const pkg = readJson<{ version: string }>(packageJsonPath)
   return pkg.version === '1.0.0' ? initialVersion : pkg.version
 }
 
 function saveReleasePlan(plan: ReleasePlan) {
-  writeJson(releasePlanPath, plan)
+  writeJson(getReleasePlanPath(), plan)
 }
 
 function clearReleasePlan() {
-  if (existsSync(releasePlanPath)) {
-    unlinkSync(releasePlanPath)
+  if (existsSync(getReleasePlanPath())) {
+    unlinkSync(getReleasePlanPath())
   }
 }
 
@@ -267,36 +295,49 @@ if (import.meta.main) {
   const [mode, arg] = process.argv.slice(2)
 
   if (mode === 'pre-commit') {
-    const version = getCurrentVersion()
-    setPackageVersion(version)
-    updateChanges(version)
-    stageReleaseFiles()
+    if (existsSync(getReleasePlanPath())) {
+      clearReleasePlan()
+      restoreReleaseFiles()
+    }
     process.exit(0)
   }
 
-  if (mode === 'prepare-commit-msg') {
+  if (mode === 'commit-msg') {
     if (!arg) throw new Error('Missing commit message file path')
-    const message = readFileSync(arg, 'utf-8')
+    const commitMessagePath = resolveCommitMessagePath(arg)
+    if (isMergeMessagePath(commitMessagePath)) {
+      process.exit(0)
+    }
+
+    const message = readFileSync(commitMessagePath, 'utf-8')
+    const subject = message.split(/\r?\n/, 1)[0]?.trim() ?? ''
     const plan = buildReleasePlan(getCurrentVersion(), message)
-    setPackageVersion(plan.version)
-    updateChanges(plan.version)
-    stageReleaseFiles()
     saveReleasePlan(plan)
+    try {
+      setPackageVersion(plan.version)
+      updateChanges(plan.version, subject)
+      stageReleaseFiles()
+    } catch (error) {
+      restoreReleaseFiles()
+      clearReleasePlan()
+      throw error
+    }
     process.exit(0)
   }
 
   if (mode === 'post-commit') {
-    if (!existsSync(releasePlanPath)) {
+    if (!existsSync(getReleasePlanPath())) {
       process.exit(0)
     }
 
-    const plan = readJson<ReleasePlan>(releasePlanPath)
+    const plan = readJson<ReleasePlan>(getReleasePlanPath())
     createTagIfNeeded(plan)
     clearReleasePlan()
+    restoreReleaseFiles()
     process.exit(0)
   }
 
   throw new Error(
-    'Usage: bun run ./scripts/update-release-metadata.ts <pre-commit|prepare-commit-msg|post-commit> [commit-msg-file]',
+    'Usage: bun run ./scripts/update-release-metadata.ts <pre-commit|commit-msg|post-commit> [commit-msg-file]',
   )
 }
