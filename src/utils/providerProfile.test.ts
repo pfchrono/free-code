@@ -14,13 +14,13 @@ function buildPersistedProfile(
   profile: ProfileFile['profile'],
   env: ProfileFile['env'],
 ): ProfileFile {
-  return { version: 1, profile, env }
+  return { profile, env, createdAt: '2026-05-14T00:00:00.000Z' }
 }
 
 describe('provider profile env resolution', () => {
   test('buildOpenAIProfileEnv ignores shell Codex defaults when building OpenAI profile', () => {
     const env = buildOpenAIProfileEnv({
-      goal: 'fast',
+      goal: 'coding',
       apiKey: 'openai-key',
       processEnv: {
         OPENAI_BASE_URL: 'https://chatgpt.com/backend-api/codex',
@@ -38,7 +38,7 @@ describe('provider profile env resolution', () => {
   test('buildLaunchEnv ignores persisted Codex defaults when launching OpenAI profile', async () => {
     const env = await buildLaunchEnv({
       profile: 'openai',
-      goal: 'fast',
+      goal: 'coding',
       persisted: buildPersistedProfile('openai', {
         OPENAI_BASE_URL: 'https://chatgpt.com/backend-api/codex',
         OPENAI_MODEL: 'codexplan',

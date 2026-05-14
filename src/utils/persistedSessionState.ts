@@ -423,6 +423,22 @@ export async function savePersistedSessionState(
   })
 }
 
+export function mergeVisiblePersistedSessionState(
+  existing: PersistedSessionState | null | undefined,
+  visibleMessages: Message[],
+): PersistedSessionState {
+  return {
+    version: 1,
+    visibleMessages,
+    coreMessages: existing?.coreMessages,
+    checkpointMetadata: existing?.checkpointMetadata,
+    resumeMetadata: existing?.resumeMetadata,
+    compactionHistory: existing?.compactionHistory,
+    continuityMetadata: existing?.continuityMetadata,
+    memoryLineage: existing?.memoryLineage,
+  }
+}
+
 export function mergePersistedCompactionHistory(
   existing: PersistedCompactionEvent[] | undefined,
   event: PersistedCompactionEvent,

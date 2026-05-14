@@ -109,6 +109,7 @@ Recent updates expanded provider bootstrap, local launch workflow, provider heal
   - `/sessions timeline` for goal/tool/assistant/commit event history
   - `/sessions tree` for compact/handoff/resume lineage
   - goal completion reseeding into persistent project memory
+  - compacted core resume memory survives visible transcript refreshes
 - Improved `/goal`:
   - setting a new objective starts work immediately
   - active goals are not accidentally overwritten

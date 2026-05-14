@@ -9,6 +9,7 @@ All notable changes to free-code are documented here.
 
 ### Fixed
 - **Typecheck recovery** -- Restored `bun run typecheck` to a clean pass by fixing the underlying type errors across SDK message shapes, tool/result adapters, provider/runtime edges, generated compatibility types, and tests without enabling `noCheck` or equivalent suppression.
+- **Resume memory continuity** -- Preserved compacted `coreMessages` when visible transcript history is refreshed so resumed sessions keep durable task context after tool calls instead of falling back to Swiss-cheesed visible scrollback.
 
 ## [0.6.6] - 2026-05-13
 

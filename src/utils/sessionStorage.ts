@@ -91,6 +91,7 @@ import {
 } from './sessionStoragePortable.js'
 import {
   loadPersistedSessionState,
+  mergeVisiblePersistedSessionState,
   savePersistedSessionState,
 } from './persistedSessionState.js'
 import { getSettings_DEPRECATED } from './settings/settings.js'
@@ -225,16 +226,10 @@ function enqueuePersistedSessionStateSave(
       pendingPersistedSessionStateSave = null
       try {
         const existing = await loadPersistedSessionState(next.sessionId)
-        await savePersistedSessionState(next.sessionId, {
-          version: 1,
-          visibleMessages: next.visibleMessages,
-          coreMessages: undefined,
-          checkpointMetadata: existing?.checkpointMetadata,
-          resumeMetadata: existing?.resumeMetadata,
-          compactionHistory: existing?.compactionHistory,
-          continuityMetadata: existing?.continuityMetadata,
-          memoryLineage: existing?.memoryLineage,
-        })
+        await savePersistedSessionState(
+          next.sessionId,
+          mergeVisiblePersistedSessionState(existing, next.visibleMessages),
+        )
       } catch {}
     }
     persistedSessionStateSaveInFlight = false

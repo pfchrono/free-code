@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { getClaudeConfigHomeDir } from './envUtils.js'
 import {
   getPersistedSessionStatePath,
+  mergeVisiblePersistedSessionState,
   parsePersistedSessionState,
 } from './persistedSessionState.js'
 import { resolveResumeMessages } from './conversationRecovery.js'
@@ -78,6 +79,36 @@ describe('parsePersistedSessionState', () => {
       'session-history',
     ])
     expect(parsed?.compactionHistory).toHaveLength(2)
+  })
+})
+
+describe('mergeVisiblePersistedSessionState', () => {
+  it('preserves compacted core messages when visible history is refreshed', () => {
+    const coreMessages = [
+      { type: 'system', uuid: 'core-1', message: { content: 'compact summary' } },
+    ] as never
+    const visibleMessages = [
+      { type: 'user', uuid: 'visible-1', message: { content: 'keep scrolling' } },
+    ] as never
+
+    const merged = mergeVisiblePersistedSessionState(
+      {
+        version: 1,
+        coreMessages,
+        compactionHistory: [
+          {
+            trigger: 'manual',
+            policy: 'rolling_summary',
+            occurredAt: '2026-05-14T00:00:00.000Z',
+          },
+        ],
+      },
+      visibleMessages,
+    )
+
+    expect(merged.visibleMessages).toEqual(visibleMessages)
+    expect(merged.coreMessages).toEqual(coreMessages)
+    expect(merged.compactionHistory).toHaveLength(1)
   })
 })
 
