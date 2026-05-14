@@ -355,7 +355,7 @@ export function buildCodexUsageRows(
       rows.push({
         kind: 'window',
         label: combineNonCodexSingleLimit
-          ? `${capitalizeFirst(limitBucketLabel)} ${durationLabel} limit`
+          ? `${durationLabel} ${limitBucketLabel} limit`
           : `${durationLabel} limit`,
         usedPercent: snapshot.primary.usedPercent,
         resetsAt: snapshot.primary.resetsAt,
@@ -369,7 +369,7 @@ export function buildCodexUsageRows(
       rows.push({
         kind: 'window',
         label: combineNonCodexSingleLimit
-          ? `${capitalizeFirst(limitBucketLabel)} ${durationLabel} limit`
+          ? `${durationLabel} ${limitBucketLabel} limit`
           : `${durationLabel} limit`,
         usedPercent: snapshot.secondary.usedPercent,
         resetsAt: snapshot.secondary.resetsAt,

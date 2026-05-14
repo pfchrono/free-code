@@ -31,7 +31,9 @@ function CodexUsageLimitBar({
   maxWidth,
 }: CodexUsageLimitBarProps): React.ReactNode {
   const normalizedUsedPercent = Math.max(0, Math.min(100, usedPercent))
-  const usedText = `${Math.floor(normalizedUsedPercent)}% used`
+  const usedWholePercent = Math.floor(normalizedUsedPercent)
+  const remainingWholePercent = Math.max(0, 100 - usedWholePercent)
+  const usedText = `${usedWholePercent}% used / ${remainingWholePercent}% remaining`
   const resetText = resetsAt
     ? `Resets ${formatResetText(resetsAt, true, true)}`
     : undefined

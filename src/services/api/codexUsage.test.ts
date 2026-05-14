@@ -139,7 +139,7 @@ describe('buildCodexUsageRows', () => {
       },
       {
         kind: 'window',
-        label: 'Code review Weekly limit',
+        label: 'Weekly code review limit',
         usedPercent: 0,
         resetsAt: '2026-04-09T10:00:00.000Z',
       },
